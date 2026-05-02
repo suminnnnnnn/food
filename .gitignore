@@ -1,0 +1,35 @@
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Flutter/Dart
+.dart_tool/
+build/
+.packages
+.pub/
+.pub-cache/
+*.log
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Project specific
+_workspace/
+.claude/
