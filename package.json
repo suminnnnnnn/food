@@ -1,0 +1,35 @@
+{
+  "name": "suminoff",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "ait-build": "node scripts/ait_build.mjs",
+    "deploy": "npm run ait-build && npx ait deploy --api-key rHYzQ2b1I90HCyh_B5GwLbZlxNplrH0gE-NklgLPFTo"
+  },
+  "dependencies": {
+    "@apps-in-toss/web-framework": "^2.5.1",
+    "@supabase/supabase-js": "^2.105.1",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.14.0",
+    "next": "16.2.4",
+    "postgres": "^3.4.9",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-kakao-maps-sdk": "^1.2.1",
+    "swiper": "^12.1.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

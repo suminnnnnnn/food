@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  /* 컬러 시스템 (OKLCH) */
+  --color-brand: oklch(0.65 0.18 40);
+  --color-brand-light: oklch(0.85 0.10 40);
+  --color-brand-dark: oklch(0.50 0.18 40);
+  --color-surface: oklch(0.99 0.005 40);
+  --color-surface-2: oklch(0.96 0.008 40);
+  --color-border: oklch(0.90 0.010 40);
+  --color-text: oklch(0.20 0.010 40);
+  --color-text-sub: oklch(0.50 0.010 40);
+  --color-trending: oklch(0.60 0.20 25);
+  --color-michelin: oklch(0.55 0.15 250);
+  --color-blueribbon: oklch(0.50 0.18 270);
+
+  /* 스페이싱 (4pt 스케일) */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+}
+
+:root {
+  --background: var(--color-surface);
+  --foreground: var(--color-text);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+}
+
+/* =========================================
+   카카오맵 프리미엄 스킨 필터 (타일 전용)
+   ========================================= */
+
+/* 1. 미니멀 실버 (Minimalist Silver) */
+.theme-silver {
+  background-color: #f8f9fa !important;
+}
+.theme-silver img:not(.no-filter),
+.theme-silver canvas {
+  filter: grayscale(100%) brightness(1.15) contrast(0.85) !important;
+}
+
+/* 2. 미드나잇 네이비 (Midnight Navy) */
+.theme-navy {
+  background-color: #0f172a !important;
+}
+.theme-navy img:not(.no-filter),
+.theme-navy canvas {
+  filter: grayscale(0.6) invert(1) hue-rotate(210deg) brightness(0.85) contrast(1.1) saturate(1.2) !important;
+}
+
+/* 3. 웜 샌드 (Warm Sand / Beige) */
+.theme-sand {
+  background-color: #fdfbf7 !important;
+}
+.theme-sand img:not(.no-filter),
+.theme-sand canvas {
+  filter: sepia(40%) saturate(130%) hue-rotate(-15deg) brightness(1.05) contrast(0.9) !important;
+}
