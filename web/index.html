@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harness Map — 맛집 비디오 지도</title>
+    <meta name="description" content="유튜버의 맛집 리뷰 영상을 지도 위에서 탐색하고, 트렌드 다이얼로 제철 음식과 인기 맛집을 필터링합니다.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=2">
+</head>
+
+<body>
+    <!-- ===== Map Background ===== -->
+    <div id="map-container"></div>
+
+    <!-- ===== Top Gradient Overlay ===== -->
+    <div class="top-gradient"></div>
+
+    <!-- ===== Active Trend Chip (좌측 상단) ===== -->
+    <div id="active-trend-chip" class="hidden">
+        <span id="active-trend-text"></span>
+        <button id="clear-trend-btn" aria-label="필터 해제">✕</button>
+    </div>
+
+    <!-- ===== Trend Dial Button (우측 상단) ===== -->
+    <button id="trend-dial-btn" aria-label="트렌드 필터">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <circle cx="14" cy="6" r="2" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <circle cx="8" cy="12" r="2" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+            <circle cx="16" cy="18" r="2" />
+        </svg>
+    </button>
+
+    <!-- ===== Trend Dial Menu ===== -->
+    <div id="trend-menu" class="hidden">
+        <!-- 동적으로 생성됨 -->
+    </div>
+
+    <!-- ===== Swipe Card Area (하단) ===== -->
+    <div id="swipe-container">
+        <div id="card-track">
+            <!-- 동적으로 생성됨 -->
+        </div>
+        <!-- 카드 인디케이터 -->
+        <div id="card-indicators"></div>
+    </div>
+
+    <!-- ===== Detail Bottom Sheet ===== -->
+    <div id="sheet-overlay" class="hidden"></div>
+    <div id="detail-sheet" class="hidden">
+        <div class="sheet-handle"></div>
+        <div id="sheet-video-area"></div>
+        <div id="sheet-content"></div>
+    </div>
+
+    <!-- ===== Loading Shimmer ===== -->
+    <div id="shimmer-container" class="hidden">
+        <div class="shimmer-card">
+            <div class="shimmer-line w60"></div>
+            <div class="shimmer-line w40"></div>
+            <div class="shimmer-tags">
+                <div class="shimmer-tag"></div>
+                <div class="shimmer-tag"></div>
+                <div class="shimmer-tag"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=2"></script>
+</body>
+
+</html>
