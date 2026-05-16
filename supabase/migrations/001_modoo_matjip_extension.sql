@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS user_submissions (
   user_comment            TEXT,
   status                  TEXT DEFAULT 'pending'
                           CHECK (status IN ('pending','approved','held','rejected')),
-  resolved_restaurant_id  BIGINT REFERENCES restaurants(id),
+  resolved_restaurant_id  UUID REFERENCES restaurants(id),
   created_at              TIMESTAMPTZ DEFAULT now(),
   updated_at              TIMESTAMPTZ DEFAULT now()
 );
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS submission_reviews (
   confidence        NUMERIC(3,2),
   reasons           JSONB DEFAULT '[]'::jsonb,
   raw_response      JSONB,
-  dedupe_target_id  BIGINT REFERENCES restaurants(id),
+  dedupe_target_id  UUID REFERENCES restaurants(id),
   notes_to_user     TEXT,
   created_at        TIMESTAMPTZ DEFAULT now()
 );
@@ -91,7 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_reviews_submission
 -- 4. 식당 임베딩 (중복 판정용)
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS restaurant_embeddings (
-  restaurant_id   BIGINT PRIMARY KEY REFERENCES restaurants(id) ON DELETE CASCADE,
+  restaurant_id   UUID PRIMARY KEY REFERENCES restaurants(id) ON DELETE CASCADE,
   embedding       vector(768) NOT NULL,
   source_text     TEXT,
   updated_at      TIMESTAMPTZ DEFAULT now()
@@ -131,7 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_affiliate_category
 CREATE TABLE IF NOT EXISTS affiliate_events (
   id             BIGSERIAL PRIMARY KEY,
   user_id        UUID REFERENCES users(id),
-  restaurant_id  BIGINT REFERENCES restaurants(id),
+  restaurant_id  UUID REFERENCES restaurants(id),
   product_id     BIGINT REFERENCES affiliate_products(id),
   event_type     TEXT NOT NULL CHECK (event_type IN ('view','click','conversion')),
   session_id     TEXT,
@@ -150,7 +150,7 @@ CREATE INDEX IF NOT EXISTS idx_affiliate_events_user
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS user_favorites (
   user_id        UUID REFERENCES users(id) ON DELETE CASCADE,
-  restaurant_id  BIGINT REFERENCES restaurants(id) ON DELETE CASCADE,
+  restaurant_id  UUID REFERENCES restaurants(id) ON DELETE CASCADE,
   created_at     TIMESTAMPTZ DEFAULT now(),
   PRIMARY KEY (user_id, restaurant_id)
 );
@@ -163,6 +163,7 @@ CREATE INDEX IF NOT EXISTS idx_favorites_user
 -- ============================================================
 
 -- restaurants: 승인된 식당만 공개 조회
+ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT true;
 ALTER TABLE restaurants ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS restaurants_public_read ON restaurants;
