@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { GlobalErrorHandler } from '@/components/GlobalErrorHandler';
+import { Providers } from './providers';
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -42,9 +43,11 @@ export default function RootLayout({
         `}} />
       </head>
       <body className="min-h-full flex flex-col">
-        <GlobalErrorHandler>
-          {children}
-        </GlobalErrorHandler>
+        <Providers>
+          <GlobalErrorHandler>
+            {children}
+          </GlobalErrorHandler>
+        </Providers>
       </body>
     </html>
   );
