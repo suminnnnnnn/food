@@ -4,7 +4,7 @@ const INITIAL_CENTER = { lat: 37.5665, lng: 126.9780 };
 const INITIAL_LEVEL = 5;
 
 import { useEffect, useState, useRef } from 'react';
-import { Map, CustomOverlayMap, MarkerClusterer, Polygon } from 'react-kakao-maps-sdk';
+import { Map, CustomOverlayMap, MarkerClusterer, Polygon, useKakaoLoader } from 'react-kakao-maps-sdk';
 import { supabase } from '@/lib/supabase/client';
 import { Restaurant } from '@/types';
 import { MapBounds } from '@/hooks/useMapBounds';
@@ -30,7 +30,10 @@ interface MapContainerProps {
 
 export default function MapContainer({ restaurants, onBoundsChange }: MapContainerProps) {
   const [map, setMap] = useState<kakao.maps.Map | null>(null);
-  const [isSdkLoaded, setIsSdkLoaded] = useState(false);
+  const [loading, mapError] = useKakaoLoader({
+    appkey: process.env.NEXT_PUBLIC_KAKAO_JS_API_KEY as string,
+    libraries: ['services', 'clusterer', 'drawing'],
+  });
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [selectedCluster, setSelectedCluster] = useState<Restaurant[] | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(INITIAL_LEVEL);
@@ -81,35 +84,6 @@ export default function MapContainer({ restaurants, onBoundsChange }: MapContain
       return () => clearTimeout(fadeTimer);
     }
   }, [activePolygons]);
-
-  // SDK 로드 확인 및 동적 주입
-  useEffect(() => {
-    let script = document.querySelector(`script[src*="dapi.kakao.com"]`) as HTMLScriptElement;
-    
-    const handleLoad = () => {
-      window.kakao.maps.load(() => {
-        setIsSdkLoaded(true);
-      });
-    };
-
-    if (!script) {
-      script = document.createElement('script');
-      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY}&libraries=services,clusterer,drawing&autoload=false`;
-      script.async = true;
-      document.head.appendChild(script);
-      script.addEventListener('load', handleLoad);
-    } else {
-      if (window.kakao && window.kakao.maps && typeof window.kakao.maps.load === 'function') {
-        handleLoad();
-      } else {
-        script.addEventListener('load', handleLoad);
-      }
-    }
-
-    return () => {
-      script.removeEventListener('load', handleLoad);
-    };
-  }, []);
 
   // 지도 범위 변경
   useEffect(() => {
@@ -271,7 +245,8 @@ export default function MapContainer({ restaurants, onBoundsChange }: MapContain
     );
   };
 
-  if (!isSdkLoaded) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center">Loading Maps...</div>;
+  if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center">Loading Maps...</div>;
+  if (mapError) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center text-red-500 font-bold">Failed to load Kakao Maps: {mapError.message}</div>;
 
   return (
     <div className={`w-full h-screen relative overflow-hidden transition-colors duration-700 ${mapTheme || 'bg-gray-100'}`}>
