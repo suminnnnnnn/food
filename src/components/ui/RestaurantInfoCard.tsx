@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Utensils, ExternalLink, X, Play, MessageCircleHeart, Flame, ArrowLeft } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { MichelinIcon, BlueRibbonIcon } from '@/components/icons/CustomIcons';
+import { openExternal } from '@/lib/external-link';
 
 interface RestaurantInfoCardProps {
   restaurant: Restaurant | null;
@@ -161,23 +162,25 @@ export default function RestaurantInfoCard({ restaurant, onClose }: RestaurantIn
 
           {/* 액션 버튼 */}
           <div className="flex gap-3">
-            <a 
-              href={`https://map.kakao.com/link/map/${restaurant.id}`}
-              target="_blank"
-              rel="noreferrer"
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                openExternal(`https://map.kakao.com/link/map/${restaurant.id}`, { reason: 'kakao_map' });
+              }}
               className="flex-1 flex items-center justify-center gap-2 bg-gray-900 text-white py-3.5 px-4 rounded-xl text-[15px] font-bold hover:bg-gray-800 transition-all hover:shadow-lg active:scale-[0.98]"
             >
               카카오맵 상세보기
               <ExternalLink size={16} />
-            </a>
-            <a 
-              href={`https://map.kakao.com/link/to/${restaurant.id}`}
-              target="_blank"
-              rel="noreferrer"
+            </button>
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                openExternal(`https://map.kakao.com/link/to/${restaurant.id}`, { reason: 'kakao_navi' });
+              }}
               className="flex-1 flex items-center justify-center bg-white text-gray-900 border-2 border-gray-200 py-3.5 px-4 rounded-xl text-[15px] font-bold hover:bg-gray-50 transition-all active:scale-[0.98]"
             >
               길찾기
-            </a>
+            </button>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import GlobalErrorHandler from '@/components/GlobalErrorHandler';
+import { GlobalErrorHandler } from '@/components/GlobalErrorHandler';
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -10,8 +10,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Place - 맛집 큐레이션 지도",
-  description: "대한민국 전체 식당 데이터 기반 맛집 탐색 지도",
+  title: '모두의맛집',
+  description: '그 유튜버가 갔던 그 집, 토스에서 한 번에',
 };
 
 export default function RootLayout({
@@ -42,8 +42,9 @@ export default function RootLayout({
         `}} />
       </head>
       <body className="min-h-full flex flex-col">
-        <GlobalErrorHandler />
-        {children}
+        <GlobalErrorHandler>
+          {children}
+        </GlobalErrorHandler>
       </body>
     </html>
   );

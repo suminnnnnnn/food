@@ -1,5 +1,5 @@
 {
-  "name": "suminoff",
+  "name": "modoo-matjip",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "ait-build": "node scripts/ait_build.mjs",
-    "deploy": "npm run ait-build && npx ait deploy --api-key rHYzQ2b1I90HCyh_B5GwLbZlxNplrH0gE-NklgLPFTo"
+    "ait-check": "node scripts/ait-precheck.js",
+    "deploy": "npm run ait-build && npx ait deploy --api-key $AIT_API_KEY"
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "^2.5.1",
