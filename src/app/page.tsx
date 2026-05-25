@@ -2,14 +2,20 @@
 
 import { useRestaurants } from '@/hooks/useRestaurants';
 import { useMapBounds } from '@/hooks/useMapBounds';
-import MapContainer from '@/components/map/MapContainer';
+import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
+
+const MapContainer = dynamic(() => import('@/components/map/MapContainer'), { 
+  ssr: false,
+  loading: () => <div className="w-full h-screen bg-gray-50 flex items-center justify-center font-bold text-gray-500">Loading Maps...</div>
+});
 
 export default function HomePage() {
   const { bounds, updateBounds } = useMapBounds();
   const { restaurants, loading, error } = useRestaurants(bounds);
 
   return (
-    <main className="relative w-full h-screen">
+    <main className="relative w-full h-screen bg-brand-charcoal">
       {/* 에러 상태를 표시할 UI 추가 */}
       {error && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-red-50 text-red-600 font-bold px-4 py-2 rounded-xl shadow-lg border border-red-100">
@@ -17,10 +23,12 @@ export default function HomePage() {
         </div>
       )}
 
-      <MapContainer 
-        restaurants={restaurants} 
-        onBoundsChange={updateBounds} 
-      />
+      <Suspense fallback={<div className="w-full h-screen bg-brand-charcoal flex items-center justify-center font-bold text-white">지도를 매핑하는 중...</div>}>
+        <MapContainer 
+          restaurants={restaurants} 
+          onBoundsChange={updateBounds} 
+        />
+      </Suspense>
     </main>
   );
 }

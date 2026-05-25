@@ -40,13 +40,45 @@ async function fetchLatestVideos(channelId, maxResults = 10) {
     return [];
   }
 
-  return data.items.map(item => ({
+  const rawVideos = data.items.map(item => ({
     videoId: item.id.videoId,
     title: item.snippet.title,
     description: item.snippet.description, // 더보기란 텍스트
     publishedAt: item.snippet.publishedAt,
     thumbnail: item.snippet.thumbnails?.high?.url
   }));
+
+  if (rawVideos.length === 0) return [];
+
+  // 🛡️ [외부 재생 제한 검증] videos.list API를 호출하여 status.embeddable === true 인 영상만 필터링
+  const videoIds = rawVideos.map(v => v.videoId).join(',');
+  const videoDetailsUrl = `https://www.googleapis.com/youtube/v3/videos?key=${YOUTUBE_API_KEY}&id=${videoIds}&part=status`;
+
+  try {
+    const detailRes = await fetch(videoDetailsUrl);
+    if (detailRes.ok) {
+      const detailData = await detailRes.json();
+      if (detailData.items) {
+        // embeddable이 true인 비디오 ID들만 Set으로 정리
+        const embeddableIds = new Set(
+          detailData.items
+            .filter(item => item.status?.embeddable === true)
+            .map(item => item.id)
+        );
+
+        const filteredVideos = rawVideos.filter(v => embeddableIds.has(v.videoId));
+        const skippedCount = rawVideos.length - filteredVideos.length;
+        if (skippedCount > 0) {
+          console.log(`   ⚠️ 외부 임베드가 비활성화된 비디오 ${skippedCount}개가 발견되어 수집 대상에서 선제 제외되었습니다.`);
+        }
+        return filteredVideos;
+      }
+    }
+  } catch (error) {
+    console.warn("   ⚠️ 유튜브 동영상 상태정보(embeddable) 상세조회 중 오류 발생. 필터링 없이 진행합니다.", error);
+  }
+
+  return rawVideos;
 }
 
 /**

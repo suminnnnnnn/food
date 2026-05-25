@@ -16,6 +16,8 @@ export interface Video {
   view_count: number;
   youtuber: Youtuber;
   is_short?: boolean;
+  keywords?: string[];
+  quote?: string;
 }
 
 export interface ContentTag {
@@ -35,4 +37,14 @@ export interface Restaurant {
   primary_video?: Video;
   content_tags: ContentTag[];
   is_trending?: boolean;
+}
+
+export interface AffiliateProduct {
+  id: number | string;
+  title: string;
+  price: number;
+  image_url: string;
+  deeplink_url: string;
+  keywords?: string[];
+  category?: string;
 }

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: 'Pretendard', sans-serif; overflow: hidden; }
+    .tail { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 22px; height: 22px; background-color: white; z-index: -1; box-shadow: 4px 4px 8px rgba(0,0,0,0.1); border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="mb-20 text-center">
+    <h1 class="text-3xl font-extrabold text-gray-900 mb-3">마이크로 유튜버 뱃지 (Zoom-in)</h1>
+    <p class="text-gray-500 text-lg">음식 사진 우측 하단에 살짝 겹쳐진(Overlapped) 유튜버의 프로필을 자세히 보여드립니다.</p>
+  </div>
+
+  <div class="relative flex flex-col items-center transform scale-125 mt-10">
+    
+    <!-- 썸네일 본체 -->
+    <div class="relative w-[260px] h-[150px] bg-white rounded-2xl shadow-[0_15px_50px_rgb(0,0,0,0.15)] border-[5px] border-white z-10 overflow-hidden group">
+      <img src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&h=400&fit=crop" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt="pasta">
+      
+      <!-- 그라데이션 오버레이 & 텍스트 -->
+      <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent"></div>
+      <div class="absolute bottom-3 left-4 text-white">
+        <div class="text-[10px] font-bold text-orange-400 mb-0.5 tracking-wider">양식 · 파스타</div>
+        <div class="text-xl font-black tracking-tight leading-none drop-shadow-md">오스테리아 오르조</div>
+      </div>
+    </div>
+
+    <!-- 마이크로 유튜버 뱃지 (핵심 포인트) -->
+    <div class="absolute -bottom-6 -right-6 w-24 h-24 rounded-full border-[5px] border-white shadow-[0_8px_20px_rgb(0,0,0,0.25)] bg-white z-20 overflow-hidden ring-[3px] ring-black/5">
+      <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=200&h=200&fit=crop" class="w-full h-full object-cover" alt="youtuber">
+    </div>
+    
+    <!-- 유튜버 이름 라벨 (마우스 올렸을 때 뜨는 툴팁 느낌) -->
+    <div class="absolute -bottom-10 -right-10 bg-black/85 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-lg z-30 border border-white/20 tracking-wide">
+      성시경 먹을텐데
+    </div>
+
+    <!-- 지도 마커 꼬리 -->
+    <div class="tail"></div>
+
+    <!-- 설명용 지시선 (Callout) -->
+    <div class="absolute -left-[200px] top-[50px] flex items-center text-gray-600">
+      <div class="text-[15px] font-bold text-right mr-3 leading-tight">식욕을 자극하는<br><span class="text-blue-600 text-lg">메인 음식 썸네일</span></div>
+      <div class="w-20 h-[2px] bg-blue-300"></div>
+      <div class="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+    </div>
+
+    <div class="absolute -right-[230px] bottom-[20px] flex items-center text-gray-600">
+      <div class="w-2.5 h-2.5 rounded-full bg-orange-500"></div>
+      <div class="w-20 h-[2px] bg-orange-300"></div>
+      <div class="text-[15px] font-bold text-left ml-3 leading-tight">신뢰도를 주는<br><span class="text-orange-600 text-lg">마이크로 유튜버 뱃지</span></div>
+    </div>
+
+  </div>
+</body>
+</html>

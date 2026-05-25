@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  /* 컬러 시스템 (OKLCH) */
+  /* 브랜드 오렌지 & 차콜 디자인 시스템 테마 토큰 */
+  --color-brand-orange: #FF6F00;
+  --color-brand-orange-light: #FF9E40;
+  --color-brand-charcoal: #121212;
+  --color-brand-gray: #1E1E1E;
+
   --color-brand: oklch(0.65 0.18 40);
   --color-brand-light: oklch(0.85 0.10 40);
   --color-brand-dark: oklch(0.50 0.18 40);
@@ -26,14 +31,38 @@
 }
 
 :root {
-  --background: var(--color-surface);
-  --foreground: var(--color-text);
+  --background: #121212; /* Sleek Charcoal 기본 테마 */
+  --foreground: #FFFFFF;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+  overflow-x: hidden;
+}
+
+/* =========================================
+   글래스모피즘(Glassmorphism) 공통 유틸리티
+   ========================================= */
+.glass-panel {
+  background: rgba(30, 30, 30, 0.6) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 마커 활성화 시의 네온 오렌지 Glow */
+.marker-active-glow {
+  box-shadow: 0 0 20px rgba(255, 111, 0, 0.7);
+  filter: drop-shadow(0 0 8px rgba(255, 111, 0, 0.5));
 }
 
 /* =========================================
@@ -65,4 +94,54 @@ body {
 .theme-sand img:not(.no-filter),
 .theme-sand canvas {
   filter: sepia(40%) saturate(130%) hue-rotate(-15deg) brightness(1.05) contrast(0.9) !important;
+}
+
+/* =========================================
+   스크롤바 숨김 처리 유틸리티 (Hide Scrollbar)
+   ========================================= */
+/* =========================================
+   스크롤바 숨김 처리 유틸리티 (Hide Scrollbar)
+   ========================================= */
+.hide-scrollbar {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari and Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* =========================================
+   인스타그램 스토리 그라데이션 링 & 오렌지 글로우
+   ========================================= */
+.instagram-story-ring {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%) !important;
+  padding: 2px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-center: center;
+}
+
+.neon-glow-orange {
+  transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.neon-glow-orange:hover {
+  box-shadow: 0 12px 30px rgba(255, 111, 0, 0.15), 0 0 20px rgba(255, 111, 0, 0.25) !important;
+  border-color: rgba(255, 111, 0, 0.4) !important;
+}
+
+/* =========================================
+   호버 시 은은하게 빛나는 화이트 아크릴 섀도우 및 2% 확대 (옵션 C)
+   ========================================= */
+.hover-acrylic-glow {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.hover-acrylic-glow:hover {
+  transform: scale(1.02) !important;
+  box-shadow: 0 8px 30px rgba(255, 255, 255, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.22) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
 }

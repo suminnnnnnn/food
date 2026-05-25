@@ -67,3 +67,8 @@ __pycache__/
 # Project specific
 _workspace/
 .claude/
+.agents/
+
+# Temporary development artifacts
+/*.txt
+/*.png

@@ -58,16 +58,16 @@ function Example() {
 }
 ```
 
-### Txt (텍스트)
-TDS에서는 타이포그래피 토큰을 `Txt` 컴포넌트의 `typography` prop으로 설정합니다.
+### Text (텍스트)
+TDS에서는 타이포그래피 토큰을 `Text` 컴포넌트의 `typography` prop으로 설정합니다.
 ```tsx
-import { Txt } from '@toss/tds-mobile';
+import { Text } from '@toss/tds-mobile';
 
 function Example() {
   return (
     <>
-      <Txt typography="T1" color="grey900">제목</Txt>
-      <Txt typography="T5" color="grey600">본문 내용입니다.</Txt>
+      <Text typography="T1" color="grey900">제목</Text>
+      <Text typography="T5" color="grey600">본문 내용입니다.</Text>
     </>
   );
 }

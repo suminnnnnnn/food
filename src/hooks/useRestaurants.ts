@@ -37,8 +37,14 @@ export function useRestaurants(bounds: MapBounds | null) {
 
     fetchRestaurants();
 
+    const handleRefresh = () => {
+      fetchRestaurants();
+    };
+    window.addEventListener('refresh-restaurants', handleRefresh);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('refresh-restaurants', handleRefresh);
     };
   }, [bounds]);
 

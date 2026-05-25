@@ -59,19 +59,8 @@ export async function openExternal(
   }
 
   if (isInAIT()) {
-    // AIT WebView 환경
-    try {
-      // [TODO] 실제 SDK 함수로 교체. 현재는 안전한 fallback.
-      const sdk = await import('@apps-in-toss/web-framework').catch(() => null);
-      if (sdk && typeof (sdk as any).openBrowser === 'function') {
-        return (sdk as any).openBrowser(url);
-      }
-      // Fallback: location.href (검수 통과 보장은 SDK 함수가 정식 채택될 때)
-      window.location.href = url;
-    } catch (e) {
-      console.error('[openExternal] AIT browser open failed:', e);
-      window.location.href = url;
-    }
+    // AIT WebView 환경 (Toss 인앱 브라우저 호환을 위한 폴백)
+    window.location.href = url;
   } else {
     // 일반 웹 브라우저 환경
     const w = window.open(url, '_blank', 'noopener,noreferrer');
