@@ -10,7 +10,7 @@ import { Restaurant } from '@/types';
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Home, User } from 'lucide-react';
+import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Home, User, ChevronLeft, ChevronRight, ArrowLeft, List } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
@@ -24,6 +24,11 @@ const formatViewCount = (count: number) => {
   if (count >= 10000) return `${(count / 10000).toFixed(1).replace('.0', '')}만`;
   if (count >= 1000) return `${(count / 1000).toFixed(1).replace('.0', '')}천`;
   return count.toString();
+};
+
+const getBestVideo = (videos: any[] | undefined) => {
+  if (!videos || videos.length === 0) return null;
+  return videos.reduce((best, curr) => (best.view_count || 0) > (curr.view_count || 0) ? best : curr, videos[0]);
 };
 import { EffectCoverflow } from 'swiper/modules';
 import 'swiper/css';
@@ -63,6 +68,8 @@ export default function MapContainer({
   const [polygonOpacity, setPolygonOpacity] = useState<number>(0.8);
   // 스마트 탭 시스템 및 제보하기 상태 추가
   const [activeTab, setActiveTab] = useState<any>('home');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [desktopView, setDesktopView] = useState<'list' | 'mypage'>('list');
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
   const isMountedRef = useRef(false);
@@ -273,8 +280,9 @@ export default function MapContainer({
     const isMichelin = restaurant.content_tags?.some(t => t.source === 'michelin');
     const isBlueRibbon = restaurant.content_tags?.some(t => t.source === 'blueribbon');
     const isDdogan = restaurant.content_tags?.some(t => t.source === 'ddoganjib');
-    const hasVideo = restaurant.videos && restaurant.videos.length > 0;
-    const profileImg = restaurant.videos?.[0]?.youtuber?.profile_image;
+    const bestVid = getBestVideo(restaurant.videos);
+    const hasVideo = !!bestVid;
+    const profileImg = bestVid?.youtuber?.profile_image;
 
     const isSelected = selectedRestaurant?.id === restaurant.id;
     const isHovered = effectiveHoveredId === restaurant.id;
@@ -433,179 +441,298 @@ export default function MapContainer({
 
       {/* 데스크탑 좌측 스마트 사이드바 (Practical, Info-First) */}
       <AnimatePresence>
-        {!hideDefaultSidebar && (
+        {!hideDefaultSidebar && !isSidebarCollapsed && (
           <motion.div
             initial={{ x: -400, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -400, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="hidden md:flex absolute top-6 left-6 bottom-6 w-[380px] z-20 flex-col bg-zinc-950/85 backdrop-blur-2xl rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10 overflow-hidden"
+            className="hidden md:flex absolute top-6 left-6 bottom-6 w-[380px] z-20 flex-col bg-zinc-950/85 backdrop-blur-2xl rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10"
           >
             {/* Sidebar Header & Filters */}
-            <div className="pt-7 pb-4 px-7 shrink-0 bg-white/[0.02] border-b border-white/5 backdrop-blur-md z-10">
-              <div className="flex items-center gap-3 mb-5">
-                <img 
-                  src="/favicon_perfect_gradient.png" 
-                  className="w-6 h-6 object-contain rounded-md shadow-sm" 
-                  alt="모두의맛집" 
-                />
-                <h2 className="text-[22px] font-extrabold text-white tracking-tight">
-                  우리 동네 맛집
-                </h2>
-              </div>
-              
-              {/* Filter Chips */}
-              <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
-                {['전체', '한식', '일식', '중식', '양식', '아시안'].map((category) => {
-                  const isActive = activeCategory === category;
-                  return (
-                    <button
-                      key={category}
-                      onClick={() => {
-                        setActiveCategory(category);
-                        setSelectedCluster(null);
-                      }}
-                      className={`whitespace-nowrap px-4 py-2 text-[13px] font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${
-                        isActive
-                          ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-lg shadow-red-500/30 ring-1 ring-white/10'
-                          : 'bg-white/5 text-zinc-300 border border-white/5 hover:text-white hover:bg-white/10 hover:border-white/10 shadow-sm'
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="pt-7 pb-4 px-7 shrink-0 bg-white/[0.02] border-b border-white/5 backdrop-blur-md z-10 rounded-t-[28px]">
+              {desktopView === 'list' ? (
+                <>
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src="/favicon_perfect_gradient.png" 
+                        className="w-6 h-6 object-contain rounded-md shadow-sm" 
+                        alt="모두의맛집" 
+                      />
+                      <h2 className="text-[22px] font-extrabold text-white tracking-tight">
+                        우리 동네 맛집
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* 프로필 연동형 마이페이지 전환 버튼 */}
+                      <button
+                        onClick={() => setDesktopView('mypage')}
+                        className="p-2 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-xl transition-all border border-white/10 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm"
+                        title="마이페이지"
+                      >
+                        <User size={18} className="stroke-[2.5]" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Filter Chips */}
+                  <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+                    {['전체', '한식', '일식', '중식', '양식', '아시안'].map((category) => {
+                      const isActive = activeCategory === category;
+                      return (
+                        <button
+                          key={category}
+                          onClick={() => {
+                            setActiveCategory(category);
+                            setSelectedCluster(null);
+                          }}
+                          className={`whitespace-nowrap px-4 py-2 text-[13px] font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                            isActive
+                              ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-lg shadow-red-500/30 ring-1 ring-white/10'
+                              : 'bg-white/5 text-zinc-300 border border-white/5 hover:text-white hover:bg-white/10 hover:border-white/10 shadow-sm'
+                          }`}
+                        >
+                          {category}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-              {selectedCluster && (
-                <button 
-                  onClick={() => setSelectedCluster(null)}
-                  className="w-full mt-4 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border border-white/10 shadow-sm backdrop-blur-md"
-                >
-                  ← 클러스터 해제하고 지도 전체보기
-                </button>
+                  {/* Instagram Story Slider */}
+                  {desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) && (
+                    <div className="mt-4 px-1 pb-3 border-b border-white/5 shrink-0 select-none">
+                      <div className="flex items-center gap-1.5 mb-2.5 px-1">
+                        <Flame size={14} className="text-brand-orange fill-current animate-pulse" />
+                        <span className="text-[11px] font-black text-white/50 tracking-wider uppercase">이 근처 최신 추천 먹방</span>
+                      </div>
+                      <div className="flex gap-4 overflow-x-auto hide-scrollbar py-0.5">
+                        {filteredRestaurants
+                          .filter(r => r.videos && r.videos.length > 0)
+                          .map(r => {
+                            const bestVid = getBestVideo(r.videos);
+                            if (!bestVid) return null;
+                            const isActive = selectedRestaurant?.id === r.id;
+                            return (
+                              <div
+                                key={`story-${r.id}`}
+                                onClick={() => {
+                                  handleSelectRestaurant(r);
+                                  map?.setLevel(4, { animate: true });
+                                  map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
+                                }}
+                                className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
+                              >
+                                <div className={`p-[2.5px] rounded-full bg-gradient-to-tr ${isActive ? 'from-red-600 via-orange-500 to-amber-400 scale-105 shadow-[0_0_15px_rgba(239,68,68,0.45)]' : 'from-pink-500 via-red-500 to-yellow-500'} hover:scale-105 transition-all duration-300`}>
+                                  <div className="p-0.5 bg-zinc-950 rounded-full">
+                                    <img
+                                      src={bestVid.youtuber.profile_image}
+                                      className="w-9 h-9 rounded-full object-cover border border-white/5 shadow-inner animate-[spin_10s_linear_infinite]"
+                                      style={{ animationPlayState: isActive ? 'running' : 'paused' }}
+                                      alt={bestVid.youtuber.name}
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(bestVid.youtuber.name)}&background=random&color=fff&size=128`;
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <span className={`text-[10px] max-w-[58px] truncate text-center ${isActive ? 'font-black text-brand-orange-light' : 'font-bold text-zinc-400 group-hover:text-zinc-200'}`}>
+                                  {bestVid.youtuber.name}
+                                </span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedCluster && (
+                    <button 
+                      onClick={() => setSelectedCluster(null)}
+                      className="w-full mt-4 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border border-white/10 shadow-sm backdrop-blur-md"
+                    >
+                      ← 클러스터 해제하고 지도 전체보기
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center gap-3">
+                  {/* 뒤로 가기 단추 */}
+                  <button
+                    onClick={() => setDesktopView('list')}
+                    className="p-2 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-xl transition-all border border-white/10 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm"
+                    title="뒤로 가기"
+                  >
+                    <ArrowLeft size={18} className="stroke-[2.5]" />
+                  </button>
+                  <h2 className="text-[20px] font-extrabold text-white tracking-tight">
+                    마이페이지
+                  </h2>
+                </div>
               )}
             </div>
 
             {/* Sidebar Contents */}
-            <div className="flex-1 overflow-y-auto relative z-0 bg-transparent" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex-1 overflow-y-auto relative z-0 bg-transparent rounded-b-[28px]" style={{ scrollbarWidth: 'none' }}>
               <div className="p-4 space-y-4">
-                {(selectedCluster || filteredRestaurants).map(r => (
-                  <div 
-                    key={r.id}
-                    onClick={() => {
-                      handleSelectRestaurant(r);
-                      map?.setLevel(4, { animate: true });
-                      map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
-                    }}
-                    onMouseEnter={() => setHoveredRestaurantId(r.id)}
-                    onMouseLeave={() => setHoveredRestaurantId(null)}
-                    className="group relative bg-white/[0.03] backdrop-blur-md rounded-3xl cursor-pointer border border-white/10 hover-acrylic-glow flex flex-col overflow-hidden"
-                  >
-                    {/* Instagram-style Feed Header (Youtuber Info & Heart Bookmark) */}
-                    {r.videos?.[0]?.youtuber && (
-                      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-transparent shrink-0 z-10">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {r.videos[0].youtuber.profile_image ? (
-                            <div className="instagram-story-ring shrink-0">
-                              <img 
-                                src={r.videos[0].youtuber.profile_image} 
-                                className="w-7 h-7 rounded-full object-cover border-2 border-zinc-900 shadow-sm"
-                                alt={r.videos[0].youtuber.name} 
-                              />
+                {desktopView === 'list' ? (
+                  (selectedCluster || filteredRestaurants).map(r => {
+                    const bestVid = getBestVideo(r.videos);
+                    return (
+                      <div 
+                        key={r.id}
+                        onClick={() => {
+                          handleSelectRestaurant(r);
+                          map?.setLevel(4, { animate: true });
+                          map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
+                        }}
+                        onMouseEnter={() => setHoveredRestaurantId(r.id)}
+                        onMouseLeave={() => setHoveredRestaurantId(null)}
+                        className="group relative bg-white/[0.03] backdrop-blur-md rounded-3xl cursor-pointer border border-white/10 hover-acrylic-glow flex flex-col overflow-hidden"
+                      >
+                        {/* Instagram-style Feed Header (Youtuber Info & Heart Bookmark) */}
+                        {bestVid?.youtuber && (
+                          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-transparent shrink-0 z-10">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {bestVid.youtuber.profile_image ? (
+                                <div className="instagram-story-ring shrink-0">
+                                  <img 
+                                    src={bestVid.youtuber.profile_image} 
+                                    className="w-7 h-7 rounded-full object-cover border-2 border-zinc-900 shadow-sm"
+                                    alt={bestVid.youtuber.name} 
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 border-2 border-zinc-900 shrink-0">
+                                  {bestVid.youtuber.name[0]}
+                                </div>
+                              )}
+                              <span className="text-[13.5px] font-extrabold text-zinc-100 truncate tracking-tight ml-1">
+                                {bestVid.youtuber.name}
+                              </span>
                             </div>
+
+                            {/* Elastic Heart Toggle Button */}
+                            <motion.button
+                              whileTap={{ scale: 0.8 }}
+                              onClick={(e) => {
+                                e.stopPropagation(); // 카드 이동 전파 차단
+                                const isFav = favorites.includes(r.id);
+                                if (isFav) {
+                                  setFavorites(favorites.filter(id => id !== r.id));
+                                } else {
+                                  setFavorites([...favorites, r.id]);
+                                }
+                              }}
+                              className="p-1.5 rounded-full hover:bg-white/5 transition-colors shrink-0"
+                            >
+                              <Heart 
+                                size={18} 
+                                className={`transition-all duration-300 ${
+                                  favorites.includes(r.id)
+                                    ? 'text-red-500 fill-current drop-shadow-[0_0_6px_rgba(239,68,68,0.45)]'
+                                    : 'text-zinc-500 hover:text-red-500'
+                                }`} 
+                              />
+                            </motion.button>
+                          </div>
+                        )}
+
+                        {/* Thumbnail - 16:9 ratio */}
+                        <div className="relative w-full aspect-video shrink-0 overflow-hidden bg-zinc-950 ring-1 ring-white/5">
+                          {bestVid?.thumbnail ? (
+                            <img 
+                              src={bestVid.thumbnail} 
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                              alt={r.name}
+                            />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 border-2 border-zinc-900 shrink-0">
-                              {r.videos[0].youtuber.name[0]}
+                            <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
+                              <Utensils size={36} />
                             </div>
                           )}
-                          <span className="text-[13.5px] font-extrabold text-zinc-100 truncate tracking-tight ml-1">
-                            {r.videos[0].youtuber.name}
-                          </span>
+
+                          {/* Shorts badge */}
+                          {bestVid?.is_short && (
+                            <div className="absolute bottom-3 right-3 bg-red-600/90 backdrop-blur-md text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 border border-red-500/30 shadow-[0_2px_8px_rgba(220,38,38,0.3)]">
+                              <Play size={8} fill="currentColor"/> SHORTS
+                            </div>
+                          )}
                         </div>
 
-                        {/* Elastic Heart Toggle Button */}
-                        <motion.button
-                          whileTap={{ scale: 0.8 }}
-                          onClick={(e) => {
-                            e.stopPropagation(); // 카드 이동 전파 차단
-                            const isFav = favorites.includes(r.id);
-                            if (isFav) {
-                              setFavorites(favorites.filter(id => id !== r.id));
-                            } else {
-                              setFavorites([...favorites, r.id]);
-                            }
-                          }}
-                          className="p-1.5 rounded-full hover:bg-white/5 transition-colors shrink-0"
-                        >
-                          <Heart 
-                            size={18} 
-                            className={`transition-all duration-300 ${
-                              favorites.includes(r.id)
-                                ? 'text-red-500 fill-current drop-shadow-[0_0_6px_rgba(239,68,68,0.45)]'
-                                : 'text-zinc-500 hover:text-red-500'
-                            }`} 
-                          />
-                        </motion.button>
-                      </div>
-                    )}
-
-                    {/* Thumbnail - 16:9 ratio */}
-                    <div className="relative w-full aspect-video shrink-0 overflow-hidden bg-zinc-950 ring-1 ring-white/5">
-                      {r.videos?.[0]?.thumbnail ? (
-                        <img 
-                           src={r.videos[0].thumbnail} 
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                          alt={r.name}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
-                          <Utensils size={36} />
-                        </div>
-                      )}
-
-                      {/* Shorts badge */}
-                      {r.videos?.[0]?.is_short && (
-                        <div className="absolute bottom-3 right-3 bg-red-600/90 backdrop-blur-md text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 border border-red-500/30 shadow-[0_2px_8px_rgba(220,38,38,0.3)]">
-                          <Play size={8} fill="currentColor"/> SHORTS
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info Section */}
-                    <div className="p-4 flex flex-col space-y-2">
-                      {/* Fork & Knife, Restaurant Name, Category & View Count */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <div className="p-1 bg-white/5 rounded-lg text-brand-orange shrink-0">
-                            <Utensils size={14} className="stroke-[2.5]" />
+                        {/* Info Section */}
+                        <div className="p-4 flex flex-col space-y-2">
+                          {/* Fork & Knife, Restaurant Name, Category & View Count */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div className="p-1 bg-white/5 rounded-lg text-brand-orange shrink-0">
+                                <Utensils size={14} className="stroke-[2.5]" />
+                              </div>
+                              <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{r.name}</h4>
+                              <span className="text-[11px] font-semibold text-zinc-400 shrink-0">| {r.category}</span>
+                            </div>
+                            {bestVid?.view_count !== undefined ? (
+                              <span className="text-[11px] font-extrabold bg-orange-950/30 text-orange-400 px-2 py-0.5 rounded-md shrink-0">
+                                조회수 {formatViewCount(bestVid.view_count)}회
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-extrabold bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md shrink-0">
+                                조회수 0회
+                              </span>
+                            )}
                           </div>
-                          <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{r.name}</h4>
-                          <span className="text-[11px] font-semibold text-zinc-400 shrink-0">| {r.category}</span>
-                        </div>
-                        {r.videos?.[0]?.view_count !== undefined ? (
-                          <span className="text-[11px] font-extrabold bg-orange-950/30 text-orange-400 px-2 py-0.5 rounded-md shrink-0">
-                            조회수 {formatViewCount(r.videos[0].view_count)}회
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-extrabold bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md shrink-0">
-                            조회수 0회
-                          </span>
-                        )}
-                      </div>
 
-                      {/* Video Title */}
-                      {r.videos?.[0]?.title && (
-                        <p className="text-sm font-semibold text-zinc-300 line-clamp-2 leading-relaxed mt-1">
-                          {r.videos[0].title}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                          {/* Video Title */}
+                          {bestVid?.title && (
+                            <p className="text-sm font-semibold text-zinc-300 line-clamp-2 leading-relaxed mt-1">
+                              {bestVid.title}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <MyPageView onOpenSubmission={() => setIsSubmissionOpen(true)} />
+                )}
               </div>
             </div>
+            {/* 우측 경계선 밀착 결합형 세로 반원 접기 단추 */}
+            <motion.button
+              onClick={() => {
+                if (selectedRestaurant) {
+                  handleSelectRestaurant(null);
+                } else {
+                  setIsSidebarCollapsed(true);
+                }
+              }}
+              animate={{ x: selectedRestaurant ? 388 : 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="absolute left-full top-1/2 -translate-y-1/2 w-[22px] h-[64px] bg-zinc-950/85 backdrop-blur-2xl border-y border-r border-white/10 rounded-r-2xl flex items-center justify-center cursor-pointer text-orange-500 hover:text-orange-400 shadow-[6px_0_15px_-3px_rgba(0,0,0,0.4)] z-50 group"
+              whileHover={{ width: '26px' }}
+              whileTap={{ scale: 0.95 }}
+              title={selectedRestaurant ? "상세 정보 닫기" : "사이드바 접기"}
+            >
+              <ChevronLeft size={16} className="stroke-[3.0] transition-transform group-hover:-translate-x-0.5" />
+            </motion.button>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 좌측 중앙 아크릴 오렌지 글로우 "열기" 버튼 */}
+      <AnimatePresence>
+        {isSidebarCollapsed && (
+          <motion.button
+            initial={{ x: -40, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -40, opacity: 0 }}
+            transition={{ type: 'spring', damping: 22, stiffness: 250 }}
+            onClick={() => setIsSidebarCollapsed(false)}
+            className="absolute top-1/2 -translate-y-1/2 left-6 z-20 w-14 h-14 bg-zinc-950/80 backdrop-blur-md hover:bg-zinc-900/90 text-orange-500 hover:text-orange-400 rounded-full shadow-[0_0_24px_rgba(255,107,0,0.45)] border border-orange-500/30 transition-all hover:scale-110 active:scale-95 flex items-center justify-center group cursor-pointer"
+            title="사이드바 열기"
+          >
+            <List size={22} className="stroke-[2.5] transition-transform group-hover:scale-110" />
+          </motion.button>
         )}
       </AnimatePresence>
 
@@ -787,127 +914,130 @@ export default function MapContainer({
                 {getMarkerUI(restaurant)}
 
                 {/* 마커 직접 호버(Hover) 시 상단에 생성되는 초프리미엄 인포윈도우 말풍선 카드 */}
-                {mapHoveredRestaurantId === restaurant.id && (
-                  <div 
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3.5 w-[280px] rounded-3xl bg-zinc-900/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] flex flex-col select-none z-[120] text-left overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
-                  >
-                    {/* 은은한 둥근 그라데이션 테두리 */}
+                {mapHoveredRestaurantId === restaurant.id && (() => {
+                  const bestVid = getBestVideo(restaurant.videos);
+                  return (
                     <div 
-                      className="absolute inset-0 rounded-3xl pointer-events-none" 
-                      style={{
-                        padding: '1.2px',
-                        background: 'linear-gradient(to right, rgba(220, 38, 38, 0.35), rgba(249, 115, 22, 0.35))',
-                        WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                        WebkitMaskComposite: 'xor',
-                        maskComposite: 'exclude',
-                      }}
-                    />
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3.5 w-[280px] rounded-3xl bg-zinc-900/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] flex flex-col select-none z-[120] text-left overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
+                    >
+                      {/* 은은한 둥근 그라데이션 테두리 */}
+                      <div 
+                        className="absolute inset-0 rounded-3xl pointer-events-none" 
+                        style={{
+                          padding: '1.2px',
+                          background: 'linear-gradient(to right, rgba(220, 38, 38, 0.35), rgba(249, 115, 22, 0.35))',
+                          WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                          WebkitMaskComposite: 'xor',
+                          maskComposite: 'exclude',
+                        }}
+                      />
 
-                    {/* 하단 화살표 정렬 꼬리 */}
-                    <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-zinc-900 rotate-45 border-r border-b border-orange-500/20" />
+                      {/* 하단 화살표 정렬 꼬리 */}
+                      <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-zinc-900 rotate-45 border-r border-b border-orange-500/20" />
 
-                    {/* Instagram-style Feed Header (Youtuber Info & Heart Bookmark) */}
-                    {restaurant.videos?.[0]?.youtuber && (
-                      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-transparent shrink-0 z-10">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {restaurant.videos[0].youtuber.profile_image ? (
-                            <div className="instagram-story-ring shrink-0">
-                              <img 
-                                src={restaurant.videos[0].youtuber.profile_image} 
-                                className="w-7 h-7 rounded-full object-cover border-2 border-zinc-900 shadow-sm"
-                                alt={restaurant.videos[0].youtuber.name} 
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 border-2 border-zinc-900 shrink-0">
-                              {restaurant.videos[0].youtuber.name[0]}
-                            </div>
-                          )}
-                          <span className="text-[13.5px] font-extrabold text-zinc-100 truncate tracking-tight ml-1">
-                            {restaurant.videos[0].youtuber.name}
-                          </span>
-                        </div>
-
-                        {/* Elastic Heart Toggle Button */}
-                        <motion.button
-                          whileTap={{ scale: 0.8 }}
-                          onClick={(e) => {
-                            e.stopPropagation(); // 카드 이동 전파 차단
-                            const isFav = favorites.includes(restaurant.id);
-                            if (isFav) {
-                              setFavorites(favorites.filter(id => id !== restaurant.id));
-                            } else {
-                              setFavorites([...favorites, restaurant.id]);
-                            }
-                          }}
-                          className="p-1.5 rounded-full hover:bg-white/5 transition-colors shrink-0"
-                        >
-                          <Heart 
-                            size={18} 
-                            className={`transition-all duration-300 ${
-                              favorites.includes(restaurant.id)
-                                ? 'text-red-500 fill-current drop-shadow-[0_0_6px_rgba(239,68,68,0.45)]'
-                                : 'text-zinc-500 hover:text-red-500'
-                            }`} 
-                          />
-                        </motion.button>
-                      </div>
-                    )}
-
-                    {/* Thumbnail - 16:9 ratio */}
-                    <div className="relative w-full aspect-video shrink-0 overflow-hidden bg-zinc-950 ring-1 ring-white/5">
-                      {restaurant.videos?.[0]?.thumbnail ? (
-                        <img 
-                          src={restaurant.videos[0].thumbnail} 
-                          className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" 
-                          alt={restaurant.name}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
-                          <Utensils size={36} />
-                        </div>
-                      )}
-
-                      {/* Shorts badge */}
-                      {restaurant.videos?.[0]?.is_short && (
-                        <div className="absolute bottom-3 right-3 bg-red-600/90 backdrop-blur-md text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 border border-red-500/30 shadow-[0_2px_8px_rgba(220,38,38,0.3)]">
-                          <Play size={8} fill="currentColor"/> SHORTS
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info Section */}
-                    <div className="p-4 flex flex-col space-y-2">
-                      {/* Fork & Knife, Restaurant Name, Category & View Count */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <div className="p-1 bg-white/5 rounded-lg text-brand-orange shrink-0">
-                            <Utensils size={14} className="stroke-[2.5]" />
+                      {/* Instagram-style Feed Header (Youtuber Info & Heart Bookmark) */}
+                      {bestVid?.youtuber && (
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-transparent shrink-0 z-10">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {bestVid.youtuber.profile_image ? (
+                              <div className="instagram-story-ring shrink-0">
+                                <img 
+                                  src={bestVid.youtuber.profile_image} 
+                                  className="w-7 h-7 rounded-full object-cover border-2 border-zinc-900 shadow-sm"
+                                  alt={bestVid.youtuber.name} 
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 border-2 border-zinc-900 shrink-0">
+                                {bestVid.youtuber.name[0]}
+                              </div>
+                            )}
+                            <span className="text-[13.5px] font-extrabold text-zinc-100 truncate tracking-tight ml-1">
+                              {bestVid.youtuber.name}
+                            </span>
                           </div>
-                          <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{restaurant.name}</h4>
-                          <span className="text-[11px] font-semibold text-zinc-400 shrink-0">| {restaurant.category}</span>
+
+                          {/* Elastic Heart Toggle Button */}
+                          <motion.button
+                            whileTap={{ scale: 0.8 }}
+                            onClick={(e) => {
+                              e.stopPropagation(); // 카드 이동 전파 차단
+                              const isFav = favorites.includes(restaurant.id);
+                              if (isFav) {
+                                setFavorites(favorites.filter(id => id !== restaurant.id));
+                              } else {
+                                setFavorites([...favorites, restaurant.id]);
+                              }
+                            }}
+                            className="p-1.5 rounded-full hover:bg-white/5 transition-colors shrink-0"
+                          >
+                            <Heart 
+                              size={18} 
+                              className={`transition-all duration-300 ${
+                                favorites.includes(restaurant.id)
+                                  ? 'text-red-500 fill-current drop-shadow-[0_0_6px_rgba(239,68,68,0.45)]'
+                                  : 'text-zinc-500 hover:text-red-500'
+                              }`} 
+                            />
+                          </motion.button>
                         </div>
-                        {restaurant.videos?.[0]?.view_count !== undefined ? (
-                          <span className="text-[11px] font-extrabold bg-orange-950/30 text-orange-400 px-2 py-0.5 rounded-md shrink-0">
-                            조회수 {formatViewCount(restaurant.videos[0].view_count)}회
-                          </span>
+                      )}
+
+                      {/* Thumbnail - 16:9 ratio */}
+                      <div className="relative w-full aspect-video shrink-0 overflow-hidden bg-zinc-950 ring-1 ring-white/5">
+                        {bestVid?.thumbnail ? (
+                          <img 
+                            src={bestVid.thumbnail} 
+                            className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" 
+                            alt={restaurant.name}
+                          />
                         ) : (
-                          <span className="text-[11px] font-extrabold bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md shrink-0">
-                            조회수 0회
-                          </span>
+                          <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
+                            <Utensils size={36} />
+                          </div>
+                        )}
+
+                        {/* Shorts badge */}
+                        {bestVid?.is_short && (
+                          <div className="absolute bottom-3 right-3 bg-red-600/90 backdrop-blur-md text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 border border-red-500/30 shadow-[0_2px_8px_rgba(220,38,38,0.3)]">
+                            <Play size={8} fill="currentColor"/> SHORTS
+                          </div>
                         )}
                       </div>
 
-                      {/* Video Title */}
-                      {restaurant.videos?.[0]?.title && (
-                        <p className="text-sm font-semibold text-zinc-300 line-clamp-2 leading-relaxed mt-1">
-                          {restaurant.videos[0].title}
-                        </p>
-                      )}
+                      {/* Info Section */}
+                      <div className="p-4 flex flex-col space-y-2">
+                        {/* Fork & Knife, Restaurant Name, Category & View Count */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="p-1 bg-white/5 rounded-lg text-brand-orange shrink-0">
+                              <Utensils size={14} className="stroke-[2.5]" />
+                            </div>
+                            <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{restaurant.name}</h4>
+                            <span className="text-[11px] font-semibold text-zinc-400 shrink-0">| {restaurant.category}</span>
+                          </div>
+                          {bestVid?.view_count !== undefined ? (
+                            <span className="text-[11px] font-extrabold bg-orange-950/30 text-orange-400 px-2 py-0.5 rounded-md shrink-0">
+                              조회수 {formatViewCount(bestVid.view_count)}회
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-extrabold bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md shrink-0">
+                              조회수 0회
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Video Title */}
+                        {bestVid?.title && (
+                          <p className="text-sm font-semibold text-zinc-300 line-clamp-2 leading-relaxed mt-1">
+                            {bestVid.title}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 
                 {/* 클릭(선택) 시에만 표시되는 마커 밀착형 식당명 라벨 */}
                 {selectedRestaurant?.id === restaurant.id && (
@@ -982,35 +1112,41 @@ export default function MapContainer({
               }}
               className="w-full py-4"
             >
-              {(selectedCluster || restaurants).map(r => (
-                <SwiperSlide key={r.id} style={{ width: '280px' }} className="px-2">
-                  <div 
-                    onClick={() => {
-                      handleSelectRestaurant(r);
-                      map?.setLevel(4, { animate: true });
-                      map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
-                    }}
-                    className="w-full bg-white/95 backdrop-blur-xl rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.15)] p-3.5 flex gap-3.5 cursor-pointer border-[1.5px] border-white/80 active:scale-95 transition-transform"
-                  >
-                    <img 
-                      src={r.videos?.[0]?.thumbnail || 'https://via.placeholder.com/150'} 
-                      className="w-20 h-20 rounded-2xl object-cover shadow-inner bg-gray-100 flex-shrink-0 no-filter" 
-                      alt={r.name}
-                    />
-                    <div className="flex flex-col justify-center flex-1 min-w-0 pr-1">
-                      <h4 className="font-extrabold text-[15px] text-gray-900 truncate tracking-tight">{r.name}</h4>
-                      <span className="text-[12px] font-medium text-gray-500 truncate mt-0.5">{r.category}</span>
-                      <div className="mt-2 flex gap-1.5 flex-wrap">
-                        {r.content_tags?.slice(0, 2).map((t, i) => (
-                          <span key={i} className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-md font-bold truncate max-w-[80px]">
-                            #{t.label}
-                          </span>
-                        ))}
+              {(selectedCluster || restaurants).map(r => {
+                const bestVid = getBestVideo(r.videos);
+                return (
+                  <SwiperSlide key={r.id} style={{ width: '280px' }} className="px-2">
+                    <div 
+                      onClick={() => {
+                        handleSelectRestaurant(r);
+                        map?.setLevel(4, { animate: true });
+                        map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
+                      }}
+                      className="w-full bg-white/95 backdrop-blur-xl rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.15)] p-3.5 flex gap-3.5 cursor-pointer border-[1.5px] border-white/80 active:scale-95 transition-transform"
+                    >
+                      <img 
+                        src={bestVid?.thumbnail || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500&q=80'} 
+                        className="w-20 h-20 rounded-2xl object-cover shadow-inner bg-gray-100 flex-shrink-0 no-filter" 
+                        alt={r.name}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500&q=80';
+                        }}
+                      />
+                      <div className="flex flex-col justify-center flex-1 min-w-0 pr-1">
+                        <h4 className="font-extrabold text-[15px] text-gray-900 truncate tracking-tight">{r.name}</h4>
+                        <span className="text-[12px] font-medium text-gray-500 truncate mt-0.5">{r.category}</span>
+                        <div className="mt-2 flex gap-1.5 flex-wrap">
+                          {r.content_tags?.slice(0, 2).map((t, i) => (
+                            <span key={i} className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-md font-bold truncate max-w-[80px]">
+                              #{t.label}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </SwiperSlide>
-              ))}
+                  </SwiperSlide>
+                );
+              })}
             </Swiper>
           </motion.div>
         )}
@@ -1020,6 +1156,7 @@ export default function MapContainer({
       <RestaurantInfoCard 
         restaurant={selectedRestaurant} 
         onClose={() => handleSelectRestaurant(null)} 
+        isSidebarCollapsed={isSidebarCollapsed}
       />
 
       {/* 모바일 탭 컨텐츠 오버레이 바텀시트 */}
