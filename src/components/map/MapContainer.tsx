@@ -4,13 +4,14 @@ const INITIAL_CENTER = { lat: 37.5665, lng: 126.9780 };
 const INITIAL_LEVEL = 5;
 
 import { useEffect, useState, useRef } from 'react';
-import { Map, CustomOverlayMap, MarkerClusterer, Polygon, useKakaoLoader } from 'react-kakao-maps-sdk';
+import { Map, CustomOverlayMap, MarkerClusterer, Polygon, Polyline, useKakaoLoader } from 'react-kakao-maps-sdk';
+
 import { supabase } from '@/lib/supabase/client';
-import { Restaurant } from '@/types';
+import { Restaurant, ItineraryItem, Itinerary } from '@/types';
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Home, User, ChevronLeft, ChevronRight, ArrowLeft, List } from 'lucide-react';
+import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
@@ -19,6 +20,14 @@ import MyPageView from '@/components/ui/MyPageView';
 import BottomTabBar from '@/components/ui/BottomTabBar';
 import OverlayContainer from '@/components/ui/OverlayContainer';
 import RestaurantSubmissionBottomSheet from '@/components/ui/RestaurantSubmissionBottomSheet';
+import LoginModal from '@/components/ui/LoginModal';
+import ItineraryPlannerBottomSheet from '@/components/ui/ItineraryPlannerBottomSheet';
+import FloatingItineraryPanel from '@/components/ui/FloatingItineraryPanel';
+import CustomModal from '@/components/ui/CustomModal';
+import { saveLocalItinerary } from '@/lib/supabase/itineraries';
+import { getRouteBufferPolygon, isPointInPolygon, getDistance } from '@/lib/geoUtils';
+
+
 
 const formatViewCount = (count: number) => {
   if (count >= 10000) return `${(count / 10000).toFixed(1).replace('.0', '')}만`;
@@ -65,6 +74,7 @@ export default function MapContainer({
   const [zoomLevel, setZoomLevel] = useState<number>(INITIAL_LEVEL);
   const [regionClusters, setRegionClusters] = useState<any[]>([]);
   const [activePolygons, setActivePolygons] = useState<{lat: number, lng: number}[][] | null>(null);
+  const [hoveredClusterIdx, setHoveredClusterIdx] = useState<number | null>(null);
   const [polygonOpacity, setPolygonOpacity] = useState<number>(0.8);
   // 스마트 탭 시스템 및 제보하기 상태 추가
   const [activeTab, setActiveTab] = useState<any>('home');
@@ -72,9 +82,253 @@ export default function MapContainer({
   const [desktopView, setDesktopView] = useState<'list' | 'mypage'>('list');
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [user, setUser] = useState<{ name: string; email: string; provider: 'kakao' | 'google' | 'naver'; avatarUrl?: string } | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isItineraryPlannerOpen, setIsItineraryPlannerOpen] = useState(false);
+  const [editingItinerary, setEditingItinerary] = useState<any>(null);
+  const [activeItinerary, setActiveItinerary] = useState<any>(null);
+  const [activeItineraryDay, setActiveItineraryDay] = useState<number>(1);
+  // 3차 기획: 지도 드로잉 일정 만들기 상태
+  const [isPlanningMode, setIsPlanningMode] = useState<boolean>(false);
+  const [activePlanningItinerary, setActivePlanningItinerary] = useState<any>(null);
+  const [planningActiveDay, setPlanningActiveDay] = useState<number>(1);
+  const [editingItemForMemo, setEditingItemForMemo] = useState<any>(null); // 플로팅 패널의 메모 수정용
+  const [showMemoModal, setShowMemoModal] = useState<boolean>(false);
+  const [inputVisitTime, setInputVisitTime] = useState<string>('');
+  const [inputMemo, setInputMemo] = useState<string>('');
+  // 3차 보완: 장소 검색 모달 및 스팟 기반 1km 추천 상태
+  const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [selectedPlanningItemId, setSelectedPlanningItemId] = useState<string | null>(null);
+  const [recommendedRestaurantsForSelectedSpot, setRecommendedRestaurantsForSelectedSpot] = useState<{ restaurant: Restaurant; distance: number; type: 'near' | 'on_the_way' }[]>([]);
+
+  // 신규 일정 수립 날짜/제목 설정 폼 상태
+  const [showInitPlanningModal, setShowInitPlanningModal] = useState<boolean>(false);
+  const [newItineraryTitle, setNewItineraryTitle] = useState<string>('');
+  const [newItineraryStartDate, setNewItineraryStartDate] = useState<string>('');
+  const [newItineraryEndDate, setNewItineraryEndDate] = useState<string>('');
+  const [newItineraryCompanion, setNewItineraryCompanion] = useState<string>('연인과');
+  const [newItineraryTheme, setNewItineraryTheme] = useState<string>('맛집 탐방');
+  const [newItineraryTransport, setNewItineraryTransport] = useState<string>('대중교통/도보');
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState<number>(5); // 5 = 6월, 6 = 7월
+  const [isFabMenuOpen, setIsFabMenuOpen] = useState<boolean>(false);
+
+  // 캘린더 날짜 렌더링 헬퍼 함수
+  const getDaysInMonth = (year: number, month: number) => {
+    const date = new Date(year, month, 1);
+    const days = [];
+    const firstDayIndex = date.getDay();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= lastDay; i++) {
+      const yyyy = year;
+      const mm = String(month + 1).padStart(2, '0');
+      const dd = String(i).padStart(2, '0');
+      days.push(`${yyyy}-${mm}-${dd}`);
+    }
+    return days;
+  };
+
+  const handleCalendarDaySelect = (dateStr: string) => {
+    if (!newItineraryStartDate || (newItineraryStartDate && newItineraryEndDate)) {
+      setNewItineraryStartDate(dateStr);
+      setNewItineraryEndDate('');
+    } else {
+      const selectedDate = new Date(dateStr);
+      const firstDate = new Date(newItineraryStartDate);
+      
+      if (selectedDate < firstDate) {
+        setNewItineraryEndDate(newItineraryStartDate);
+        setNewItineraryStartDate(dateStr);
+      } else {
+        setNewItineraryEndDate(dateStr);
+      }
+    }
+  };
+
+  const getDayStatus = (dateStr: string) => {
+    if (!newItineraryStartDate) return 'normal';
+    if (newItineraryStartDate === dateStr) return 'start';
+    if (newItineraryEndDate === dateStr) return 'end';
+    if (newItineraryEndDate && new Date(dateStr) > new Date(newItineraryStartDate) && new Date(dateStr) < new Date(newItineraryEndDate)) {
+      return 'in-range';
+    }
+    return 'normal';
+  };
+
+  // 특정 스팟을 탭했을 때 주변 1km 및 가는길 1km 맛집 추천 업데이트 로직
+  const handleSelectPlanningItem = (item: ItineraryItem) => {
+    setSelectedPlanningItemId(item.id);
+    if (!activePlanningItinerary) return;
+
+    const dayData = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay);
+    if (!dayData) return;
+
+    const items = dayData.items;
+    const idx = items.findIndex((it: any) => it.id === item.id);
+    if (idx === -1) return;
+
+    const nearRecommendations: { restaurant: Restaurant; distance: number; type: 'near' | 'on_the_way' }[] = [];
+    const onTheWayRecommendations: { restaurant: Restaurant; distance: number; type: 'near' | 'on_the_way' }[] = [];
+
+    // 이전 장소가 존재할 경우 가는 길(이전 장소 -> 스팟) 5km 다각형 버퍼 생성
+    let wayPolygon: { lat: number; lng: number }[] | null = null;
+    if (idx > 0) {
+      const prevItem = items[idx - 1];
+      wayPolygon = getRouteBufferPolygon(
+        { lat: prevItem.lat, lng: prevItem.lng },
+        { lat: item.lat, lng: item.lng }
+      );
+    }
+
+    restaurants.forEach((restaurant) => {
+      // 1. 스팟 자체의 반경 5km 이내 거리 계산
+      const dist = getDistance(item.lat, item.lng, restaurant.lat, restaurant.lng);
+      if (dist <= 5.0) {
+        nearRecommendations.push({ restaurant, distance: dist, type: 'near' });
+      } else if (wayPolygon && isPointInPolygon({ lat: restaurant.lat, lng: restaurant.lng }, wayPolygon)) {
+        // 2. 가는 길 5km 다각형 내부 포함 여부
+        onTheWayRecommendations.push({ restaurant, distance: dist, type: 'on_the_way' });
+      }
+    });
+
+    const merged = [...nearRecommendations, ...onTheWayRecommendations]
+      .filter((v, i, a) => a.findIndex(t => t.restaurant.id === v.restaurant.id) === i)
+      .sort((a, b) => a.distance - b.distance);
+
+    setRecommendedRestaurantsForSelectedSpot(merged);
+  };
+
+  const handleSearchPlaces = () => {
+    if (!searchQuery.trim() || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
+      alert('검색어를 입력해 주세요.');
+      return;
+    }
+
+    setIsSearching(true);
+    const ps = new window.kakao.maps.services.Places();
+    
+    ps.keywordSearch(searchQuery, (data: any, status: any) => {
+      setIsSearching(false);
+      if (status === window.kakao.maps.services.Status.OK) {
+        setSearchResults(data);
+      } else {
+        setSearchResults([]);
+        alert('검색 결과가 없습니다.');
+      }
+    });
+  };
+
+  const handleStartNewPlanning = () => {
+    if (!newItineraryTitle.trim()) {
+      alert('일정 명칭을 입력해 주세요.');
+      return;
+    }
+    if (!newItineraryStartDate || !newItineraryEndDate) {
+      alert('여행 기간을 입력해 주세요.');
+      return;
+    }
+    const start = new Date(newItineraryStartDate);
+    const end = new Date(newItineraryEndDate);
+    if (end < start) {
+      alert('종료일은 시작일보다 빠를 수 없습니다.');
+      return;
+    }
+
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    const generatedDays = Array.from({ length: diffDays }, (_, i) => ({
+      day: i + 1,
+      items: []
+    }));
+
+    const newItinerary: any = {
+      id: `itinerary-${Date.now()}`,
+      title: newItineraryTitle,
+      start_date: newItineraryStartDate,
+      end_date: newItineraryEndDate,
+      companion: newItineraryCompanion,
+      theme: newItineraryTheme,
+      transport: newItineraryTransport,
+      days: generatedDays,
+      created_at: new Date().toISOString()
+    };
+
+    setEditingItinerary(null);
+    setActivePlanningItinerary(newItinerary);
+    setPlanningActiveDay(1);
+    setIsPlanningMode(true);
+    setShowInitPlanningModal(false);
+    setActiveTab('home');
+  };
+
   const isMountedRef = useRef(false);
 
+
+
+  // 로컬스토리지에서 로그인 유저 세션 정보 복원
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('modoo-matjip-user');
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser));
+        } catch (e) {
+          console.error("Failed to parse user session", e);
+        }
+      }
+    }
+  }, []);
+
+  // 마이페이지 등에서 활성화한 일정을 리슨하여 지도에 렌더링하고 첫 번째 장소로 이동
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleActivateItinerary = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const itinerary = customEvent.detail;
+      if (itinerary) {
+        setActiveItinerary(itinerary);
+        setActiveItineraryDay(1);
+        setActiveTab('home'); // 지도 탭으로 이동
+        
+        // 첫 번째 장소 좌표로 지도 포커스 및 줌 레벨 최적화
+        const firstItem = itinerary.days?.[0]?.items?.[0];
+        if (firstItem && map) {
+          setTimeout(() => {
+            map.setLevel(4, { animate: true });
+            map.panTo(new kakao.maps.LatLng(firstItem.lat, firstItem.lng));
+          }, 300);
+        }
+      }
+    };
+
+    window.addEventListener('activateItinerary', handleActivateItinerary);
+    return () => {
+      window.removeEventListener('activateItinerary', handleActivateItinerary);
+    };
+  }, [map]);
+
+  // 활성화된 일정의 일차가 변경될 때 해당 일차의 첫 장소로 지도 카메라 이동
+  useEffect(() => {
+    if (activeItinerary) {
+      const dayItems = activeItinerary.days.find((d: any) => d.day === activeItineraryDay)?.items || [];
+      const firstItem = dayItems[0];
+      if (firstItem && map) {
+        map.panTo(new kakao.maps.LatLng(firstItem.lat, firstItem.lng));
+      }
+    }
+  }, [activeItineraryDay, activeItinerary, map]);
+
+
   // 즐겨찾기(localStorage) 마운트 시 데이터 복원
+
   useEffect(() => {
     const saved = localStorage.getItem('modoo-matjip-favorites');
     if (saved) {
@@ -86,6 +340,100 @@ export default function MapContainer({
     }
     isMountedRef.current = true;
   }, []);
+
+  // 3차 기획: 1km 버퍼 다각형 리스트 연산
+  const activePlanningBufferPolygons = (() => {
+    if (!activePlanningItinerary) return [];
+    const dayData = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay);
+    if (!dayData || dayData.items.length < 2) return [];
+
+    const polygons: { lat: number; lng: number }[][] = [];
+    for (let i = 0; i < dayData.items.length - 1; i++) {
+      const pA = dayData.items[i];
+      const pB = dayData.items[i + 1];
+      const poly = getRouteBufferPolygon({ lat: pA.lat, lng: pA.lng }, { lat: pB.lat, lng: pB.lng });
+      polygons.push(poly.map(p => ({ lat: p.lat, lng: p.lng })));
+    }
+    return polygons;
+  })();
+
+  // 3차 기획: 임의의 맛집이 활성화된 계획 버퍼 내에 속하는지 체크
+  const isRestaurantInPlanningBuffer = (restaurant: Restaurant) => {
+    if (activePlanningBufferPolygons.length === 0) return false;
+    return activePlanningBufferPolygons.some(poly => 
+      isPointInPolygon({ lat: restaurant.lat, lng: restaurant.lng }, poly)
+    );
+  };
+
+  // 3차 기획: 맛집을 경로 선분 중 최적의 인덱스에 삽입(경유지 삽입)
+  const insertRestaurantToPlanningRoute = (restaurant: Restaurant) => {
+    if (!activePlanningItinerary) return;
+
+    setActivePlanningItinerary((prev: any) => {
+      const updatedDays = prev.days.map((d: any) => {
+        if (d.day === planningActiveDay) {
+          const items = d.items;
+          let insertIdx = items.length;
+
+          // 2개 이상의 장소가 있을 때 최적의 수직 인접 선분 구간 탐색
+          if (items.length >= 2) {
+            let minIncrease = Infinity;
+            for (let i = 0; i < items.length - 1; i++) {
+              const pA = items[i];
+              const pB = items[i + 1];
+              // getDistance 사용
+              const distA_P = getDistance(pA.lat, pA.lng, restaurant.lat, restaurant.lng);
+              const distP_B = getDistance(restaurant.lat, restaurant.lng, pB.lat, pB.lng);
+              const distA_B = getDistance(pA.lat, pA.lng, pB.lat, pB.lng);
+              
+              const increase = distA_P + distP_B - distA_B;
+              if (increase < minIncrease) {
+                minIncrease = increase;
+                insertIdx = i + 1; // A와 B 사이에 쏙 삽입
+              }
+            }
+          }
+
+          const newItem: ItineraryItem = {
+            id: `db-${restaurant.id}-${Date.now()}`,
+            name: restaurant.name,
+            category: restaurant.category || '음식점',
+            address: restaurant.address,
+            lat: restaurant.lat,
+            lng: restaurant.lng,
+            is_custom_spot: false,
+            restaurant_id: restaurant.id
+          };
+
+          const newItems = [...items];
+          newItems.splice(insertIdx, 0, newItem);
+          return { ...d, items: newItems };
+        }
+        return d;
+      });
+      return { ...prev, days: updatedDays };
+    });
+  };
+
+  // 지도 드로잉용 일정에 장소(일반 장소 또는 맛집) 직접 추가
+  const addPlaceToPlanning = (item: Omit<ItineraryItem, 'id'>) => {
+    if (!activePlanningItinerary) return;
+    
+    setActivePlanningItinerary((prev: any) => {
+      const updatedDays = prev.days.map((d: any) => {
+        if (d.day === planningActiveDay) {
+          const newItem: ItineraryItem = {
+            ...item,
+            id: `${item.is_custom_spot ? 'kakao' : 'db'}-${Date.now()}`
+          };
+          return { ...d, items: [...d.items, newItem] };
+        }
+        return d;
+      });
+      return { ...prev, days: updatedDays };
+    });
+  };
+
 
   // 즐겨찾기 상태 변경 시 localStorage 동기화
   useEffect(() => {
@@ -152,42 +500,29 @@ export default function MapContainer({
 
   // 줌 레벨에 따른 행정구역 클러스터 데이터 로드
   useEffect(() => {
-    async function fetchRegionClusters() {
-      if (zoomLevel <= 10) {
+    async function functionFetchRegionClusters() {
+      // 줌 레벨 4 이하(더 줌인된 상태)에서는 클러스터링을 끄고 개별 마커들을 노출시킴
+      if (zoomLevel <= 4) {
         setRegionClusters([]);
         setActivePolygons(null);
         return;
       }
-      // 레벨 12 이상은 시/도(depth 1)
-      // 레벨 11은 시/군/구(depth 2)
-      const depth = zoomLevel > 11 ? 1 : 2;
+      // 레벨 8 이상은 시/도(depth 1) - 광역 단위 (예: 서울특별시)
+      // 레벨 5 ~ 7은 시/군/구(depth 2) - 기초 지자체 단위 (예: 서울 강남구)
+      const depth = zoomLevel >= 8 ? 1 : 2;
       
       const { data, error } = await supabase.rpc('get_restaurant_clusters', { p_depth: depth });
       if (data) {
         setRegionClusters(data);
       }
     }
-    fetchRegionClusters();
+    functionFetchRegionClusters();
   }, [zoomLevel]);
 
-  // 폴리곤 포커스 플래시(Focus Flash) 애니메이션 (1.5초 후 자연스럽게 페이드아웃)
+  // 폴리곤 포커스 플래시(Focus Flash) 애니메이션 비활성화 (호버 시에만 명시적으로 보여지도록 처리)
   useEffect(() => {
     if (activePolygons) {
-      setPolygonOpacity(0.8);
-      const fadeTimer = setTimeout(() => {
-        let currentOpacity = 0.8;
-        const interval = setInterval(() => {
-          currentOpacity -= 0.05;
-          if (currentOpacity <= 0) {
-            clearInterval(interval);
-            setActivePolygons(null);
-          } else {
-            setPolygonOpacity(currentOpacity);
-          }
-        }, 50);
-        return () => clearInterval(interval);
-      }, 1000);
-      return () => clearTimeout(fadeTimer);
+      setPolygonOpacity(0.45); // 고정된 은은한 네온 아우라 투명도 유지
     }
   }, [activePolygons]);
 
@@ -218,8 +553,6 @@ export default function MapContainer({
       const sw = bounds.getSouthWest();
       const ne = bounds.getNorthEast();
       
-      // 레이더 스캔(Sonar) 애니메이션 트리거
-      setSonarPing(Date.now());
       setZoomLevel(map.getLevel());
       
       // 약간 더 넓은 영역(Buffer Zone)을 서버에 요청하여 마커를 미리 당겨옵니다 (Pre-fetching UX)
@@ -275,118 +608,133 @@ export default function MapContainer({
     }, 400); // 줌 애니메이션 대기
   };
 
-  // 커스텀 마커 UI 렌더러 (Premium Design Benchmark)
+  // 맛집 총 조회수 기반 Solid 컴팩트 Teardrop 핀 마커 UI 렌더러
   const getMarkerUI = (restaurant: Restaurant) => {
-    const isMichelin = restaurant.content_tags?.some(t => t.source === 'michelin');
-    const isBlueRibbon = restaurant.content_tags?.some(t => t.source === 'blueribbon');
-    const isDdogan = restaurant.content_tags?.some(t => t.source === 'ddoganjib');
-    const bestVid = getBestVideo(restaurant.videos);
-    const hasVideo = !!bestVid;
-    const profileImg = bestVid?.youtuber?.profile_image;
+    const testViewsMap: Record<string, number> = {
+      '유즈라멘': 1500000,
+      '호수집': 780000,
+      '도동집': 55000,
+      '오근내7닭갈비': 1200000,
+      '일미장어': 250000,
+      '서부고려족발': 35000,
+      '명동칼국수': 950000,
+      '서울역철도떡볶이': 1800000,
+      '충무칼국수': 45000,
+      '그릴': 12000
+    };
+
+    const dbTotalViews = restaurant.videos?.reduce((sum, vid) => sum + (vid.view_count || 0), 0) || 0;
+    const totalViews = testViewsMap[restaurant.name] !== undefined ? testViewsMap[restaurant.name] : dbTotalViews;
+
+    let viewLevel: 1 | 2 | 3 = 1;
+    if (totalViews >= 1000000) viewLevel = 3;
+    else if (totalViews >= 100000) viewLevel = 2;
 
     const isSelected = selectedRestaurant?.id === restaurant.id;
     const isHovered = effectiveHoveredId === restaurant.id;
     const isMapHovered = mapHoveredRestaurantId === restaurant.id;
-    const isHighlighted = isSelected || isHovered || isMapHovered;
+    const isBufferPlanningRecommended = isPlanningMode && isRestaurantInPlanningBuffer(restaurant);
+    const isHighlighted = isSelected || isHovered || isMapHovered || isBufferPlanningRecommended;
 
-    // 공통 하단 포인터 (마커 꼬리)
-    const renderPointer = (bgColor: string) => (
-      <div className={`absolute bottom-[3px] left-1/2 -translate-x-1/2 w-[14px] h-[14px] ${bgColor} rotate-45 z-0 shadow-sm rounded-[2px] transition-colors duration-300`}></div>
-    );
-
-    // 1. 유튜브 프로필형 (최우선 노출, 그라데이션 링 가이드)
-    if (hasVideo && profileImg) {
-      const containerClass = isHighlighted 
-        ? 'p-[3px] bg-gradient-to-r from-red-600 to-orange-500 shadow-[0_0_20px_rgba(239,68,68,0.65)] scale-110' 
-        : 'border-[3px] border-white shadow-[0_5px_15px_rgba(0,0,0,0.35)]';
-      const pointerColor = isHighlighted ? 'bg-orange-500' : 'bg-white';
-
+    // 줌 아웃 시 미니 도트 (호버/선택 시 복원)
+    if (zoomLevel >= 7 && !isHighlighted) {
+      const dotSize = viewLevel === 3 ? 'w-3.5 h-3.5' : viewLevel === 2 ? 'w-2.5 h-2.5' : 'w-2 h-2';
       return (
-        <div className="relative flex flex-col items-center pb-[8px]">
-          <div className={`relative w-12 h-12 rounded-full bg-white z-10 overflow-hidden transition-all duration-300 ${containerClass}`}>
-            {isHighlighted ? (
-              <div className="w-full h-full rounded-full overflow-hidden bg-white">
-                <img src={profileImg} className="w-full h-full object-cover no-filter" alt="youtuber" />
-              </div>
-            ) : (
-              <img src={profileImg} className="w-full h-full object-cover no-filter" alt="youtuber" />
-            )}
-          </div>
-          {renderPointer(pointerColor)}
-        </div>
-      );
-    }
-    
-    // 2. 또간집 특화 로고형
-    if (isDdogan) {
-      const borderClass = isHighlighted 
-        ? 'border-transparent shadow-[0_0_20px_rgba(239,68,68,0.65)] scale-110' 
-        : 'border-[3px] border-white shadow-[0_5px_15px_rgba(0,0,0,0.35)]';
-      const bgColor = isHighlighted ? 'bg-gradient-to-r from-red-600 to-orange-500' : 'bg-[#00c73c]';
-      const pointerColor = isHighlighted ? 'bg-orange-500' : 'bg-[#00c73c]';
-
-      return (
-        <div className="relative flex flex-col items-center pb-[8px]">
-          <div className={`relative w-11 h-11 rounded-full flex items-center justify-center border-[3px] z-10 transition-all duration-300 ${bgColor} ${borderClass}`}>
-            <span className="text-white font-extrabold text-[13px] tracking-tighter">또간집</span>
-          </div>
-          {renderPointer(pointerColor)}
-        </div>
-      );
-    }
-    
-    // 3. 미쉐린 아이콘형
-    if (isMichelin) {
-      const borderClass = isHighlighted 
-        ? 'border-transparent shadow-[0_0_20px_rgba(239,68,68,0.65)] scale-110' 
-        : 'border-[3px] border-white shadow-[0_5px_15px_rgba(0,0,0,0.35)]';
-      const bgColor = isHighlighted ? 'bg-gradient-to-r from-red-600 to-orange-500' : 'bg-[#b9110c]';
-      const pointerColor = isHighlighted ? 'bg-orange-500' : 'bg-[#b9110c]';
-
-      return (
-        <div className="relative flex flex-col items-center pb-[8px]">
-          <div className={`relative w-11 h-11 rounded-full flex items-center justify-center border-[3px] z-10 transition-all duration-300 ${bgColor} ${borderClass}`}>
-            <MichelinIcon size={24} color="white" />
-          </div>
-          {renderPointer(pointerColor)}
-        </div>
-      );
-    }
-    
-    // 4. 블루리본 아이콘형
-    if (isBlueRibbon) {
-      const borderClass = isHighlighted 
-        ? 'border-transparent shadow-[0_0_20px_rgba(239,68,68,0.65)] scale-110' 
-        : 'border-[3px] border-white shadow-[0_5px_15px_rgba(0,0,0,0.35)]';
-      const bgColor = isHighlighted ? 'bg-gradient-to-r from-red-600 to-orange-500' : 'bg-[#005bab]';
-      const pointerColor = isHighlighted ? 'bg-orange-500' : 'bg-[#005bab]';
-
-      return (
-        <div className="relative flex flex-col items-center pb-[8px]">
-          <div className={`relative w-11 h-11 rounded-full flex items-center justify-center border-[3px] z-10 transition-all duration-300 ${bgColor} ${borderClass}`}>
-             <span className="text-white font-extrabold text-[12px] tracking-tighter">리본</span>
-          </div>
-          {renderPointer(pointerColor)}
+        <div className="relative flex items-center justify-center w-5 h-5 select-none">
+          {viewLevel === 3 && (
+            <div className="absolute w-3.5 h-3.5 rounded-full bg-red-500/35 animate-ping pointer-events-none" />
+          )}
+          <div className={`relative rounded-full bg-gradient-to-br from-red-500 to-orange-500 border border-white/70 shadow-md ${dotSize}`} />
         </div>
       );
     }
 
-    // 5. 기본형 (카테고리 아이콘 등)
-    const borderClass = isHighlighted 
-      ? 'border-transparent shadow-[0_0_20px_rgba(239,68,68,0.65)] scale-110' 
-      : 'border-[2.5px] border-white shadow-[0_5px_15px_rgba(0,0,0,0.3)]';
-    const bgColor = isHighlighted ? 'bg-gradient-to-r from-red-600 to-orange-500' : 'bg-zinc-800';
-    const pointerColor = isHighlighted ? 'bg-orange-500' : 'bg-zinc-800';
+    // ─── Solid 컴팩트 Teardrop 핀 ──────────────────────────────────────
+    const PIN_SIZE = isBufferPlanningRecommended ? 36 : (isHighlighted ? 34 : 28);
+
+    const glowShadow = isBufferPlanningRecommended
+      ? '0 0 24px 8px rgba(249,115,22,0.7)' // 오렌지 네온 빔
+      : (isHighlighted
+        ? '0 0 18px 5px rgba(239,68,68,0.6)'
+        : viewLevel === 3
+          ? '0 3px 12px rgba(239,68,68,0.45)'
+          : '0 3px 10px rgba(0,0,0,0.22)');
+
+    const ringColor = isBufferPlanningRecommended
+      ? 'rgba(251,146,60,1)' // 강렬한 오렌지 테두리
+      : (viewLevel === 3
+        ? 'rgba(252,165,165,0.9)'
+        : viewLevel === 2
+          ? 'rgba(253,186,116,0.85)'
+          : 'rgba(255,255,255,0.75)');
 
     return (
-      <div className="relative flex flex-col items-center pb-[8px]">
-        <div className={`relative w-9 h-9 rounded-full flex items-center justify-center border-[2.5px] z-10 transition-all duration-300 ${bgColor} ${borderClass}`}>
-          <MapPin size={16} color="white" />
+      <div
+        className="relative flex flex-col items-center select-none transition-all duration-200"
+        style={{ paddingBottom: PIN_SIZE * 0.38 }}
+      >
+        {/* 추천 맛집 뱃지 */}
+        {isBufferPlanningRecommended && (
+          <div className="absolute z-30 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[7px] font-black tracking-tight px-1.5 py-[2px] rounded-full border border-white shadow-[0_0_12px_#f97316] whitespace-nowrap"
+            style={{ top: -14, right: -(PIN_SIZE * 0.5) }}>
+            경로추천 ✨
+          </div>
+        )}
+
+        {/* 조회수 정보 뱃지 — 우측 상단 고정 */}
+        {!isBufferPlanningRecommended && viewLevel === 3 && (
+          <div className="absolute z-30 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[8px] font-black tracking-tight px-1.5 py-[2px] rounded-full border border-white/80 shadow-[0_2px_8px_rgba(239,68,68,0.6)] animate-pulse whitespace-nowrap"
+            style={{ top: -10, right: -(PIN_SIZE * 0.65) }}>
+            100만+
+          </div>
+        )}
+        {!isBufferPlanningRecommended && viewLevel === 2 && (
+          <div className="absolute z-30 bg-zinc-900/90 backdrop-blur-sm text-white text-[8px] font-black tracking-tight px-1.5 py-[2px] rounded-full border border-white/20 shadow-[0_2px_6px_rgba(0,0,0,0.4)] whitespace-nowrap"
+            style={{ top: -10, right: -(PIN_SIZE * 0.65) }}>
+            10만+
+          </div>
+        )}
+
+        {/* 3차 기획: 경로상 추천 맛집 이중 펄스 링 */}
+        {isBufferPlanningRecommended && (
+          <>
+            <div
+              className="absolute animate-ping pointer-events-none z-0 rounded-full bg-orange-500/30"
+              style={{ width: PIN_SIZE * 1.5, height: PIN_SIZE * 1.5, top: -(PIN_SIZE * 0.25), left: -(PIN_SIZE * 0.25) }}
+            />
+            <div
+              className="absolute animate-pulse pointer-events-none z-0 rounded-full bg-red-500/15 border border-orange-500/30"
+              style={{ width: PIN_SIZE * 1.25, height: PIN_SIZE * 1.25, top: -(PIN_SIZE * 0.125), left: -(PIN_SIZE * 0.125) }}
+            />
+          </>
+        )}
+
+        {/* 3단계 후방 펄스 링 */}
+        {!isBufferPlanningRecommended && viewLevel === 3 && (
+          <div
+            className="absolute animate-ping pointer-events-none z-0 rounded-full bg-red-500/20"
+            style={{ width: PIN_SIZE, height: PIN_SIZE, top: 0, left: 0 }}
+          />
+        )}
+
+        {/* Teardrop 핀 본체 */}
+        <div
+          className="relative z-10 transition-all duration-200"
+          style={{ width: PIN_SIZE, height: PIN_SIZE }}
+        >
+          <div
+            className={`absolute inset-0 ${isBufferPlanningRecommended ? 'bg-gradient-to-br from-orange-500 to-red-600' : 'bg-gradient-to-br from-red-500 to-orange-500'}`}
+            style={{
+              borderRadius: '50% 50% 50% 0',
+              transform: 'rotate(-45deg)',
+              boxShadow: `0 0 0 1.5px ${ringColor}, ${glowShadow}`,
+            }}
+          />
         </div>
-        {renderPointer(pointerColor)}
       </div>
     );
   };
+
 
   // 카테고리에 따른 맛집 필터링
   const filteredRestaurants = restaurants.filter(r => {
@@ -412,6 +760,15 @@ export default function MapContainer({
 
   return (
     <div className="w-full h-screen relative overflow-hidden bg-gray-100 dark:bg-zinc-950">
+      {/* 글로벌 SVG 그라데이션 정의 */}
+      <svg width="0" height="0" className="absolute pointer-events-none" aria-hidden="true">
+        <defs>
+          <linearGradient id="red-orange-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FF0000" />
+            <stop offset="100%" stopColor="#FF7A00" />
+          </linearGradient>
+        </defs>
+      </svg>
       
       {/* 맵 스킨 선택 플로팅 UI (좌측 중앙) */}
       <div className="absolute left-4 top-1/3 -translate-y-1/2 z-20 flex flex-col gap-3 bg-white/80 backdrop-blur-md p-2.5 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-white/50">
@@ -468,10 +825,18 @@ export default function MapContainer({
                       {/* 프로필 연동형 마이페이지 전환 버튼 */}
                       <button
                         onClick={() => setDesktopView('mypage')}
-                        className="p-2 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-xl transition-all border border-white/10 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm"
+                        className="overflow-hidden bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-xl transition-all border border-white/10 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm w-9.5 h-9.5 shrink-0"
                         title="마이페이지"
                       >
-                        <User size={18} className="stroke-[2.5]" />
+                        {user?.avatarUrl ? (
+                          <img 
+                            src={user.avatarUrl} 
+                            alt={user.name} 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <User size={18} className="stroke-[2.5]" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -502,10 +867,6 @@ export default function MapContainer({
                   {/* Instagram Story Slider */}
                   {desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) && (
                     <div className="mt-4 px-1 pb-3 border-b border-white/5 shrink-0 select-none">
-                      <div className="flex items-center gap-1.5 mb-2.5 px-1">
-                        <Flame size={14} className="text-brand-orange fill-current animate-pulse" />
-                        <span className="text-[11px] font-black text-white/50 tracking-wider uppercase">이 근처 최신 추천 먹방</span>
-                      </div>
                       <div className="flex gap-4 overflow-x-auto hide-scrollbar py-0.5">
                         {filteredRestaurants
                           .filter(r => r.videos && r.videos.length > 0)
@@ -626,11 +987,14 @@ export default function MapContainer({
                               }}
                               className="p-1.5 rounded-full hover:bg-white/5 transition-colors shrink-0"
                             >
-                              <Heart 
+                              <Star 
                                 size={18} 
+                                stroke={favorites.includes(r.id) ? 'url(#red-orange-grad)' : 'currentColor'}
+                                fill={favorites.includes(r.id) ? 'url(#red-orange-grad)' : 'none'}
+                                strokeWidth={favorites.includes(r.id) ? 2.5 : 2}
                                 className={`transition-all duration-300 ${
                                   favorites.includes(r.id)
-                                    ? 'text-red-500 fill-current drop-shadow-[0_0_6px_rgba(239,68,68,0.45)]'
+                                    ? 'drop-shadow-[0_0_6px_rgba(255,75,0,0.45)]'
                                     : 'text-zinc-500 hover:text-red-500'
                                 }`} 
                               />
@@ -665,15 +1029,21 @@ export default function MapContainer({
                           {/* Fork & Knife, Restaurant Name, Category & View Count */}
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <div className="p-1 bg-white/5 rounded-lg text-brand-orange shrink-0">
-                                <Utensils size={14} className="stroke-[2.5]" />
+                              <div className="p-1 bg-white/5 rounded-lg shrink-0 flex items-center justify-center">
+                                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="url(#red-orange-grad)">
+                                  <path d="M7 2C4.8 2 3 3.8 3 6c0 1.8 1.2 3.3 2.8 3.8l.7 10.7c.1.8.8 1.5 1.5 1.5s1.4-.7 1.5-1.5l.7-10.7C11.8 9.3 13 7.8 13 6c0-2.2-1.8-4-4-4H7z" />
+                                  <rect x="15" y="2" width="2.2" height="20" rx="1.1" />
+                                  <rect x="18.8" y="2" width="2.2" height="20" rx="1.1" />
+                                </svg>
                               </div>
                               <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{r.name}</h4>
                               <span className="text-[11px] font-semibold text-zinc-400 shrink-0">| {r.category}</span>
                             </div>
                             {bestVid?.view_count !== undefined ? (
-                              <span className="text-[11px] font-extrabold bg-orange-950/30 text-orange-400 px-2 py-0.5 rounded-md shrink-0">
-                                조회수 {formatViewCount(bestVid.view_count)}회
+                              <span className="text-[11px] font-extrabold bg-red-950/20 px-2 py-0.5 rounded-md shrink-0 border border-red-500/10">
+                                <span className="bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text text-transparent">
+                                  조회수 {formatViewCount(bestVid.view_count)}회
+                                </span>
                               </span>
                             ) : (
                               <span className="text-[11px] font-extrabold bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md shrink-0">
@@ -693,7 +1063,34 @@ export default function MapContainer({
                     );
                   })
                 ) : (
-                  <MyPageView onOpenSubmission={() => setIsSubmissionOpen(true)} />
+                  <MyPageView 
+                    onOpenSubmission={() => {
+                      if (!user) {
+                        setIsLoginModalOpen(true);
+                      } else {
+                        setIsSubmissionOpen(true);
+                      }
+                    }} 
+                    onOpenItineraryPlanner={(itinerary) => {
+                      if (itinerary) {
+                        setEditingItinerary(itinerary);
+                        setActivePlanningItinerary(itinerary);
+                        setPlanningActiveDay(1);
+                        setIsPlanningMode(true);
+                      } else {
+                        setNewItineraryTitle('');
+                        setNewItineraryStartDate('');
+                        setNewItineraryEndDate('');
+                        setShowInitPlanningModal(true);
+                      }
+                    }}
+                    user={user}
+                    onLogout={() => {
+                      setUser(null);
+                      localStorage.removeItem('modoo-matjip-user');
+                    }}
+                    onTriggerLogin={() => setIsLoginModalOpen(true)}
+                  />
                 )}
               </div>
             </div>
@@ -736,26 +1133,7 @@ export default function MapContainer({
         )}
       </AnimatePresence>
 
-      {/* 중앙 Sonar Sweep 레이더 효과 (UX Optimized) */}
-      <AnimatePresence mode="popLayout">
-        {sonarPing > 0 && (
-          <div key={sonarPing} className="absolute top-1/2 left-1/2 pointer-events-none z-10 flex items-center justify-center">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={`${sonarPing}-${i}`}
-                initial={{ scale: 0, opacity: 0.6 }}
-                animate={{ scale: 1, opacity: 0 }}
-                transition={{ 
-                  duration: 1.4, 
-                  delay: i * 0.15, 
-                  ease: [0.25, 1, 0.5, 1]
-                }}
-                className="absolute w-[800px] h-[800px] rounded-full border-[2.5px] border-cyan-400 bg-cyan-400/10 shadow-[0_0_30px_rgba(34,211,238,0.5)]"
-              />
-            ))}
-          </div>
-        )}
-      </AnimatePresence>
+
 
       {/* 실제 지도 렌더링 영역 (테마 필터 격리 적용) */}
       <div className={`absolute inset-0 w-full h-full transition-colors duration-700 ${mapTheme}`}>
@@ -786,368 +1164,552 @@ export default function MapContainer({
           />
         ))}
 
-        {/* 줌 아웃 시 행정구역 기반 커스텀 오버레이 (Phase 3 & 4) */}
-        {zoomLevel > 10 && map && regionClusters.filter(cluster => {
-          const bounds = map.getBounds();
-          const p = new kakao.maps.LatLng(cluster.center_lat, cluster.center_lng);
-          return bounds.contain(p);
-        }).map((cluster, idx) => (
-          <CustomOverlayMap
-            key={`region-${idx}`}
-            position={{ lat: cluster.center_lat, lng: cluster.center_lng }}
-          >
-            <div 
-              onClick={() => {
-                // 부드러운 줌인 및 마우스 이동
-                map?.setLevel(zoomLevel - 3, { animate: true });
-                map?.panTo(new kakao.maps.LatLng(cluster.center_lat, cluster.center_lng));
 
-                // GeoJSON 다운로드 및 폴리곤 추출
-                const fetchPolygon = async () => {
-                  try {
-                    let depthLevel = zoomLevel > 11 ? 1 : 2;
-                    let url = '';
-                    if (depthLevel === 1) url = 'https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea_provinces_geo_simple.json';
-                    else url = 'https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea_municipalities_geo_simple.json';
-                    
-                    const res = await fetch(url);
-                    const geojson = await res.json();
-                    
-                    let targetName = cluster.region_name;
-                    if (depthLevel === 1) {
-                      const nameMap: Record<string, string> = {
-                        '서울': '서울특별시', '부산': '부산광역시', '대구': '대구광역시', '인천': '인천광역시',
-                        '광주': '광주광역시', '대전': '대전광역시', '울산': '울산광역시', '세종특별자치시': '세종특별자치시',
-                        '경기': '경기도', '강원특별자치도': '강원도', '강원': '강원도', '충북': '충청북도', '충남': '충청남도',
-                        '전북특별자치도': '전라북도', '전북': '전라북도', '전남': '전라남도', '경북': '경상북도', '경남': '경상남도',
-                        '제주특별자치도': '제주특별자치도', '제주': '제주특별자치도'
-                      };
-                      targetName = nameMap[targetName] || targetName;
-                    }
-
-                    const feature = geojson.features.find((f: any) => f.properties.name === targetName);
-                    
-                    if (feature) {
-                      const geometry = feature.geometry;
-                      let paths: {lat: number, lng: number}[][] = [];
-                      if (geometry.type === 'Polygon') {
-                        paths.push(geometry.coordinates[0].map((c: any) => ({ lat: c[1], lng: c[0] })));
-                      } else if (geometry.type === 'MultiPolygon') {
-                        geometry.coordinates.forEach((poly: any) => {
-                          paths.push(poly[0].map((c: any) => ({ lat: c[1], lng: c[0] })));
-                        });
-                      }
-                      setActivePolygons(paths);
-                    } else {
-                      setActivePolygons(null);
-                    }
-                  } catch (e) {
-                    console.error("Polygon fetch error", e);
-                    setActivePolygons(null);
-                  }
-                };
-                fetchPolygon();
-              }}
-              className="px-4 py-2 bg-slate-900/90 backdrop-blur-md text-white rounded-full font-bold shadow-[0_4px_15px_rgba(0,0,0,0.3)] border border-cyan-400/40 cursor-pointer hover:scale-105 transition-all flex items-center gap-2 z-20"
-            >
-              <span className="text-[14px] tracking-tight whitespace-nowrap">{cluster.region_name}</span>
-              <span className="text-cyan-400 text-[12px] bg-cyan-400/10 px-2 py-0.5 rounded-full">{cluster.count}곳</span>
-            </div>
-          </CustomOverlayMap>
+        {/* 3차 기획: 실시간 일정 드로잉 경로 버퍼 다각형(Polygon) 렌더링 */}
+        {isPlanningMode && activePlanningBufferPolygons.map((path, idx) => (
+          <Polygon
+            key={`buffer-poly-${idx}`}
+            path={path}
+            strokeWeight={1}
+            strokeColor="#ff6b00"
+            strokeOpacity={0.4}
+            strokeStyle="solid"
+            fillColor="#ef4444"
+            fillOpacity={0.12}
+          />
         ))}
 
-        {/* 미니멀 스텔스 클러스터러 (동네 수준 레벨 10 이하에서만 활성화) */}
-        <MarkerClusterer
-          averageCenter={true}
-          minLevel={10} // 지도 레벨 10부터 클러스터링 시작 (거리에 따라 뭉침)
-          disableClickZoom={true} 
-          onClusterclick={(_, cluster) => {
-            if (!map) return;
-            const bounds = cluster.getBounds();
-            // 클러스터 영역 내에 있는 식당들만 필터링
-            const clustered = filteredRestaurants.filter(r => {
-              const rLatLng = new kakao.maps.LatLng(r.lat, r.lng);
-              return bounds.contain(rLatLng);
-            });
-            setSelectedRestaurant(null);
-            setSelectedCluster(clustered);
-          }}
-          styles={[{ // 스텔스 클러스터 커스텀 디자인 (극도의 미니멀리즘)
-            width: '32px', height: '32px',
-            background: 'rgba(24, 24, 27, 0.95)', // 솔리드 블랙/무채색 다크(zinc-900)
-            borderRadius: '50%',
-            color: '#fff',
-            textAlign: 'center',
-            fontWeight: '600',
-            fontSize: '13px',
-            lineHeight: '32px',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-          }]}
-        >
-          {/* 동네 단위(레벨 10 이하)에서만 핀/마커 렌더링 */}
-          {zoomLevel <= 10 && filteredRestaurants.map((restaurant) => (
+        {/* 3차 기획: 실시간 일정 드로잉 경로선(Polyline) 렌더링 */}
+        {isPlanningMode && activePlanningItinerary && (() => {
+          const dayItems = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay)?.items || [];
+          const linePath = dayItems.map((item: any) => ({ lat: item.lat, lng: item.lng }));
+          if (linePath.length < 2) return null;
+          return (
+            <Polyline
+              path={linePath}
+              strokeWeight={5}
+              strokeColor="#ef4444"
+              strokeOpacity={0.9}
+              strokeStyle="solid"
+            />
+          );
+        })()}
+
+        {/* 3차 기획: 실시간 일정 드로잉 일차별 스팟 순서 마커 */}
+        {isPlanningMode && activePlanningItinerary && (() => {
+          const dayItems = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay)?.items || [];
+          return dayItems.map((item: any, idx: number) => (
             <CustomOverlayMap
-              key={restaurant.id}
-              position={{ lat: restaurant.lat, lng: restaurant.lng }}
+              key={`planning-overlay-${item.id}`}
+              position={{ lat: item.lat, lng: item.lng }}
               clickable={true}
-              yAnchor={1} // 핀의 꼬리가 마커 위치에 오도록 (하단 정렬)
-              zIndex={mapHoveredRestaurantId === restaurant.id ? 100 : (selectedRestaurant?.id === restaurant.id ? 50 : (effectiveHoveredId === restaurant.id ? 30 : 10))}
+              yAnchor={0.5}
             >
               <div 
                 onClick={() => {
-                  handleSelectRestaurant(restaurant);
-                  map?.panTo(new kakao.maps.LatLng(restaurant.lat, restaurant.lng));
-                }} 
-                onMouseEnter={() => setMapHoveredRestaurantId(restaurant.id)}
-                onMouseLeave={() => setMapHoveredRestaurantId(null)}
-                className={`relative cursor-pointer transition-all duration-300 origin-bottom ${
-                  selectedRestaurant?.id === restaurant.id 
-                    ? 'scale-125 z-50' 
-                    : mapHoveredRestaurantId === restaurant.id 
-                      ? 'scale-110 -translate-y-2 z-40 drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]' 
-                      : effectiveHoveredId === restaurant.id
-                        ? 'scale-110 z-30 drop-shadow-[0_8px_16px_rgba(0,0,0,0.3)]'
-                        : 'z-10 hover:scale-110'
-                }`}
+                  map?.panTo(new kakao.maps.LatLng(item.lat, item.lng));
+                }}
+                className="relative cursor-pointer flex flex-col items-center group scale-100 hover:scale-110 transition-transform z-40"
               >
-                {getMarkerUI(restaurant)}
+                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-red-600 to-orange-500 text-white font-black text-[9px] flex items-center justify-center shadow-lg border border-white/20">
+                  {idx + 1}
+                </div>
+                <div className="mt-1 px-2 py-0.5 bg-zinc-950/90 border border-white/10 rounded-md text-white font-bold text-[8px] shadow whitespace-nowrap">
+                  {item.name}
+                </div>
+              </div>
+            </CustomOverlayMap>
+          ));
+        })()}
 
-                {/* 마커 직접 호버(Hover) 시 상단에 생성되는 초프리미엄 인포윈도우 말풍선 카드 */}
-                {mapHoveredRestaurantId === restaurant.id && (() => {
-                  const bestVid = getBestVideo(restaurant.videos);
-                  return (
+        {/* 활성화된 일정의 경로선(Polyline) 및 일차별 순서 마커 */}
+        {activeItinerary && (() => {
+          const dayItems = activeItinerary.days.find((d: any) => d.day === activeItineraryDay)?.items || [];
+          const linePath = dayItems.map((item: any) => ({ lat: item.lat, lng: item.lng }));
+          if (linePath.length < 2) return null;
+          return (
+            <Polyline
+              path={linePath}
+              strokeWeight={5}
+              strokeColor="#FF6F00"
+              strokeOpacity={0.8}
+              strokeStyle="solid"
+            />
+          );
+        })()}
+
+        {activeItinerary && (() => {
+          const dayItems = activeItinerary.days.find((d: any) => d.day === activeItineraryDay)?.items || [];
+          return dayItems.map((item: any, idx: number) => (
+            <CustomOverlayMap
+              key={item.id}
+              position={{ lat: item.lat, lng: item.lng }}
+              clickable={true}
+              yAnchor={0.5}
+            >
+              <div 
+                onClick={() => {
+                  map?.panTo(new kakao.maps.LatLng(item.lat, item.lng));
+                  if (item.restaurant_id) {
+                    const rest = restaurants.find(r => r.id === item.restaurant_id);
+                    if (rest) setSelectedRestaurant(rest);
+                  }
+                }}
+                className="relative cursor-pointer flex flex-col items-center group scale-100 hover:scale-110 transition-transform"
+              >
+                <div className="w-7 h-7 rounded-full bg-gradient-to-r from-red-600 to-orange-500 text-white font-black text-xs flex items-center justify-center shadow-lg border border-white/20">
+                  {idx + 1}
+                </div>
+                <div className="mt-1 px-2.5 py-1 bg-zinc-950/85 backdrop-blur-md border border-white/10 rounded-lg text-white font-bold text-[9px] shadow-md whitespace-nowrap">
+                  {item.name}
+                </div>
+              </div>
+            </CustomOverlayMap>
+          ));
+        })()}
+
+        {/* 줌 아웃 시 행정구역 기반 커스텀 오버레이 (Phase 3 & 4) */}
+        {zoomLevel > 4 && map && regionClusters.filter(cluster => {
+          const bounds = map.getBounds();
+          const p = new kakao.maps.LatLng(cluster.center_lat, cluster.center_lng);
+          return bounds.contain(p);
+        }).map((cluster, idx) => {
+          // GeoJSON 캐시를 전역 또는 컴포넌트 변수로 설정하여 중복 다운로드 차단
+          const loadPolygonForCluster = async () => {
+            try {
+              let depthLevel = zoomLevel >= 8 ? 1 : 2;
+              let url = '';
+              if (depthLevel === 1) url = 'https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea_provinces_geo_simple.json';
+              else url = 'https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea_municipalities_geo_simple.json';
+              
+              // window 객체에 GeoJSON 인메모리 캐시 보관
+              const cacheKey = `geojson_depth_${depthLevel}`;
+              let geojson;
+              if (typeof window !== 'undefined' && (window as any)[cacheKey]) {
+                geojson = (window as any)[cacheKey];
+              } else {
+                const res = await fetch(url);
+                geojson = await res.json();
+                if (typeof window !== 'undefined') {
+                  (window as any)[cacheKey] = geojson;
+                }
+              }
+              
+              let targetName = cluster.region_name;
+              if (depthLevel === 1) {
+                const nameMap: Record<string, string> = {
+                  '서울': '서울특별시', '부산': '부산광역시', '대구': '대구광역시', '인천': '인천광역시',
+                  '광주': '광주광역시', '대전': '대전광역시', '울산': '울산광역시', '세종특별자치시': '세종특별자치시',
+                  '경기': '경기도', '강원특별자치도': '강원도', '강원': '강원도', '충북': '충청북도', '충남': '충청남도',
+                  '전북특별자치도': '전라북도', '전북': '전라북도', '전남': '전라남도', '경북': '경상북도', '경남': '경상남도',
+                  '제주특별자치도': '제주특별자치도', '제주': '제주특별자치도'
+                };
+                targetName = nameMap[targetName] || targetName;
+              } else if (depthLevel === 2) {
+                // '서울 중구', '대구 중구', '경기 수원시' 등에서 축약 접두사를 떼어내고 '중구', '수원시'로 targetName 복원
+                const parts = targetName.split(' ');
+                if (parts.length > 1) {
+                  targetName = parts.slice(1).join(' ');
+                }
+              }
+
+              // 명칭 매핑 결함 방어: exact match 외에 targetName이 포함되는지 부분 일치도 체크
+              // 2depth 레벨인 경우, 서울 중구 / 대구 중구 등을 고유 식별하기 위해 행정구역 코드 앞 2자리 비교
+              const codeMap: Record<string, string> = {
+                '서울': '11', '부산': '21', '대구': '22', '인천': '23', '광주': '24', '대전': '25', '울산': '26', '세종': '29', '경기': '31', '강원': '32', '충북': '33', '충남': '34', '전북': '35', '전남': '36', '경북': '37', '경남': '38', '제주': '39'
+              };
+              const parts = cluster.region_name.split(' ');
+              const regionPrefix = parts[0]; // '서울', '대구', '경기' 등
+              const targetCodePrefix = codeMap[regionPrefix] || '';
+
+              const feature = geojson.features.find((f: any) => {
+                const fName = f.properties.name || '';
+                const fCode = f.properties.code || '';
+                const nameMatches = fName === targetName || fName.includes(targetName) || targetName.includes(fName);
+                if (depthLevel === 2 && targetCodePrefix) {
+                  return nameMatches && fCode.startsWith(targetCodePrefix);
+                }
+                return nameMatches;
+              });
+              
+              if (feature) {
+                const geometry = feature.geometry;
+                let paths: {lat: number, lng: number}[][] = [];
+                if (geometry.type === 'Polygon') {
+                  paths.push(geometry.coordinates[0].map((c: any) => ({ lat: c[1], lng: c[0] })));
+                } else if (geometry.type === 'MultiPolygon') {
+                  geometry.coordinates.forEach((poly: any) => {
+                    paths.push(poly[0].map((c: any) => ({ lat: c[1], lng: c[0] })));
+                  });
+                }
+                setActivePolygons(paths);
+                setPolygonOpacity(0.45);
+              }
+            } catch (e) {
+              console.error("Polygon fetch error", e);
+            }
+          };
+
+          return (
+            <CustomOverlayMap
+              key={`region-${idx}`}
+              position={{ lat: cluster.center_lat, lng: cluster.center_lng }}
+            >
+              <div 
+                onClick={() => {
+                  if (map) {
+                    const targetLat = cluster.center_lat;
+                    const targetLng = cluster.center_lng;
+                    // 광역 지자체(8레벨 이상)에서 클릭 시 6레벨(시군구)로 자연스럽게 이동,
+                    // 시군구 지자체(5~7레벨)에서 클릭 시 4레벨(개별 맛집 마커 노출 레벨)로 자연스럽게 이동
+                    const nextLevel = zoomLevel >= 8 ? 6 : 4;
+                    
+                    // 1단계: 클릭 지점으로 중심점 이동 (부드러운 스크롤링)
+                    map.panTo(new kakao.maps.LatLng(targetLat, targetLng));
+                    
+                    // 2단계: 250ms 딜레이 후 줌인하여 뷰 포커싱
+                    setTimeout(() => {
+                      map.setLevel(nextLevel, { animate: true });
+                    }, 250);
+                  }
+                }}
+                onMouseEnter={() => {
+                  setHoveredClusterIdx(idx);
+                  loadPolygonForCluster();
+                }}
+                onMouseLeave={() => {
+                  setHoveredClusterIdx(null);
+                  setActivePolygons(null);
+                }}
+                className="px-4.5 py-2.5 backdrop-blur-lg text-white rounded-full font-black cursor-pointer active:scale-95 flex items-center gap-2.5 z-20 transition-all duration-300 select-none"
+                style={{
+                  background: hoveredClusterIdx === idx ? 'rgba(30, 58, 138, 0.75)' : 'rgba(9, 9, 11, 0.4)',
+                  border: hoveredClusterIdx === idx ? '1px solid rgba(96, 165, 250, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)',
+                  boxShadow: hoveredClusterIdx === idx
+                    ? '0 12px 35px rgba(59, 130, 246, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15)'
+                    : '0 8px 25px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15)',
+                }}
+              >
+                <span className="text-[13.5px] tracking-tight whitespace-nowrap font-extrabold">{cluster.region_name}</span>
+                <span className="text-blue-400 text-[12px] bg-blue-950/60 px-2.5 py-0.5 rounded-full font-black border border-blue-400/40">{cluster.count}</span>
+              </div>
+            </CustomOverlayMap>
+          );
+        })}
+
+        {/* 맛집 핀/마커 렌더링 (줌 레벨 4 이하에서만 개별 노출) */}
+        {zoomLevel <= 4 && filteredRestaurants.map((restaurant) => (
+          <CustomOverlayMap
+            key={restaurant.id}
+            position={{ lat: restaurant.lat, lng: restaurant.lng }}
+            clickable={true}
+            yAnchor={1} // 핀의 꼬리가 마커 위치에 오도록 (하단 정렬)
+            zIndex={mapHoveredRestaurantId === restaurant.id ? 100 : (selectedRestaurant?.id === restaurant.id ? 50 : (effectiveHoveredId === restaurant.id ? 30 : 10))}
+          >
+            <div 
+              onClick={() => {
+                handleSelectRestaurant(restaurant);
+                map?.panTo(new kakao.maps.LatLng(restaurant.lat, restaurant.lng));
+              }} 
+              onMouseEnter={() => setMapHoveredRestaurantId(restaurant.id)}
+              onMouseLeave={() => setMapHoveredRestaurantId(null)}
+              draggable={isPlanningMode}
+              onDragStart={(e) => {
+                if (isPlanningMode) {
+                  e.dataTransfer.setData('text/plain', JSON.stringify(restaurant));
+                }
+              }}
+              className={`relative cursor-pointer transition-all duration-300 origin-bottom ${
+                selectedRestaurant?.id === restaurant.id 
+                  ? 'scale-125 z-50' 
+                  : mapHoveredRestaurantId === restaurant.id 
+                    ? 'scale-110 -translate-y-2 z-40 drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)]' 
+                    : effectiveHoveredId === restaurant.id
+                      ? 'scale-110 z-30 drop-shadow-[0_8px_16px_rgba(0,0,0,0.3)]'
+                      : 'z-10 hover:scale-110'
+              }`}
+            >
+              {getMarkerUI(restaurant)}
+
+              {/* 마커 직접 호버(Hover) 시 상단에 생성되는 초프리미엄 인포윈도우 말풍선 카드 */}
+              {mapHoveredRestaurantId === restaurant.id && (() => {
+                const bestVid = getBestVideo(restaurant.videos);
+                return (
+                  <div 
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3.5 w-[280px] rounded-3xl bg-zinc-900/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] flex flex-col select-none z-[120] text-left overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
+                  >
+                    {/* 은은한 둥근 그라데이션 테두리 */}
                     <div 
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3.5 w-[280px] rounded-3xl bg-zinc-900/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] flex flex-col select-none z-[120] text-left overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
-                    >
-                      {/* 은은한 둥근 그라데이션 테두리 */}
-                      <div 
-                        className="absolute inset-0 rounded-3xl pointer-events-none" 
-                        style={{
-                          padding: '1.2px',
-                          background: 'linear-gradient(to right, rgba(220, 38, 38, 0.35), rgba(249, 115, 22, 0.35))',
-                          WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                          WebkitMaskComposite: 'xor',
-                          maskComposite: 'exclude',
-                        }}
-                      />
+                      className="absolute inset-0 rounded-3xl pointer-events-none" 
+                      style={{
+                        padding: '1.2px',
+                        background: 'linear-gradient(to right, rgba(220, 38, 38, 0.35), rgba(249, 115, 22, 0.35))',
+                        WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                        WebkitMaskComposite: 'xor',
+                        maskComposite: 'exclude',
+                      }}
+                    />
 
-                      {/* 하단 화살표 정렬 꼬리 */}
-                      <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-zinc-900 rotate-45 border-r border-b border-orange-500/20" />
+                    {/* 하단 화살표 정렬 꼬리 */}
+                    <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-zinc-900 rotate-45 border-r border-b border-orange-500/20" />
 
-                      {/* Instagram-style Feed Header (Youtuber Info & Heart Bookmark) */}
-                      {bestVid?.youtuber && (
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-transparent shrink-0 z-10">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {bestVid.youtuber.profile_image ? (
-                              <div className="instagram-story-ring shrink-0">
-                                <img 
-                                  src={bestVid.youtuber.profile_image} 
-                                  className="w-7 h-7 rounded-full object-cover border-2 border-zinc-900 shadow-sm"
-                                  alt={bestVid.youtuber.name} 
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 border-2 border-zinc-900 shrink-0">
-                                {bestVid.youtuber.name[0]}
-                              </div>
-                            )}
-                            <span className="text-[13.5px] font-extrabold text-zinc-100 truncate tracking-tight ml-1">
-                              {bestVid.youtuber.name}
-                            </span>
-                          </div>
+                    {/* Instagram-style Feed Header (Youtuber Info & Heart Bookmark) */}
+                    {bestVid?.youtuber && (
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-transparent shrink-0 z-10">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {bestVid.youtuber.profile_image ? (
+                            <div className="instagram-story-ring shrink-0">
+                              <img 
+                                src={bestVid.youtuber.profile_image} 
+                                className="w-7 h-7 rounded-full object-cover border-2 border-zinc-900 shadow-sm"
+                                alt={bestVid.youtuber.name} 
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 border-2 border-zinc-900 shrink-0">
+                              {bestVid.youtuber.name[0]}
+                            </div>
+                          )}
+                          <span className="text-[13.5px] font-extrabold text-zinc-100 truncate tracking-tight ml-1">
+                            {bestVid.youtuber.name}
+                          </span>
+                        </div>
 
-                          {/* Elastic Heart Toggle Button */}
-                          <motion.button
-                            whileTap={{ scale: 0.8 }}
-                            onClick={(e) => {
-                              e.stopPropagation(); // 카드 이동 전파 차단
-                              const isFav = favorites.includes(restaurant.id);
-                              if (isFav) {
-                                setFavorites(favorites.filter(id => id !== restaurant.id));
-                              } else {
-                                setFavorites([...favorites, restaurant.id]);
-                              }
-                            }}
-                            className="p-1.5 rounded-full hover:bg-white/5 transition-colors shrink-0"
-                          >
-                            <Heart 
-                              size={18} 
-                              className={`transition-all duration-300 ${
-                                favorites.includes(restaurant.id)
-                                  ? 'text-red-500 fill-current drop-shadow-[0_0_6px_rgba(239,68,68,0.45)]'
-                                  : 'text-zinc-500 hover:text-red-500'
-                              }`} 
-                            />
-                          </motion.button>
+                        {/* Elastic Heart Toggle Button */}
+                        <motion.button
+                          whileTap={{ scale: 0.8 }}
+                          onClick={(e) => {
+                            e.stopPropagation(); // 카드 이동 전파 차단
+                            const isFav = favorites.includes(restaurant.id);
+                            if (isFav) {
+                              setFavorites(favorites.filter(id => id !== restaurant.id));
+                            } else {
+                              setFavorites([...favorites, restaurant.id]);
+                            }
+                          }}
+                          className="p-1.5 rounded-full hover:bg-white/5 transition-colors shrink-0"
+                        >
+                          <Star 
+                            size={18} 
+                            stroke={favorites.includes(restaurant.id) ? 'url(#red-orange-grad)' : 'currentColor'}
+                            fill={favorites.includes(restaurant.id) ? 'url(#red-orange-grad)' : 'none'}
+                            strokeWidth={favorites.includes(restaurant.id) ? 2.5 : 2}
+                            className={`transition-all duration-300 ${
+                              favorites.includes(restaurant.id)
+                                ? 'drop-shadow-[0_0_6px_rgba(255,75,0,0.45)]'
+                                : 'text-zinc-500 hover:text-red-500'
+                            }`} 
+                          />
+                        </motion.button>
+                      </div>
+                    )}
+
+                    {/* Thumbnail - 16:9 ratio */}
+                    <div className="relative w-full aspect-video shrink-0 overflow-hidden bg-zinc-950 ring-1 ring-white/5">
+                      {bestVid?.thumbnail ? (
+                        <img 
+                          src={bestVid.thumbnail} 
+                          className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" 
+                          alt={restaurant.name}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
+                          <Utensils size={36} />
                         </div>
                       )}
 
-                      {/* Thumbnail - 16:9 ratio */}
-                      <div className="relative w-full aspect-video shrink-0 overflow-hidden bg-zinc-950 ring-1 ring-white/5">
-                        {bestVid?.thumbnail ? (
-                          <img 
-                            src={bestVid.thumbnail} 
-                            className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" 
-                            alt={restaurant.name}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
-                            <Utensils size={36} />
-                          </div>
-                        )}
+                      {/* Shorts badge */}
+                      {bestVid?.is_short && (
+                        <div className="absolute bottom-3 right-3 bg-red-600/90 backdrop-blur-md text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 border border-red-500/30 shadow-[0_2px_8px_rgba(220,38,38,0.3)]">
+                          <Play size={8} fill="currentColor"/> SHORTS
+                        </div>
+                      )}
+                    </div>
 
-                        {/* Shorts badge */}
-                        {bestVid?.is_short && (
-                          <div className="absolute bottom-3 right-3 bg-red-600/90 backdrop-blur-md text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 border border-red-500/30 shadow-[0_2px_8px_rgba(220,38,38,0.3)]">
-                            <Play size={8} fill="currentColor"/> SHORTS
+                    {/* Info Section */}
+                    <div className="p-4 flex flex-col space-y-2">
+                      {/* Fork & Knife, Restaurant Name, Category & View Count */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="p-1 bg-white/5 rounded-lg shrink-0 flex items-center justify-center">
+                            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="url(#red-orange-grad)">
+                              <path d="M7 2C4.8 2 3 3.8 3 6c0 1.8 1.2 3.3 2.8 3.8l.7 10.7c.1.8.8 1.5 1.5 1.5s1.4-.7 1.5-1.5l.7-10.7C11.8 9.3 13 7.8 13 6c0-2.2-1.8-4-4-4H7z" />
+                              <rect x="15" y="2" width="2.2" height="20" rx="1.1" />
+                              <rect x="18.8" y="2" width="2.2" height="20" rx="1.1" />
+                            </svg>
                           </div>
-                        )}
-                      </div>
-
-                      {/* Info Section */}
-                      <div className="p-4 flex flex-col space-y-2">
-                        {/* Fork & Knife, Restaurant Name, Category & View Count */}
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <div className="p-1 bg-white/5 rounded-lg text-brand-orange shrink-0">
-                              <Utensils size={14} className="stroke-[2.5]" />
-                            </div>
-                            <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{restaurant.name}</h4>
-                            <span className="text-[11px] font-semibold text-zinc-400 shrink-0">| {restaurant.category}</span>
-                          </div>
-                          {bestVid?.view_count !== undefined ? (
-                            <span className="text-[11px] font-extrabold bg-orange-950/30 text-orange-400 px-2 py-0.5 rounded-md shrink-0">
+                          <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{restaurant.name}</h4>
+                          <span className="text-[11px] font-semibold text-zinc-400 shrink-0">| {restaurant.category}</span>
+                        </div>
+                        {bestVid?.view_count !== undefined ? (
+                          <span className="text-[11px] font-extrabold bg-red-950/20 px-2 py-0.5 rounded-md shrink-0 border border-red-500/10">
+                            <span className="bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text text-transparent">
                               조회수 {formatViewCount(bestVid.view_count)}회
                             </span>
-                          ) : (
-                            <span className="text-[11px] font-extrabold bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md shrink-0">
-                              조회수 0회
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Video Title */}
-                        {bestVid?.title && (
-                          <p className="text-sm font-semibold text-zinc-300 line-clamp-2 leading-relaxed mt-1">
-                            {bestVid.title}
-                          </p>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-extrabold bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md shrink-0">
+                            조회수 0회
+                          </span>
                         )}
                       </div>
+
+                      {/* Video Title */}
+                      {bestVid?.title && (
+                        <p className="text-sm font-semibold text-zinc-300 line-clamp-2 leading-relaxed mt-1">
+                          {bestVid.title}
+                        </p>
+                      )}
                     </div>
-                  );
-                })()}
-                
-                {/* 클릭(선택) 시에만 표시되는 마커 밀착형 식당명 라벨 */}
-                {selectedRestaurant?.id === restaurant.id && (
-                  <div className="absolute top-full -mt-0.5 left-1/2 -translate-x-1/2 bg-zinc-950/95 text-white text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg shadow-[0_4px_15px_rgba(0,0,0,0.35)] border border-orange-500/50 whitespace-nowrap z-50">
-                    {restaurant.name}
                   </div>
-                )}
-              </div>
-            </CustomOverlayMap>
-          ))}
-        </MarkerClusterer>
+                );
+              })()}
+              
+              {/* 클릭(선택) 시에만 표시되는 마커 밀착형 식당명 라벨 */}
+              {selectedRestaurant?.id === restaurant.id && (
+                <div className="absolute top-full -mt-0.5 left-1/2 -translate-x-1/2 bg-zinc-950/95 text-white text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg shadow-[0_4px_15px_rgba(0,0,0,0.35)] border border-orange-500/50 whitespace-nowrap z-50">
+                  {restaurant.name}
+                </div>
+              )}
+            </div>
+          </CustomOverlayMap>
+        ))}
       </Map>
       </div>
 
-      {/* 우측 하단 플로팅 액션 버튼 (FAB) 그룹 */}
-      <div className={`absolute right-4 z-20 flex flex-col gap-3 transition-all duration-300 ${!selectedRestaurant ? 'bottom-[140px]' : 'bottom-10'}`}>
-        {/* 랜덤 뽑기 버튼 */}
-        <button 
-          onClick={pickRandomRestaurant}
-          className="p-3.5 bg-brand-600 text-white rounded-full shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-brand-500 hover:bg-brand-700 active:scale-95 transition-all flex items-center justify-center"
-          title="오늘 뭐 먹지? (랜덤 뽑기)"
-        >
-          <Dices size={22} />
-        </button>
+      {/* 우측 하단 프리미엄 액션 버튼 (FAB) 그룹 (항시 노출 세로 정렬 구조) */}
+      <div className={`absolute right-4 z-20 flex flex-col items-end gap-2.5 transition-all duration-300 ${!selectedRestaurant ? 'bottom-[140px]' : 'bottom-10'}`}>
+        
+        {/* 맛집 제보 */}
+        <div className="flex items-center gap-2 group">
+          <span className="text-[10px] font-black text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">맛집 제보</span>
+          <button
+            onClick={() => {
+              if (!user) {
+                setIsLoginModalOpen(true);
+              } else {
+                setIsSubmissionOpen(true);
+              }
+            }}
+            className="p-3 bg-zinc-900 text-orange-500 hover:text-orange-400 rounded-full border border-white/10 hover:border-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+            title="맛집 제보하기"
+          >
+            <MapPinPlus size={18} />
+          </button>
+        </div>
 
-        {/* 현 위치 버튼 */}
-        <button 
-          onClick={moveToCurrentLocation}
-          className="p-3.5 bg-white text-gray-800 rounded-full shadow-[0_4px_20px_rgba(0,0,0,0.15)] border border-gray-100 hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center"
-          title="현 위치로 이동"
-        >
-          <Navigation size={22} fill="currentColor" className="text-gray-700" />
-        </button>
+        {/* 일정 만들기 */}
+        <div className="flex items-center gap-2 group">
+          <span className="text-[10px] font-black text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">일정 만들기</span>
+          <button
+            onClick={() => {
+              setNewItineraryTitle('');
+              setNewItineraryStartDate('');
+              setNewItineraryEndDate('');
+              setShowInitPlanningModal(true);
+            }}
+            className="p-3 bg-zinc-900 text-orange-500 hover:text-orange-400 rounded-full border border-white/10 hover:border-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+            title="일정 만들기"
+          >
+            <CalendarRange size={18} />
+          </button>
+        </div>
+
+        {/* 오늘 뭐먹지 (랜덤 뽑기) */}
+        <div className="flex items-center gap-2 group">
+          <span className="text-[10px] font-black text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">오늘 뭐 먹지?</span>
+          <button
+            onClick={pickRandomRestaurant}
+            className="p-3 bg-zinc-900 text-orange-500 hover:text-orange-400 rounded-full border border-white/10 hover:border-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+            title="오늘 뭐 먹지?"
+          >
+            <Dices size={18} />
+          </button>
+        </div>
+
+        {/* 현 위치 */}
+        <div className="flex items-center gap-2 group">
+          <span className="text-[10px] font-black text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">현 위치</span>
+          <button
+            onClick={moveToCurrentLocation}
+            className="p-3 bg-zinc-900 text-orange-500 hover:text-orange-400 rounded-full border border-white/10 hover:border-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+            title="현 위치로 이동"
+          >
+            <Navigation size={18} fill="currentColor" />
+          </button>
+        </div>
       </div>
 
-      {/* 바텀 스와이프 리스트 (모바일 전용) */}
+      {/* 퀵-슬라이더 덱 (클러스터 클릭 시 데스크탑/모바일 공통 플로팅 팝업) */}
       <AnimatePresence>
-        {!selectedRestaurant && restaurants.length > 0 && (
+        {!selectedRestaurant && selectedCluster && selectedCluster.length > 0 && (
           <motion.div 
             initial={{ y: 150, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 150, opacity: 0 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-            className="md:hidden absolute bottom-6 left-0 w-full z-10 px-0 flex flex-col items-center"
+            transition={{ type: 'spring', damping: 22, stiffness: 220 }}
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-8 md:translate-x-0 w-full max-w-sm z-30 px-4 flex flex-col items-center select-none"
           >
-            {selectedCluster && (
-              <div className="mb-3 bg-gray-900/80 backdrop-blur-md px-4 py-1.5 rounded-full text-white text-[12px] font-medium shadow-lg border border-white/10 flex items-center gap-2 cursor-pointer hover:bg-gray-800 transition-colors" onClick={() => setSelectedCluster(null)}>
-                <span>📍 이 지역의 핫플 {selectedCluster.length}곳</span>
-                <span className="bg-white/20 rounded-full w-5 h-5 flex items-center justify-center text-[10px]">✕</span>
+            <div className="w-full bg-[#18181b]/80 backdrop-blur-xl border border-white/10 rounded-[28px] p-4 shadow-[0_24px_50px_rgba(0,0,0,0.5)]">
+              {/* 헤더 */}
+              <div className="flex items-center justify-between mb-3 px-1">
+                <span className="text-[12px] font-black text-white/90 tracking-tight flex items-center gap-1.5">
+                  📍 이 지역의 맛집 핫플 <span className="text-brand-orange-light">{selectedCluster.length}곳</span>
+                </span>
+                <button 
+                  onClick={() => setSelectedCluster(null)}
+                  className="p-1 bg-white/5 hover:bg-white/10 text-white rounded-full border border-white/10 transition-colors cursor-pointer"
+                  title="닫기"
+                >
+                  <X size={12} className="stroke-[2.5]" />
+                </button>
               </div>
-            )}
-            <Swiper
-              effect={'coverflow'}
-              grabCursor={true}
-              centeredSlides={true}
-              slidesPerView={'auto'}
-              coverflowEffect={{
-                rotate: 25,
-                stretch: 0,
-                depth: 150,
-                modifier: 1,
-                slideShadows: false,
-              }}
-              modules={[EffectCoverflow]}
-              onSlideChange={(swiper) => {
-                // 스와이프할 때마다 지도의 마커를 해당 식당으로 부드럽게 이동시킵니다.
-                const source = selectedCluster || restaurants;
-                const target = source[swiper.activeIndex];
-                if (target && map) {
-                  map.panTo(new kakao.maps.LatLng(target.lat, target.lng));
-                }
-              }}
-              className="w-full py-4"
-            >
-              {(selectedCluster || restaurants).map(r => {
-                const bestVid = getBestVideo(r.videos);
-                return (
-                  <SwiperSlide key={r.id} style={{ width: '280px' }} className="px-2">
-                    <div 
-                      onClick={() => {
-                        handleSelectRestaurant(r);
-                        map?.setLevel(4, { animate: true });
-                        map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
-                      }}
-                      className="w-full bg-white/95 backdrop-blur-xl rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.15)] p-3.5 flex gap-3.5 cursor-pointer border-[1.5px] border-white/80 active:scale-95 transition-transform"
-                    >
-                      <img 
-                        src={bestVid?.thumbnail || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500&q=80'} 
-                        className="w-20 h-20 rounded-2xl object-cover shadow-inner bg-gray-100 flex-shrink-0 no-filter" 
-                        alt={r.name}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500&q=80';
+
+              {/* Swiper 가로 슬라이더 */}
+              <Swiper
+                grabCursor={true}
+                slidesPerView={'auto'}
+                spaceBetween={12}
+                className="w-full py-0.5"
+              >
+                {selectedCluster.map(r => {
+                  const bestVid = getBestVideo(r.videos);
+                  return (
+                    <SwiperSlide key={r.id} style={{ width: '260px' }} className="shrink-0">
+                      <div 
+                        onClick={() => {
+                          handleSelectRestaurant(r);
+                          map?.setLevel(4, { animate: true });
+                          map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
                         }}
-                      />
-                      <div className="flex flex-col justify-center flex-1 min-w-0 pr-1">
-                        <h4 className="font-extrabold text-[15px] text-gray-900 truncate tracking-tight">{r.name}</h4>
-                        <span className="text-[12px] font-medium text-gray-500 truncate mt-0.5">{r.category}</span>
-                        <div className="mt-2 flex gap-1.5 flex-wrap">
-                          {r.content_tags?.slice(0, 2).map((t, i) => (
-                            <span key={i} className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-md font-bold truncate max-w-[80px]">
-                              #{t.label}
+                        className="w-full bg-zinc-950/75 hover:bg-zinc-950/90 backdrop-blur-md rounded-2xl p-3 flex gap-3 cursor-pointer border border-white/5 hover:border-white/10 active:scale-[0.97] transition-all"
+                      >
+                        <img 
+                          src={bestVid?.thumbnail || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500&q=80'} 
+                          className="w-16 h-16 rounded-xl object-cover shadow-inner bg-zinc-900 flex-shrink-0" 
+                          alt={r.name}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=500&q=80';
+                          }}
+                        />
+                        <div className="flex flex-col justify-center flex-1 min-w-0">
+                          <h4 className="font-extrabold text-[13.5px] text-white truncate tracking-tight">{r.name}</h4>
+                          <span className="text-[11px] font-semibold text-zinc-400 truncate mt-0.5">{r.category}</span>
+                          {bestVid?.view_count !== undefined && (
+                            <span className="text-[9.5px] font-bold mt-1">
+                              <span className="bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text text-transparent">
+                                조회수 {formatViewCount(bestVid.view_count)}회
+                              </span>
                             </span>
-                          ))}
+                          )}
                         </div>
                       </div>
-                    </div>
-                  </SwiperSlide>
-                );
-              })}
-            </Swiper>
+                    </SwiperSlide>
+                  );
+                })}
+              </Swiper>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1157,6 +1719,30 @@ export default function MapContainer({
         restaurant={selectedRestaurant} 
         onClose={() => handleSelectRestaurant(null)} 
         isSidebarCollapsed={isSidebarCollapsed}
+        favorites={favorites}
+        toggleFavorite={(id) => {
+          const isFav = favorites.includes(id);
+          if (isFav) setFavorites(favorites.filter(favId => favId !== id));
+          else setFavorites([...favorites, id]);
+        }}
+        isPlanningMode={isPlanningMode}
+        isRecommendedRouteItem={selectedRestaurant ? isRestaurantInPlanningBuffer(selectedRestaurant) : false}
+        onAddToPlanning={(rest) => {
+          addPlaceToPlanning({
+            name: rest.name,
+            category: rest.category || '음식점',
+            address: rest.address,
+            lat: rest.lat,
+            lng: rest.lng,
+            is_custom_spot: false,
+            restaurant_id: rest.id
+          });
+          handleSelectRestaurant(null);
+        }}
+        onInsertToPlanningRoute={(rest) => {
+          insertRestaurantToPlanningRoute(rest);
+          handleSelectRestaurant(null);
+        }}
       />
 
       {/* 모바일 탭 컨텐츠 오버레이 바텀시트 */}
@@ -1215,15 +1801,493 @@ export default function MapContainer({
           />
         )}
         {activeTab === 'mypage' && (
-          <MyPageView onOpenSubmission={() => setIsSubmissionOpen(true)} />
+          <MyPageView 
+            onOpenSubmission={() => {
+              if (!user) {
+                setIsLoginModalOpen(true);
+              } else {
+                setIsSubmissionOpen(true);
+              }
+            }} 
+            onOpenItineraryPlanner={(itinerary) => {
+              if (itinerary) {
+                setEditingItinerary(itinerary);
+                setActivePlanningItinerary(itinerary);
+                setPlanningActiveDay(1);
+                setIsPlanningMode(true);
+              } else {
+                setNewItineraryTitle('');
+                setNewItineraryStartDate('');
+                setNewItineraryEndDate('');
+                setShowInitPlanningModal(true);
+              }
+            }}
+            user={user}
+            onLogout={() => {
+              setUser(null);
+              localStorage.removeItem('modoo-matjip-user');
+            }}
+            onTriggerLogin={() => setIsLoginModalOpen(true)}
+          />
         )}
       </OverlayContainer>
+
+      {/* 지도 위 일정 컨트롤 플로팅 바 */}
+      <AnimatePresence>
+        {activeItinerary && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-zinc-950/80 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-2xl flex items-center justify-between gap-4 shadow-2xl z-30 min-w-[320px] max-w-[90%]"
+          >
+            <div className="min-w-0">
+              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">일정 진행 중</span>
+              <h5 className="text-xs font-black text-white truncate mt-0.5">{activeItinerary.title}</h5>
+            </div>
+            
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                disabled={activeItineraryDay === 1}
+                onClick={() => setActiveItineraryDay(prev => Math.max(prev - 1, 1))}
+                className="p-2 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-xs font-black text-orange-400 min-w-[40px] text-center">
+                Day {activeItineraryDay}
+              </span>
+              <button
+                disabled={activeItineraryDay === activeItinerary.days.length}
+                onClick={() => setActiveItineraryDay(prev => Math.min(prev + 1, activeItinerary.days.length))}
+                className="p-2 rounded-xl bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+              
+              <div className="w-px h-6 bg-white/10 mx-1" />
+              
+              <button
+                onClick={() => setActiveItinerary(null)}
+                className="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-colors"
+                title="일정 지도 표시 종료"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 모바일 하단 내비게이션 스마트 탭바 */}
       <BottomTabBar activeTab={activeTab} onChangeTab={setActiveTab} />
 
+
       {/* 나만의 핫플 제보하기 바텀시트 */}
       <RestaurantSubmissionBottomSheet isOpen={isSubmissionOpen} onClose={() => setIsSubmissionOpen(false)} />
+
+      {/* SNS 로그인 유도 모달 */}
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={(mockUser) => {
+          setUser(mockUser);
+          localStorage.setItem('modoo-matjip-user', JSON.stringify(mockUser));
+        }}
+      />
+
+      {/* 미식 일정 계획하기 바텀시트 */}
+      <ItineraryPlannerBottomSheet
+        isOpen={isItineraryPlannerOpen}
+        onClose={() => {
+          setIsItineraryPlannerOpen(false);
+          setEditingItinerary(null);
+        }}
+        user={user}
+        onSave={(itinerary) => {
+          saveLocalItinerary(itinerary);
+          window.dispatchEvent(new Event('itinerariesUpdated'));
+          setActiveItinerary(itinerary);
+          setActiveItineraryDay(1);
+        }}
+        editingItinerary={editingItinerary}
+      />
+
+      {/* 3차 기획: 지도 드로잉용 플로팅 패널 */}
+      <AnimatePresence>
+        {isPlanningMode && activePlanningItinerary && (
+          <FloatingItineraryPanel
+            itinerary={activePlanningItinerary}
+            activeDay={planningActiveDay}
+            onActiveDayChange={setPlanningActiveDay}
+            onRemoveItem={(itemId) => {
+              setActivePlanningItinerary((prev: any) => {
+                const updatedDays = prev.days.map((d: any) => {
+                  if (d.day === planningActiveDay) {
+                    return {
+                      ...d,
+                      items: d.items.filter((item: any) => item.id !== itemId)
+                    };
+                  }
+                  return d;
+                });
+                return { ...prev, days: updatedDays };
+              });
+              if (selectedPlanningItemId === itemId) {
+                setSelectedPlanningItemId(null);
+                setRecommendedRestaurantsForSelectedSpot([]);
+              }
+            }}
+            onMoveUp={(index) => {
+              if (index === 0) return;
+              setActivePlanningItinerary((prev: any) => {
+                const updatedDays = prev.days.map((d: any) => {
+                  if (d.day === planningActiveDay) {
+                    const newItems = [...d.items];
+                    const temp = newItems[index];
+                    newItems[index] = newItems[index - 1];
+                    newItems[index - 1] = temp;
+                    return { ...d, items: newItems };
+                  }
+                  return d;
+                });
+                return { ...prev, days: updatedDays };
+              });
+            }}
+            onMoveDown={(index) => {
+              setActivePlanningItinerary((prev: any) => {
+                const updatedDays = prev.days.map((d: any) => {
+                  if (d.day === planningActiveDay) {
+                    if (index === d.items.length - 1) return d;
+                    const newItems = [...d.items];
+                    const temp = newItems[index];
+                    newItems[index] = newItems[index + 1];
+                    newItems[index + 1] = temp;
+                    return { ...d, items: newItems };
+                  }
+                  return d;
+                });
+                return { ...prev, days: updatedDays };
+              });
+            }}
+            onEditItemMemo={(item) => {
+              setEditingItemForMemo(item);
+              setInputVisitTime(item.visit_time || '');
+              setInputMemo(item.memo || '');
+              setShowMemoModal(true);
+            }}
+            onSave={() => {
+              if (activePlanningItinerary.days.every((d: any) => d.items.length === 0)) {
+                alert('최소 한 개 이상의 장소를 일정에 추가해 주세요.');
+                return;
+              }
+              saveLocalItinerary(activePlanningItinerary);
+              window.dispatchEvent(new Event('itinerariesUpdated'));
+              setActiveItinerary(activePlanningItinerary);
+              setActiveItineraryDay(1);
+              setIsPlanningMode(false);
+              setActivePlanningItinerary(null);
+              alert('일정이 성공적으로 저장되었습니다!');
+            }}
+            onClose={() => {
+              if (confirm('편집 중인 일정을 취소하고 종료하시겠습니까? 저장되지 않은 변경사항은 삭제됩니다.')) {
+                setIsPlanningMode(false);
+                setActivePlanningItinerary(null);
+                setSelectedPlanningItemId(null);
+                setRecommendedRestaurantsForSelectedSpot([]);
+              }
+            }}
+            selectedItemId={selectedPlanningItemId}
+            onSelectItem={handleSelectPlanningItem}
+            recommendedRestaurants={recommendedRestaurantsForSelectedSpot}
+            onAddRecommendedRestaurant={(res) => {
+              insertRestaurantToPlanningRoute(res);
+              alert(`${res.name} 맛집을 최적 경로 중간에 경유지로 추가했습니다 ✨`);
+              setTimeout(() => {
+                if (selectedPlanningItemId) {
+                  setActivePlanningItinerary((currentItinerary: any) => {
+                    if (!currentItinerary) return currentItinerary;
+                    const dayData = currentItinerary.days.find((d: any) => d.day === planningActiveDay);
+                    const curItem = dayData?.items.find((it: any) => it.id === selectedPlanningItemId);
+                    if (curItem) {
+                      handleSelectPlanningItem(curItem);
+                    }
+                    return currentItinerary;
+                  });
+                }
+              }, 100);
+            }}
+            onRestaurantDrop={(res) => {
+              addPlaceToPlanning({
+                name: res.name,
+                category: res.category || '음식점',
+                address: res.address,
+                lat: res.lat,
+                lng: res.lng,
+                is_custom_spot: false,
+                restaurant_id: res.id
+              });
+              alert(`${res.name} 맛집이 패널에 추가되었습니다 📌`);
+            }}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            searchResults={searchResults}
+            isSearching={isSearching}
+            onSearchPlaces={handleSearchPlaces}
+            onAddPlaceFromSearch={(place) => {
+              addPlaceToPlanning({
+                name: place.place_name,
+                category: place.category_name.split(' > ').pop() || '관광지',
+                address: place.address_name || place.road_address_name,
+                lat: parseFloat(place.y),
+                lng: parseFloat(place.x),
+                place_url: place.place_url,
+                is_custom_spot: true
+              });
+              alert(`${place.place_name}을(를) 일정 코스에 추가하였습니다.`);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* 3차 기획: 상세 메모 및 시간 편집 서브 모달 */}
+      <CustomModal isOpen={showMemoModal} onClose={() => setShowMemoModal(false)}>
+        <div className="p-5 text-white bg-zinc-950 border border-white/10 rounded-3xl flex flex-col gap-4">
+          <div className="pb-3 border-b border-white/5 flex justify-between items-center">
+            <div>
+              <h4 className="text-sm font-bold text-zinc-200">시간/메모 추가 및 변경</h4>
+              {editingItemForMemo && (
+                <p className="text-[10px] text-orange-400 font-semibold mt-0.5">{editingItemForMemo.name}</p>
+              )}
+            </div>
+            <button onClick={() => setShowMemoModal(false)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase">방문 예정 시간</label>
+            <input
+              type="text"
+              placeholder="예: 19:30"
+              value={inputVisitTime}
+              onChange={e => setInputVisitTime(e.target.value)}
+              className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500/50"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] text-zinc-500 font-bold uppercase">상세 팁/메모</label>
+            <textarea
+              placeholder="예: 전방 50m 소소버스투어 핑크색 깃발찾기"
+              value={inputMemo}
+              onChange={e => setInputMemo(e.target.value)}
+              rows={3}
+              className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500/50 resize-none"
+            />
+          </div>
+
+          <button
+            onClick={() => {
+              if (!editingItemForMemo) return;
+              setActivePlanningItinerary((prev: any) => {
+                const updatedDays = prev.days.map((d: any) => {
+                  if (d.day === planningActiveDay) {
+                    return {
+                      ...d,
+                      items: d.items.map((item: any) => {
+                        if (item.id === editingItemForMemo.id) {
+                          return {
+                            ...item,
+                            visit_time: inputVisitTime || undefined,
+                            memo: inputMemo || undefined
+                          };
+                        }
+                        return item;
+                      })
+                    };
+                  }
+                  return d;
+                });
+                return { ...prev, days: updatedDays };
+              });
+              setShowMemoModal(false);
+              setEditingItemForMemo(null);
+            }}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-xs font-bold text-white shadow-lg"
+          >
+            적용하기
+          </button>
+        </div>
+      </CustomModal>
+
+      {/* 신규 일정 생성 정보 설정 모달 (캘린더 기간 및 제목 설정) */}
+      <CustomModal 
+        isOpen={showInitPlanningModal} 
+        onClose={() => setShowInitPlanningModal(false)}
+        title="여행일정 등록"
+        subtitle="일정에 따른 맛집 정보를 알려드립니다."
+      >
+        <div className="flex flex-col gap-4 w-full text-white">
+          {/* 일정 제목 명칭 입력 */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">여행 제목 (일정 명칭)</label>
+            <input
+              type="text"
+              placeholder="예: 부산 2박3일 여행 투어"
+              value={newItineraryTitle}
+              onChange={e => setNewItineraryTitle(e.target.value)}
+              className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500/50"
+            />
+          </div>
+
+          {/* 달력 레인지 선택 컴포넌트 (월 단위 슬라이더 전환 및 프리미엄 캡슐 효과) */}
+          <div className="border-t border-b border-white/5 py-4">
+            <div className="flex items-center justify-between px-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setCurrentCalendarMonth(prev => prev === 6 ? 5 : 6)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white transition-all cursor-pointer hover:border-orange-500/30"
+              >
+                &larr;
+              </button>
+              <h5 className="text-[12px] font-black text-zinc-200 tracking-wider">
+                {currentCalendarMonth === 5 ? '2026년 6월' : '2026년 7월'}
+              </h5>
+              <button
+                type="button"
+                onClick={() => setCurrentCalendarMonth(prev => prev === 5 ? 6 : 5)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white transition-all cursor-pointer hover:border-orange-500/30"
+              >
+                &rarr;
+              </button>
+            </div>
+
+            <div className="min-h-[190px]">
+              <div className="grid grid-cols-7 gap-y-1 gap-x-0 text-center">
+                {['일', '월', '화', '수', '목', '금', '토'].map(w => (
+                  <span key={w} className="text-[9px] font-bold text-zinc-500 py-1">{w}</span>
+                ))}
+                {getDaysInMonth(2026, currentCalendarMonth).map((dateStr, idx) => {
+                  if (!dateStr) return <div key={`empty-${currentCalendarMonth}-${idx}`} className="py-2" />;
+                  const dateObj = new Date(dateStr);
+                  const dayNum = dateObj.getDate();
+                  const status = getDayStatus(dateStr);
+                  const isSun = dateObj.getDay() === 0;
+                  const isSat = dateObj.getDay() === 6;
+                  const hasBothRangeSelected = newItineraryStartDate && newItineraryEndDate;
+
+                  return (
+                    <div key={dateStr} className="relative py-1 flex items-center justify-center">
+                      {status === 'in-range' && (
+                        <div className="absolute inset-y-1 left-0 right-0 bg-[#ff6f00]/10 border-y border-[#ff6f00]/20 backdrop-blur-[2px]" />
+                      )}
+                      {status === 'start' && hasBothRangeSelected && (
+                        <div className="absolute inset-y-1 left-1/2 right-0 bg-[#ff6f00]/10 border-y border-[#ff6f00]/20 backdrop-blur-[2px]" />
+                      )}
+                      {status === 'end' && hasBothRangeSelected && (
+                        <div className="absolute inset-y-1 left-0 right-1/2 bg-[#ff6f00]/10 border-y border-[#ff6f00]/20 backdrop-blur-[2px]" />
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleCalendarDaySelect(dateStr)}
+                        className={`w-7 h-7 text-[10px] font-black transition-all flex items-center justify-center cursor-pointer relative z-10 ${
+                          status === 'start' || status === 'end'
+                            ? 'bg-gradient-to-r from-red-600/70 to-orange-500/70 text-white rounded-full shadow-md shadow-orange-500/10 scale-105 border border-white/20'
+                            : status === 'in-range'
+                              ? 'text-orange-400 font-black'
+                              : isSun
+                                ? 'text-red-400 hover:bg-white/5 rounded-full'
+                                : isSat
+                                  ? 'text-sky-400 hover:bg-white/5 rounded-full'
+                                  : 'text-zinc-300 hover:bg-white/5 rounded-full'
+                        }`}
+                      >
+                        {dayNum}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 추가 유용한 정보 입력 세션 */}
+          <div className="space-y-3 pt-1">
+            {/* 1. 동행인 */}
+            <div className="space-y-1">
+              <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">누구와 가나요?</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {['혼자', '연인과', '친구와', '가족과'].map(item => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setNewItineraryCompanion(item)}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black border transition-all cursor-pointer ${
+                      newItineraryCompanion === item
+                        ? 'bg-orange-500/10 border-orange-500/40 text-orange-400'
+                        : 'bg-zinc-900 border-white/5 text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. 테마 */}
+            <div className="space-y-1">
+              <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">여행 테마/스타일</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {['맛집 탐방', '여유로운 힐링', '바쁜 명소 관광'].map(item => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setNewItineraryTheme(item)}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black border transition-all cursor-pointer ${
+                      newItineraryTheme === item
+                        ? 'bg-orange-500/10 border-orange-500/40 text-orange-400'
+                        : 'bg-zinc-900 border-white/5 text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. 이동 수단 */}
+            <div className="space-y-1">
+              <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider block">이동 수단</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {['자차/렌터카', '대중교통/도보', '복합(자차+도보)'].map(item => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setNewItineraryTransport(item)}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black border transition-all cursor-pointer ${
+                      newItineraryTransport === item
+                        ? 'bg-orange-500/10 border-orange-500/40 text-orange-400'
+                        : 'bg-zinc-900 border-white/5 text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 하단 최종 등록 단추 */}
+          <button
+            onClick={handleStartNewPlanning}
+            className="w-full py-3.5 mt-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 active:scale-[0.98] text-[11px] font-black text-white shadow-lg shadow-red-500/20 transition-all flex items-center justify-center cursor-pointer border border-white/10"
+          >
+            일정 등록
+          </button>
+        </div>
+      </CustomModal>
     </div>
   );
 }
+
+

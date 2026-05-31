@@ -48,3 +48,35 @@ export interface AffiliateProduct {
   keywords?: string[];
   category?: string;
 }
+
+export interface ItineraryItem {
+  id: string;
+  name: string;
+  category: string;
+  address: string;
+  lat: number;
+  lng: number;
+  place_url?: string;
+  is_custom_spot: boolean;
+  restaurant_id?: string;
+  visit_time?: string;
+  memo?: string;
+}
+
+export interface DailyItinerary {
+  day: number;
+  items: ItineraryItem[];
+}
+
+export interface Itinerary {
+  id: string;
+  title: string;
+  start_date?: string;
+  end_date?: string;
+  companion?: string;
+  theme?: string;
+  days: DailyItinerary[];
+  created_at: string;
+}
+
+

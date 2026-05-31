@@ -370,6 +370,15 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-6 md:py-10 space-y-8 select-none">
+      {/* 글로벌 SVG 그라데이션 정의 */}
+      <svg width="0" height="0" className="absolute pointer-events-none" aria-hidden="true">
+        <defs>
+          <linearGradient id="red-orange-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FF0000" />
+            <stop offset="100%" stopColor="#FF7A00" />
+          </linearGradient>
+        </defs>
+      </svg>
       
       {/* 1. 글로벌 헤더 바 */}
       <header className="flex justify-between items-center border-b border-white/5 pb-5 shrink-0">
@@ -577,36 +586,20 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
       <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-brand-orange/15 rounded-full filter blur-3xl -z-10" />
         
-        {/* 미식 가이드 인증 엠블럼 뱃지 노출 */}
-        {restaurant.content_tags && restaurant.content_tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {restaurant.content_tags.map((tag, idx) => {
-              const style = getTagStyle(tag.source);
-              const TagIcon = style.icon;
-              return (
-                <Link 
-                  key={idx} 
-                  href={`/?search=%23${encodeURIComponent(tag.label)}`}
-                  className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold ${style.bg} ${style.text} shadow-sm hover:scale-105 hover:brightness-110 active:scale-95 transition-all cursor-pointer`}
-                >
-                  {TagIcon && <TagIcon size={10} />}
-                  #{tag.label}
-                </Link>
-              );
-            })}
-          </div>
-        )}
-
         <h1 className="text-3xl font-black tracking-tight text-white mb-4">
           {restaurant.name}
         </h1>
         
-        <div className="flex flex-col gap-3 text-[13px] text-white/70">
+        <div className="flex flex-col gap-3 text-[13px] text-white/50">
           <div className="flex items-center">
-            <div className="p-2 bg-white/5 border border-white/5 rounded-xl mr-3 text-brand-orange-light">
-              <Utensils size={14} />
+            <div className="p-2 bg-white/5 border border-white/5 rounded-xl mr-3 flex items-center justify-center shrink-0">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="url(#red-orange-grad)">
+                <path d="M7 2C4.8 2 3 3.8 3 6c0 1.8 1.2 3.3 2.8 3.8l.7 10.7c.1.8.8 1.5 1.5 1.5s1.4-.7 1.5-1.5l.7-10.7C11.8 9.3 13 7.8 13 6c0-2.2-1.8-4-4-4H7z" />
+                <rect x="15" y="2" width="2.2" height="20" rx="1.1" />
+                <rect x="18.8" y="2" width="2.2" height="20" rx="1.1" />
+              </svg>
             </div>
-            <span className="font-semibold text-white/90">{restaurant.category}</span>
+            <span className="font-semibold text-zinc-400">{restaurant.category}</span>
           </div>
           <div className="flex items-center">
             <div className="p-2 bg-white/5 border border-white/5 rounded-xl mr-3 text-brand-orange-light">

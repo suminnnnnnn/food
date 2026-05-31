@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bookmark, MapPin, Trash2, ChevronRight, Award, Utensils } from 'lucide-react';
+import { Star, MapPin, Trash2, ChevronRight, Award, Utensils } from 'lucide-react';
 import { getRestaurantsByIds } from '@/lib/supabase/restaurants';
 import { Restaurant } from '@/types';
 
@@ -102,7 +102,7 @@ export default function FavoritesView({ onSelectRestaurant, onNavigateDetail }: 
   if (restaurants.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Bookmark className="w-12 h-12 text-zinc-600 mb-4 stroke-1 animate-pulse" />
+        <Star className="w-12 h-12 text-zinc-600 mb-4 stroke-1 animate-pulse" />
         <p className="text-zinc-400 font-medium">저장된 맛집이 없습니다.</p>
         <p className="text-zinc-600 text-xs mt-1">마음에 드는 맛집을 발견하면 저장해 보세요!</p>
       </div>

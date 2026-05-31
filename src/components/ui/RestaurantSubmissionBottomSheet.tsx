@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import CustomBottomSheet from './CustomBottomSheet';
+import { motion, AnimatePresence } from 'framer-motion';
+import CustomModal from './CustomModal';
 import { supabase } from '@/lib/supabase/client';
-import { Search, MapPin, Video, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Search, MapPin, CheckCircle2, ChevronRight, Sparkles, ArrowLeft, Utensils } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import Toast from './Toast';
 
@@ -162,202 +163,421 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose }: Pro
     resetForm();
   };
 
+  // 스텝 프로그레스 바
+  const StepProgressBar = () => (
+    <div className="flex items-center gap-3 px-1 mb-5">
+      {/* Step 1 */}
+      <div className="flex items-center gap-2 flex-1">
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 transition-all duration-300 ${
+          step >= 1 
+            ? 'bg-gradient-to-br from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/25' 
+            : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+        }`}>
+          {selectedPlace ? <CheckCircle2 size={14} /> : '1'}
+        </div>
+        <span className={`text-[11px] font-bold transition-colors ${step >= 1 ? 'text-white' : 'text-zinc-600'}`}>장소 선택</span>
+      </div>
+      
+      {/* 프로그레스 연결선 */}
+      <div className="flex-1 h-[2px] rounded-full overflow-hidden bg-zinc-800">
+        <motion.div 
+          className="h-full bg-gradient-to-r from-red-500 to-orange-500"
+          initial={{ width: '0%' }}
+          animate={{ width: step >= 2 ? '100%' : '0%' }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+        />
+      </div>
+      
+      {/* Step 2 */}
+      <div className="flex items-center gap-2 flex-1 justify-end">
+        <span className={`text-[11px] font-bold transition-colors ${step >= 2 ? 'text-white' : 'text-zinc-600'}`}>영상 링크</span>
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 transition-all duration-300 ${
+          step >= 2 
+            ? 'bg-gradient-to-br from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/25' 
+            : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+        }`}>
+          2
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <CustomBottomSheet 
+      <CustomModal 
         isOpen={isOpen} 
         onClose={resetForm} 
-        title={aiResult ? undefined : "나만의 핫플 제보하기"}
-        subtitle={aiResult ? undefined : "정확한 장소와 리뷰 영상을 알려주세요."}
+        title={aiResult ? undefined : "맛집 제보하기"}
+        subtitle={aiResult ? undefined : "나만의 맛집을 제보하고 AI에게 맛집 심사를 받아보세요."}
       >
-        <div className="py-2 min-h-[350px]">
+        <div className="py-1 min-h-[350px]">
           {aiResult ? (
-            <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-5">
-              {aiResult.status === 'approved' ? (
-                <>
-                  <CheckCircle2 size={56} className="text-brand-orange animate-bounce" />
-                  <div>
-                    <div className="font-bold text-white text-[22px] mb-2 tracking-tight">심사 합격! 지도에 추가됨</div>
-                    <div className="text-white/85 text-[15px] bg-brand-orange/10 border border-brand-orange/25 px-4 py-2 rounded-2xl inline-block">
-                      {aiResult.youtuber_name && <span className="font-bold text-brand-orange-light">{aiResult.youtuber_name}</span>}님의 핫플이 등록되었어요!
+            /* ───── AI 심사 결과 화면 ───── */
+            <AnimatePresence mode="wait">
+              <motion.div
+                key="result"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="flex flex-col items-center justify-center min-h-[320px] text-center"
+              >
+                {aiResult.status === 'approved' ? (
+                  <>
+                    {/* 합격 아이콘 - 그라데이션 글로우 */}
+                    <div className="relative mb-5">
+                      <div className="absolute inset-0 w-20 h-20 rounded-full bg-gradient-to-br from-red-500/30 to-orange-500/30 blur-xl" />
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.15 }}
+                        className="relative w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-2xl shadow-red-500/30"
+                      >
+                        <CheckCircle2 size={36} className="text-white" />
+                      </motion.div>
                     </div>
+
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                    >
+                      <h3 className="text-xl font-black text-white tracking-tight mb-1.5">심사 합격!</h3>
+                      <p className="text-[13px] text-zinc-400 font-medium">지도에 핫플이 등록되었어요 🎉</p>
+                    </motion.div>
                     
-                    {(aiResult.extracted_menu || aiResult.parking_info) && (
-                      <div className="mt-5 text-left bg-brand-gray border border-white/5 p-4 rounded-2xl text-sm w-full max-w-[320px] mx-auto space-y-4 shadow-inner">
-                        <div className="font-bold text-white/90 text-[13px] flex items-center gap-1.5 border-b border-white/5 pb-2">✨ AI 팩트체크 요약</div>
-                        {aiResult.extracted_menu && aiResult.extracted_menu !== '정보 없음' && (
-                          <div className="flex items-start gap-2.5">
-                            <span className="text-brand-orange-light mt-0.5">🍽️</span>
-                            <div>
-                              <span className="text-white/40 font-medium text-[11px] block mb-0.5">추천 메뉴</span>
-                              <span className="text-white font-bold leading-tight">{aiResult.extracted_menu}</span>
-                            </div>
-                          </div>
-                        )}
-                        {aiResult.parking_info && aiResult.parking_info !== '정보 없음' && (
-                          <div className="flex items-start gap-2.5">
-                            <span className="text-sky-400 mt-0.5">🅿️</span>
-                            <div>
-                              <span className="text-white/40 font-medium text-[11px] block mb-0.5">주차 정보</span>
-                              <span className="text-white font-bold leading-tight">{aiResult.parking_info}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                    {/* 유튜버 뱃지 */}
+                    {aiResult.youtuber_name && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.45 }}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20"
+                      >
+                        <Sparkles size={14} className="text-orange-400" />
+                        <span className="text-[13px] text-white/90 font-bold">
+                          <span className="bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">{aiResult.youtuber_name}</span>님의 핫플
+                        </span>
+                      </motion.div>
                     )}
-                  </div>
-                  <button 
-                    onClick={handleCloseAfterSuccess} 
-                    className="w-full max-w-[200px] py-3 bg-white/10 hover:bg-white/15 text-white font-bold rounded-xl transition-all cursor-pointer"
-                  >
-                    닫기
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 font-bold text-2xl animate-pulse">X</div>
-                  <div>
-                    <div className="font-bold text-white text-[22px] mb-2 tracking-tight">반려되었습니다</div>
-                    <div className="text-white/80 text-[14px] bg-brand-gray border border-white/5 px-4 py-3 rounded-2xl mt-2 inline-block max-w-[280px] break-keep">
-                      <span className="font-bold text-red-400 block mb-1 text-xs">AI 판단 사유</span>
-                      {aiResult.reason}
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setAiResult(null)} 
-                    className="w-full max-w-[200px] py-3 bg-brand-orange hover:bg-brand-orange-light text-white font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-brand-orange/15"
-                  >
-                    다시 제보하기
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
-            <>
-              {step === 1 ? (
-                <div className="space-y-4">
-                  <div className="relative">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
-                      <Search size={20} />
-                    </div>
-                    <input 
-                      type="text" 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="식당 이름을 검색해주세요 (예: 몽탄)" 
-                      className="w-full bg-brand-gray border border-white/5 rounded-2xl py-3.5 pl-12 pr-4 text-[15px] text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-brand-orange transition-all"
-                    />
-                  </div>
 
-                  <div className="max-h-[250px] overflow-y-auto space-y-2 pb-4 mt-4">
-                    {searchResults.map((place) => {
-                      const categoryChunks = place.category_name ? place.category_name.split(' > ') : [];
-                      const specificCategory = categoryChunks.length > 1 
-                        ? categoryChunks.slice(1).join(' · ') 
-                        : place.category_group_name || '식당';
-
-                      return (
-                        <div 
-                          key={place.id}
-                          onClick={() => {
-                            setSelectedPlace(place);
-                            setStep(2);
-                          }}
-                          className="p-4 bg-brand-gray border border-white/5 rounded-2xl cursor-pointer hover:bg-white/5 hover:border-white/10 active:scale-[0.98] transition-all flex items-center justify-between"
-                        >
-                          <div className="flex flex-col flex-1 min-w-0 pr-4">
-                            <div className="flex items-baseline gap-2 mb-1.5">
-                              <span className="text-[16px] font-bold text-white truncate">
-                                {place.place_name}
-                              </span>
-                              {specificCategory && (
-                                <span className="text-[11px] font-medium text-white/40 flex-shrink-0">
-                                  {specificCategory}
-                                </span>
-                              )}
+                    {/* AI 요약 정보 카드 */}
+                    {(aiResult.extracted_menu || aiResult.parking_info) && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                        className="mt-5 w-full max-w-[340px]"
+                      >
+                        <div className="bg-zinc-900/60 border border-white/[0.06] rounded-2xl p-4 space-y-3">
+                          <div className="flex items-center gap-2 pb-2.5 border-b border-white/[0.06]">
+                            <div className="w-5 h-5 rounded-md bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
+                              <Sparkles size={10} className="text-white" />
                             </div>
-                            <div className="flex items-center text-[13px] text-white/60 truncate">
-                              <MapPin size={14} className="mr-1.5 text-white/30" />
-                              {place.road_address_name || place.address_name}
-                            </div>
+                            <span className="text-[12px] font-bold text-white/80">AI 팩트체크 요약</span>
                           </div>
                           
-                          <div className="w-6 h-6 flex items-center justify-center flex-shrink-0 text-white/30">
-                            <ChevronRight size={20} strokeWidth={2.5} />
-                          </div>
+                          {aiResult.extracted_menu && aiResult.extracted_menu !== '정보 없음' && (
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                                <Utensils size={14} className="text-orange-400" />
+                              </div>
+                              <div className="text-left min-w-0">
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">추천 메뉴</span>
+                                <span className="text-[13px] text-white font-bold leading-snug mt-0.5 block">{aiResult.extracted_menu}</span>
+                              </div>
+                            </div>
+                          )}
+                          {aiResult.parking_info && aiResult.parking_info !== '정보 없음' && (
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-xl bg-sky-500/10 border border-sky-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                                <MapPin size={14} className="text-sky-400" />
+                              </div>
+                              <div className="text-left min-w-0">
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">주차 정보</span>
+                                <span className="text-[13px] text-white font-bold leading-snug mt-0.5 block">{aiResult.parking_info}</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      );
-                    })}
-                    {searchQuery && searchResults.length === 0 && (
-                      <div className="text-center py-10">
-                        <div className="text-2xl mb-2">🍽️</div>
-                        <div className="text-white/80 text-[15px] font-semibold">검색된 식당이 없습니다.</div>
-                        <div className="text-white/40 text-[13px] mt-1">상호명이나 지역을 다시 확인해주세요.</div>
-                      </div>
+                      </motion.div>
                     )}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="p-4 bg-brand-gray border border-white/5 rounded-2xl flex items-center justify-between">
-                    <div className="flex items-center gap-3 truncate pr-2">
-                      <MapPin size={18} className="text-brand-orange flex-shrink-0" />
-                      <div className="truncate font-bold text-white text-[15px]">
-                        {selectedPlace?.place_name}
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => setStep(1)} 
-                      className="text-[12px] text-white/70 font-semibold px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-xl flex-shrink-0 transition-colors cursor-pointer"
-                    >
-                      다시 검색
-                    </button>
-                  </div>
 
-                  <div className="space-y-2">
-                    <div className="font-semibold text-white/80 text-[14px]">유튜브 리뷰 영상 링크</div>
-                    <div className="relative">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-red-500">
-                        <Video size={20} />
+                    {/* 닫기 버튼 */}
+                    <motion.button 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.7 }}
+                      onClick={handleCloseAfterSuccess} 
+                      className="mt-6 w-full max-w-[280px] py-3.5 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-bold text-[14px] rounded-2xl transition-all cursor-pointer shadow-lg shadow-red-500/15 active:scale-[0.97]"
+                    >
+                      확인
+                    </motion.button>
+                  </>
+                ) : (
+                  <>
+                    {/* 반려 아이콘 */}
+                    <div className="relative mb-5">
+                      <div className="absolute inset-0 w-20 h-20 rounded-full bg-red-500/20 blur-xl" />
+                      <motion.div
+                        initial={{ scale: 0, rotate: -45 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: 'spring', damping: 12, stiffness: 200 }}
+                        className="relative w-20 h-20 rounded-full bg-zinc-900 border-2 border-red-500/30 flex items-center justify-center"
+                      >
+                        <span className="text-red-500 text-3xl font-black">✕</span>
+                      </motion.div>
+                    </div>
+
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.25 }}
+                    >
+                      <h3 className="text-xl font-black text-white tracking-tight mb-1.5">반려되었습니다</h3>
+                      <p className="text-[13px] text-zinc-400 font-medium mb-4">조건에 부합하지 않아 등록되지 못했어요</p>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.35 }}
+                      className="w-full max-w-[320px] bg-zinc-900/60 border border-red-500/10 rounded-2xl p-4 text-left"
+                    >
+                      <div className="flex items-center gap-2 mb-2.5">
+                        <div className="w-5 h-5 rounded-md bg-red-500/10 flex items-center justify-center">
+                          <Sparkles size={10} className="text-red-400" />
+                        </div>
+                        <span className="text-[11px] font-bold text-red-400">AI 판단 사유</span>
+                      </div>
+                      <p className="text-[13px] text-white/80 leading-relaxed break-keep">{aiResult.reason}</p>
+                    </motion.div>
+
+                    <motion.button 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                      onClick={() => setAiResult(null)} 
+                      className="mt-6 w-full max-w-[280px] py-3.5 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-bold text-[14px] rounded-2xl transition-all cursor-pointer shadow-lg shadow-red-500/15 active:scale-[0.97]"
+                    >
+                      다시 제보하기
+                    </motion.button>
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <>
+              {/* 스텝 프로그레스 */}
+              <StepProgressBar />
+
+              <AnimatePresence mode="wait">
+                {step === 1 ? (
+                  /* ───── Step 1: 장소 검색 ───── */
+                  <motion.div 
+                    key="step1"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.25 }}
+                    className="space-y-4"
+                  >
+                    {/* 검색 입력 */}
+                    <div className="relative group">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-orange-400 transition-colors">
+                        <Search size={18} />
                       </div>
                       <input 
                         type="text" 
-                        value={youtubeUrl}
-                        onChange={(e) => setYoutubeUrl(e.target.value)}
-                        placeholder="https://youtube.com/watch?v=..." 
-                        className={`w-full bg-brand-gray border border-white/5 rounded-2xl py-3.5 pl-12 pr-10 text-[15px] text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-brand-orange transition-all ${youtubeUrl && isValidYoutube(youtubeUrl) ? 'border-emerald-500 ring-1 ring-emerald-500' : ''}`}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="식당 이름을 검색하세요" 
+                        className="w-full bg-zinc-900/60 border border-white/[0.06] rounded-2xl py-3.5 pl-12 pr-4 text-[14px] text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/40 focus:shadow-[0_0_0_3px_rgba(255,111,0,0.08)] transition-all"
                       />
-                      {youtubeUrl && isValidYoutube(youtubeUrl) && (
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500">
-                          <CheckCircle2 size={18} />
+                    </div>
+
+                    {/* 검색 결과 리스트 */}
+                    <div className="max-h-[250px] overflow-y-auto space-y-2 pb-2 scrollbar-thin">
+                      {searchResults.map((place, idx) => {
+                        const categoryChunks = place.category_name ? place.category_name.split(' > ') : [];
+                        const specificCategory = categoryChunks.length > 1 
+                          ? categoryChunks.slice(1).join(' · ') 
+                          : place.category_group_name || '식당';
+
+                        return (
+                          <motion.div 
+                            key={place.id}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2, delay: idx * 0.04 }}
+                            onClick={() => {
+                              setSelectedPlace(place);
+                              setStep(2);
+                            }}
+                            className="group/card p-3.5 bg-zinc-900/40 border border-white/[0.04] rounded-xl cursor-pointer hover:bg-zinc-800/60 hover:border-orange-500/15 active:scale-[0.98] transition-all flex items-center justify-between gap-3"
+                          >
+                            {/* 좌측: 아이콘 + 정보 */}
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/10 to-orange-500/10 border border-red-500/10 flex items-center justify-center shrink-0 group-hover/card:border-orange-500/20 transition-colors">
+                                <Utensils size={16} className="text-orange-400/70 group-hover/card:text-orange-400 transition-colors" />
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <div className="flex items-baseline gap-2 mb-0.5">
+                                  <span className="text-[14px] font-bold text-white truncate">
+                                    {place.place_name}
+                                  </span>
+                                  {specificCategory && (
+                                    <span className="text-[10px] font-medium text-zinc-500 shrink-0">
+                                      {specificCategory}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center text-[12px] text-zinc-500 truncate">
+                                  <MapPin size={11} className="mr-1 shrink-0 text-zinc-600" />
+                                  {place.road_address_name || place.address_name}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* 우측: 화살표 */}
+                            <div className="w-6 h-6 rounded-lg bg-white/[0.03] flex items-center justify-center shrink-0 group-hover/card:bg-orange-500/10 transition-colors">
+                              <ChevronRight size={14} className="text-zinc-600 group-hover/card:text-orange-400 transition-colors" />
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+
+                      {/* 검색 결과 없음 */}
+                      {searchQuery && searchResults.length === 0 && (
+                        <motion.div 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="text-center py-12"
+                        >
+                          <div className="w-14 h-14 mx-auto rounded-2xl bg-zinc-900/60 border border-white/[0.04] flex items-center justify-center mb-3">
+                            <Search size={22} className="text-zinc-600" />
+                          </div>
+                          <div className="text-white/70 text-[14px] font-bold">검색 결과가 없습니다</div>
+                          <div className="text-zinc-600 text-[12px] mt-1.5 font-medium">상호명이나 지역명을 다시 확인해 주세요</div>
+                        </motion.div>
+                      )}
+
+                      {/* 검색 초기 가이드 */}
+                      {!searchQuery && (
+                        <div className="text-center py-10">
+                          <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-red-500/[0.06] to-orange-500/[0.06] border border-red-500/[0.08] flex items-center justify-center mb-3">
+                            <MapPin size={22} className="text-orange-500/50" />
+                          </div>
+                          <div className="text-zinc-500 text-[13px] font-bold">제보할 맛집을 검색해 주세요</div>
+                          <div className="text-zinc-700 text-[11px] mt-1 font-medium">카카오맵 기반으로 정확한 장소를 찾아드려요</div>
                         </div>
                       )}
                     </div>
-                  </div>
+                  </motion.div>
+                ) : (
+                  /* ───── Step 2: 유튜브 링크 입력 ───── */
+                  <motion.div 
+                    key="step2"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.25 }}
+                    className="space-y-5"
+                  >
+                    {/* 선택된 장소 표시 카드 */}
+                    <div className="relative overflow-hidden rounded-2xl bg-zinc-900/50 border border-white/[0.06]">
+                      {/* 상단 그라데이션 액센트 */}
+                      <div className="h-[3px] w-full bg-gradient-to-r from-red-500 to-orange-500" />
+                      <div className="p-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/15 to-orange-500/15 border border-orange-500/15 flex items-center justify-center shrink-0">
+                            <MapPin size={18} className="text-orange-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[14px] font-bold text-white truncate">{selectedPlace?.place_name}</div>
+                            <div className="text-[11px] text-zinc-500 font-medium truncate mt-0.5">{selectedPlace?.road_address_name || selectedPlace?.address_name}</div>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setStep(1)} 
+                          className="flex items-center gap-1 text-[11px] text-zinc-400 font-bold px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-colors cursor-pointer shrink-0"
+                        >
+                          <ArrowLeft size={12} />
+                          변경
+                        </button>
+                      </div>
+                    </div>
 
-                  <div className="pt-2">
-                    <button 
-                      className={`w-full py-4 rounded-2xl text-[16px] font-bold shadow-lg transition-all flex items-center justify-center cursor-pointer ${
-                        isSubmitting 
-                        ? 'bg-white/10 text-white/40 cursor-not-allowed' 
-                        : 'bg-brand-orange text-white hover:bg-brand-orange-light active:scale-[0.98] shadow-brand-orange/15'
-                      }`}
-                      disabled={isSubmitting}
-                      onClick={handleSubmit}
-                    >
-                      {isSubmitting ? 'AI 팩트체크 요청 중...' : 'AI에게 팩트체크 맡기기'}
-                    </button>
-                  </div>
-                </div>
-              )}
+                    {/* 유튜브 링크 입력 */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center gap-2 px-1">
+                        <svg viewBox="0 0 28 20" className="w-[18px] h-[13px] shrink-0"><rect width="28" height="20" rx="4" fill="#FF0000"/><polygon points="11,4 11,16 21,10" fill="#fff"/></svg>
+                        <span className="text-[13px] font-bold text-white/80">유튜브 리뷰 영상 링크</span>
+                        {youtubeUrl && isValidYoutube(youtubeUrl) && (
+                          <motion.span
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full"
+                          >
+                            ✓ 유효
+                          </motion.span>
+                        )}
+                      </div>
+                      <div className="relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                            <svg viewBox="0 0 28 20" className="w-5 h-3.5"><rect width="28" height="20" rx="4" fill="#FF0000"/><polygon points="11,4 11,16 21,10" fill="#fff"/></svg>
+                        </div>
+                        <input 
+                          type="text" 
+                          value={youtubeUrl}
+                          onChange={(e) => setYoutubeUrl(e.target.value)}
+                          placeholder="https://youtube.com/watch?v=..." 
+                          className={`w-full bg-zinc-900/60 border rounded-2xl py-3.5 pl-14 pr-4 text-[14px] text-white placeholder-zinc-600 focus:outline-none transition-all ${
+                            youtubeUrl && isValidYoutube(youtubeUrl) 
+                              ? 'border-emerald-500/30 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.08)]' 
+                              : 'border-white/[0.06] focus:border-orange-500/40 focus:shadow-[0_0_0_3px_rgba(255,111,0,0.08)]'
+                          }`}
+                        />
+                      </div>
+                      <p className="text-[11px] text-zinc-600 font-medium px-1">해당 맛집을 소개하는 유튜브 영상 URL을 붙여넣어 주세요</p>
+                    </div>
+
+                    {/* 제출 버튼 */}
+                    <div className="pt-3">
+                      <button 
+                        className={`relative w-full py-4 rounded-2xl text-[15px] font-bold transition-all flex items-center justify-center cursor-pointer overflow-hidden ${
+                          isSubmitting 
+                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                          : 'bg-gradient-to-r from-red-600 to-orange-500 text-white hover:from-red-500 hover:to-orange-400 active:scale-[0.98] shadow-xl shadow-red-500/15'
+                        }`}
+                        disabled={isSubmitting}
+                        onClick={handleSubmit}
+                      >
+                        {isSubmitting ? (
+                          <div className="flex items-center gap-2.5">
+                            {/* 로딩 스피너 */}
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                              <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
+                              <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            <span>맛집 검증 중...</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Sparkles size={16} />
+                            <span>AI에게 맛집 심사 요청하기</span>
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </>
           )}
         </div>
-      </CustomBottomSheet>
+      </CustomModal>
       <Toast message={toastMessage} isVisible={isVisible} />
     </>
   );
 }
-
-
-

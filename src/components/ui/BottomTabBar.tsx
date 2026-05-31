@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Home, Bookmark, User, MapPin } from 'lucide-react';
+import { Home, Star, User, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export type TabType = 'home' | 'near' | 'favorites' | 'mypage';
@@ -15,7 +15,7 @@ export default function BottomTabBar({ activeTab, onChangeTab }: BottomTabBarPro
   const tabs = [
     { id: 'home' as TabType, label: '홈', icon: Home },
     { id: 'near' as TabType, label: '주변 핫플', icon: MapPin },
-    { id: 'favorites' as TabType, label: '즐겨찾기', icon: Bookmark },
+    { id: 'favorites' as TabType, label: '즐겨찾기', icon: Star },
     { id: 'mypage' as TabType, label: '더보기', icon: User },
   ];
 
@@ -52,7 +52,10 @@ export default function BottomTabBar({ activeTab, onChangeTab }: BottomTabBarPro
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <Icon 
+                  size={22} 
+                  strokeWidth={isActive ? 2.5 : 2} 
+                />
               </motion.div>
 
               {/* 레이블 텍스트 */}

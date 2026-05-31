@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Flame, Heart, Play, Sparkles, Utensils, MapPin, ChevronRight } from 'lucide-react';
+import { Flame, Star, Play, Sparkles, Utensils, MapPin, ChevronRight } from 'lucide-react';
 import { Restaurant } from '@/types';
 
 interface NearHotplacesViewProps {
@@ -50,6 +50,15 @@ export default function NearHotplacesView({
 
   return (
     <div className="flex flex-col h-full bg-[#121214] text-white">
+      {/* 글로벌 SVG 그라데이션 정의 */}
+      <svg width="0" height="0" className="absolute pointer-events-none" aria-hidden="true">
+        <defs>
+          <linearGradient id="red-orange-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#FF0000" />
+            <stop offset="100%" stopColor="#FF7A00" />
+          </linearGradient>
+        </defs>
+      </svg>
       {/* 상단 타이틀 영역 */}
       <div className="px-6 pt-5 pb-3 shrink-0 flex items-center justify-between border-b border-white/5 bg-gradient-to-b from-[#1c1c1f] to-[#121214]">
         <div className="flex items-center gap-2">
@@ -188,11 +197,17 @@ export default function NearHotplacesView({
                       }}
                       className={`p-2 rounded-full transition-all duration-300 hover:scale-110 active:scale-90 shadow-sm border border-white/5 cursor-pointer ${
                         isFav 
-                          ? 'bg-brand-orange/15 text-brand-orange-light border-brand-orange/20 shadow-[0_2px_10px_rgba(255,110,0,0.25)]' 
-                          : 'bg-white/[0.03] text-white/30 hover:text-white/60'
+                          ? 'bg-red-500/10 border-red-500/20 shadow-[0_2px_10px_rgba(255,75,0,0.25)]' 
+                          : 'bg-white/[0.03] text-white/30 hover:text-red-500/60'
                       }`}
                     >
-                      <Heart size={15} fill={isFav ? 'currentColor' : 'none'} className={isFav ? 'drop-shadow-[0_0_4px_rgba(255,138,0,0.5)]' : ''} />
+                      <Star 
+                        size={15} 
+                        stroke={isFav ? 'url(#red-orange-grad)' : 'currentColor'}
+                        fill={isFav ? 'url(#red-orange-grad)' : 'none'} 
+                        strokeWidth={isFav ? 2.5 : 2}
+                        className={isFav ? 'drop-shadow-[0_0_4px_rgba(255,75,0,0.5)]' : ''} 
+                      />
                     </button>
 
                     {/* 상세보기 화살표 버튼 */}
