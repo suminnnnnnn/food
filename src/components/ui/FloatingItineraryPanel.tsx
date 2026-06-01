@@ -52,9 +52,11 @@ export default function FloatingItineraryPanel({
   onSearchPlaces,
   onAddPlaceFromSearch
 }: Props) {
+  // 아코디언 상태 관리 (기본적으로 첫번째 Day는 펼쳐진 상태로 세팅)
+  const [expandedDays, setExpandedDays] = useState<Record<number, boolean>>({ 1: true });
+  // 검색 모드로 진입할 때의 대상 Day
+  const [targetDayForSearch, setTargetDayForSearch] = useState<number>(1);
   const [isSearchingMode, setIsSearchingMode] = useState<boolean>(false);
-  const currentDayData = itinerary.days.find(d => d.day === activeDay);
-  const items = currentDayData?.items || [];
 
   const formatDistance = (distKm: number): string => {
     const meters = distKm * 1000;
@@ -62,6 +64,13 @@ export default function FloatingItineraryPanel({
       return `${Math.round(meters)}m`;
     }
     return `${distKm.toFixed(1)}km`;
+  };
+
+  const toggleDayAccordion = (day: number) => {
+    setExpandedDays(prev => ({
+      ...prev,
+      [day]: !prev[day]
+    }));
   };
 
   return (
@@ -92,7 +101,7 @@ export default function FloatingItineraryPanel({
           {isSearchingMode ? (
             <div className="flex items-center gap-2 cursor-pointer text-zinc-400 hover:text-white transition-colors" onClick={() => setIsSearchingMode(false)}>
               <ArrowLeft size={16} />
-              <span className="text-xs font-black">검색 모드 종료</span>
+              <span className="text-xs font-black">Day {targetDayForSearch} 검색 종료</span>
             </div>
           ) : (
             <h4 className="text-sm font-black text-white truncate max-w-[180px]">{itinerary.title}</h4>
@@ -107,29 +116,7 @@ export default function FloatingItineraryPanel({
         </button>
       </div>
 
-      {/* 가로 스크롤형 Day 탭 칩셋 바 (MyRealTrip/Triple 스타일) */}
-      {!isSearchingMode && (
-        <div className="flex gap-1.5 py-2 border-b border-white/5 shrink-0 overflow-x-auto scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {itinerary.days.map((d) => {
-            const isActive = d.day === activeDay;
-            return (
-              <button
-                key={d.day}
-                onClick={() => onActiveDayChange(d.day)}
-                className={`px-3 py-1.5 rounded-full text-[10px] font-black whitespace-nowrap border transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white border-transparent shadow'
-                    : 'bg-zinc-900 border-white/5 text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                Day {d.day}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 본문 피드 영역 (검색모드 vs 타임라인 뷰) */}
+      {/* 본문 피드 영역 (검색모드 vs 아코디언 타임라인 뷰) */}
       {isSearchingMode ? (
         /* 인라인 검색 뷰 영역 */
         <div className="flex-1 flex flex-col min-h-0 py-3">
@@ -143,50 +130,44 @@ export default function FloatingItineraryPanel({
                 onChange={e => onSearchQueryChange(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && onSearchPlaces()}
                 className="w-full bg-zinc-900/80 border border-white/5 rounded-xl pl-9 pr-3 py-2 text-[11px] text-white focus:outline-none focus:border-orange-500/50"
-                autoFocus
               />
             </div>
             <button
               onClick={onSearchPlaces}
-              className="px-3.5 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-[10px] font-black rounded-xl transition-colors cursor-pointer"
+              disabled={isSearching}
+              className="px-3 bg-zinc-900 border border-white/5 hover:border-orange-500/30 rounded-xl text-xs font-black text-white hover:text-orange-400 disabled:opacity-50 transition-all cursor-pointer"
             >
               검색
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto mt-3 space-y-1.5 pr-1 scrollbar-thin min-h-0">
+          <div className="flex-1 overflow-y-auto mt-3 pr-1 space-y-1.5 scrollbar-thin min-h-0">
             {isSearching ? (
-              <div className="py-12 flex justify-center">
-                <svg className="animate-spin h-5 w-5 text-orange-500" viewBox="0 0 24 24">
-                  <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
-                  <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              </div>
+              <div className="py-8 text-center text-xs text-zinc-500">검색 중...</div>
             ) : searchResults.length === 0 ? (
-              <div className="py-12 text-center text-[10px] text-zinc-500">
-                검색어를 입력하고 검색 버튼을 누르세요.
-              </div>
+              <div className="py-8 text-center text-xs text-zinc-500">검색 결과가 없습니다.</div>
             ) : (
-              searchResults.map((place) => (
+              searchResults.map((place: any, idx: number) => (
                 <div
-                  key={place.id}
+                  key={`search-res-${idx}`}
                   onClick={() => {
-                    onAddPlaceFromSearch(place);
-                    setIsSearchingMode(false);
+                    // 선택 시 저장 활성화 Day 갱신 후 장소 추가 처리
+                    onActiveDayChange(targetDayForSearch);
+                    setTimeout(() => {
+                      onAddPlaceFromSearch(place);
+                      setIsSearchingMode(false);
+                    }, 50);
                   }}
-                  className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-white/5 rounded-xl p-2.5 flex items-start justify-between gap-3 cursor-pointer transition-colors"
+                  className="bg-zinc-900/40 hover:bg-zinc-900/70 border border-white/5 hover:border-orange-500/20 rounded-xl p-2.5 flex items-center justify-between gap-3 cursor-pointer transition-all"
                 >
                   <div className="min-w-0">
-                    <h5 className="text-[11px] font-bold text-white truncate">{place.place_name}</h5>
-                    <p className="text-[9px] text-zinc-500 truncate mt-0.5">
+                    <h6 className="text-[10px] font-black text-white truncate">{place.place_name}</h6>
+                    <p className="text-[8px] text-zinc-500 truncate mt-0.5">
                       {place.road_address_name || place.address_name}
                     </p>
                     <span className="inline-block text-[7px] text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded-full mt-1">
                       {place.category_name.split(' > ').pop() || '관광지'}
                     </span>
-                  </div>
-                  <div className="p-1 rounded bg-orange-500/10 text-orange-400 flex items-center justify-center">
-                    <Plus size={12} />
                   </div>
                 </div>
               ))
@@ -194,127 +175,165 @@ export default function FloatingItineraryPanel({
           </div>
         </div>
       ) : (
-        /* 기존 타임라인 뷰 영역 */
-        <div className="flex-1 overflow-y-auto py-3 pr-1 scrollbar-thin relative min-h-0">
-          {items.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-4">
-              <button
-                onClick={() => setIsSearchingMode(true)}
-                className="w-14 h-14 rounded-full bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 active:scale-95 text-white transition-all flex items-center justify-center shadow-lg shadow-red-500/20 cursor-pointer mb-3"
-              >
-                <Plus size={28} />
-              </button>
-              <span className="text-[11px] font-bold text-zinc-300">맛집 또는 스팟 추가</span>
-              <span className="text-[8.5px] text-zinc-500 mt-1">마커를 드래그 앤 드롭하거나<br />검색창을 열어 일정을 채워보세요.</span>
-            </div>
-          ) : (
-            <div className="relative pl-7 space-y-3">
-              {/* 수직선 */}
-              <div className="absolute left-[11px] top-3 bottom-3 w-0.5 bg-zinc-800" />
-              
-              {items.map((item, idx) => {
-                const isSelected = selectedItemId === item.id;
-                return (
-                  <div key={item.id} className="relative group/panel">
-                    {/* 좌측 넘버링 인디케이터 */}
-                    <div className="absolute right-full mr-2.5 top-1.5 flex flex-col items-center">
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-r from-red-600 to-orange-500 text-[9px] font-black flex items-center justify-center text-white shadow">
-                        {idx + 1}
-                      </div>
-                      {item.visit_time && (
-                        <span className="text-[8px] text-orange-400 font-black mt-1 bg-orange-500/10 px-0.5 rounded border border-orange-500/10">
-                          {item.visit_time}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* 코스 노드 바디 */}
-                    <div
-                      onClick={() => onSelectItem(item)}
-                      className={`border rounded-xl p-3 flex flex-col gap-1.5 cursor-pointer transition-all ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-red-950/20 to-orange-950/20 border-orange-500/40 shadow-[0_0_12px_rgba(249,115,22,0.1)]'
-                          : 'bg-zinc-900/40 border-white/5 hover:border-white/10 hover:bg-zinc-900/60'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <h5 className="text-[11px] font-black text-white truncate">{item.name}</h5>
-                          <span className="text-[8px] text-zinc-500 block truncate">{item.category}</span>
-                        </div>
-
-                        {/* 컨트롤 */}
-                        <div className="flex items-center gap-0.5 opacity-20 group-hover/panel:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => onMoveUp(idx)}
-                            disabled={idx === 0}
-                            className="p-0.5 rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30"
-                          >
-                            <ChevronUp size={12} />
-                          </button>
-                          <button
-                            onClick={() => onMoveDown(idx)}
-                            disabled={idx === items.length - 1}
-                            className="p-0.5 rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30"
-                          >
-                            <ChevronDown size={12} />
-                          </button>
-                          <button
-                            onClick={() => onEditItemMemo(item)}
-                            className="p-1 rounded hover:bg-zinc-800 text-zinc-400"
-                            title="메모/시간 편집"
-                          >
-                            <Edit3 size={10} />
-                          </button>
-                          <button
-                            onClick={() => onRemoveItem(item.id)}
-                            className="p-1 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400"
-                          >
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 카카오 길찾기/내비 연동 단추 추가 */}
-                      <div className="flex items-center gap-1.5 mt-0.5" onClick={e => e.stopPropagation()}>
-                        <a
-                          href={`https://map.kakao.com/link/to/${encodeURIComponent(item.name)},${item.lat},${item.lng}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[8px] font-bold text-zinc-400 hover:text-orange-400 bg-white/[0.03] border border-white/5 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
-                        >
-                          <Navigation size={8} />
-                          <span>길안내 🚗</span>
-                        </a>
-                      </div>
-
-                      {item.memo && (
-                        <p className="text-[9px] text-zinc-400 bg-zinc-950/40 border border-white/5 px-2 py-1 rounded-lg truncate">
-                          {item.memo}
-                        </p>
-                      )}
-                    </div>
+        /* 통합 아코디언 타임라인 뷰 영역 (모든 Day 노출) */
+        <div className="flex-1 overflow-y-auto py-2 pr-1 space-y-3.5 scrollbar-thin relative min-h-0">
+          {itinerary.days.map((dayData) => {
+            const isExpanded = !!expandedDays[dayData.day];
+            const dayItems = dayData.items || [];
+            
+            return (
+              <div key={`day-accordion-${dayData.day}`} className="border border-white/5 rounded-2xl bg-zinc-900/10 overflow-hidden transition-all">
+                {/* Day 아코디언 헤더 */}
+                <div
+                  onClick={() => toggleDayAccordion(dayData.day)}
+                  className="w-full px-3.5 py-3 flex items-center justify-between bg-zinc-900/40 border-b border-white/5 cursor-pointer hover:bg-zinc-900/60 transition-colors select-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-black text-zinc-100 tracking-wider">Day {dayData.day}</span>
+                    <span className="text-[9px] font-bold text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded-full border border-white/5">
+                      {dayItems.length}개 장소
+                    </span>
                   </div>
-                );
-              })}
-              {/* 마이리얼트립/트리플 스타일 인라인 "+ 장소 추가" 카드 */}
-              <div className="relative group/panel pt-2">
-                <div className="absolute right-full mr-2.5 top-3 flex flex-col items-center">
-                  <div className="w-5 h-5 rounded-full bg-zinc-900 border border-white/10 text-[9px] font-black flex items-center justify-center text-zinc-500">
-                    +
+                  <div className="text-zinc-500">
+                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </div>
                 </div>
-                
-                <button
-                  onClick={() => setIsSearchingMode(true)}
-                  className="w-full border border-dashed border-white/10 hover:border-orange-500/30 rounded-xl p-3.5 bg-zinc-950/40 hover:bg-zinc-900/40 text-center flex flex-col items-center justify-center gap-1 transition-all active:scale-[0.98] cursor-pointer group"
-                >
-                  <span className="text-[10px] font-black text-zinc-400 group-hover:text-orange-400 transition-colors">+ 장소 추가</span>
-                  <span className="text-[8px] text-zinc-600 group-hover:text-zinc-500 transition-colors">클릭하여 검색하거나 지도에서 마커를 끌어다 놓으세요</span>
-                </button>
+
+                {/* Day 아코디언 바디 (타임라인) */}
+                {isExpanded && (
+                  <div className="p-3 pl-8 space-y-3 relative">
+                    {dayItems.length > 0 && (
+                      <div className="absolute left-[19px] top-4 bottom-12 w-0.5 bg-zinc-800" />
+                    )}
+
+                    {dayItems.length === 0 ? (
+                      <div className="py-6 text-center">
+                        <p className="text-[9px] text-zinc-500 leading-normal">
+                          아직 등록된 일정이 없습니다.<br />아래 버튼을 눌러 스팟을 추가하세요.
+                        </p>
+                      </div>
+                    ) : (
+                      dayItems.map((item, idx) => {
+                        const isSelected = selectedItemId === item.id;
+                        return (
+                          <div key={item.id} className="relative group/panel">
+                            {/* 좌측 넘버링 인디케이터 */}
+                            <div className="absolute right-full mr-2.5 top-1.5 flex flex-col items-center">
+                              <div className="w-5 h-5 rounded-full bg-gradient-to-r from-red-600 to-orange-500 text-[9px] font-black flex items-center justify-center text-white shadow">
+                                {idx + 1}
+                              </div>
+                              {item.visit_time && (
+                                <span className="text-[8px] text-orange-400 font-black mt-1 bg-orange-500/10 px-0.5 rounded border border-orange-500/10">
+                                  {item.visit_time}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* 코스 노드 바디 */}
+                            <div
+                              onClick={() => {
+                                onActiveDayChange(dayData.day);
+                                onSelectItem(item);
+                              }}
+                              className={`border rounded-xl p-2.5 flex flex-col gap-1.5 cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-gradient-to-r from-red-950/20 to-orange-950/20 border-orange-500/40 shadow-[0_0_12px_rgba(249,115,22,0.1)]'
+                                  : 'bg-zinc-900/40 border-white/5 hover:border-white/10 hover:bg-zinc-900/60'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <h5 className="text-[11px] font-black text-white truncate">{item.name}</h5>
+                                  <span className="text-[8px] text-zinc-500 block truncate">{item.category}</span>
+                                </div>
+
+                                {/* 컨트롤 */}
+                                <div className="flex items-center gap-0.5 opacity-20 group-hover/panel:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
+                                  <button
+                                    onClick={() => {
+                                      onActiveDayChange(dayData.day);
+                                      onMoveUp(idx);
+                                    }}
+                                    disabled={idx === 0}
+                                    className="p-0.5 rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30"
+                                  >
+                                    <ChevronUp size={12} />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      onActiveDayChange(dayData.day);
+                                      onMoveDown(idx);
+                                    }}
+                                    disabled={idx === dayItems.length - 1}
+                                    className="p-0.5 rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30"
+                                  >
+                                    <ChevronDown size={12} />
+                                  </button>
+                                  <button
+                                    onClick={() => onEditItemMemo(item)}
+                                    className="p-1 rounded hover:bg-zinc-800 text-zinc-400"
+                                    title="메모/시간 편집"
+                                  >
+                                    <Edit3 size={10} />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      onActiveDayChange(dayData.day);
+                                      onRemoveItem(item.id);
+                                    }}
+                                    className="p-1 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400"
+                                  >
+                                    <Trash2 size={10} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 mt-0.5" onClick={e => e.stopPropagation()}>
+                                <a
+                                  href={`https://map.kakao.com/link/to/${encodeURIComponent(item.name)},${item.lat},${item.lng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-[8px] font-bold text-zinc-400 hover:text-orange-400 bg-white/[0.03] border border-white/5 rounded px-1.5 py-0.5 transition-colors cursor-pointer"
+                                >
+                                  <Navigation size={8} />
+                                  <span>길안내 🚗</span>
+                                </a>
+                              </div>
+
+                              {item.memo && (
+                                <p className="text-[9px] text-zinc-400 bg-zinc-950/40 border border-white/5 px-2 py-1 rounded-lg truncate">
+                                  {item.memo}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+
+                    {/* 각 Day별 독립형 장소 추가 카드 */}
+                    <div className="relative group/panel pt-1">
+                      <div className="absolute right-full mr-2.5 top-3 flex flex-col items-center">
+                        <div className="w-5 h-5 rounded-full bg-zinc-900 border border-white/10 text-[9px] font-black flex items-center justify-center text-zinc-500">
+                          +
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={() => {
+                          setTargetDayForSearch(dayData.day);
+                          setIsSearchingMode(true);
+                        }}
+                        className="w-full border border-dashed border-white/10 hover:border-orange-500/30 rounded-xl p-2.5 bg-zinc-950/40 hover:bg-zinc-900/40 text-center flex flex-col items-center justify-center gap-1 transition-all active:scale-[0.98] cursor-pointer group"
+                      >
+                        <span className="text-[10px] font-black text-zinc-400 group-hover:text-orange-400 transition-colors">+ Day {dayData.day} 장소 추가</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })}
         </div>
       )}
 
@@ -368,24 +387,13 @@ export default function FloatingItineraryPanel({
       {/* 제어 하단 바 */}
       {!isSearchingMode && (
         <div className="pt-2.5 border-t border-white/5 shrink-0 flex gap-2">
-          {items.length > 0 && (
-            <>
-              <button
-                onClick={() => setIsSearchingMode(true)}
-                className="px-3 py-3 rounded-xl border border-white/15 bg-zinc-900 hover:bg-white/5 text-xs font-bold text-zinc-300 transition-colors flex items-center justify-center"
-                title="장소 추가"
-              >
-                <Plus size={14} />
-              </button>
-              <button
-                onClick={onSave}
-                className="flex-1 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 active:scale-[0.98] transition-all shadow-lg shadow-red-500/15 flex items-center justify-center gap-1.5"
-              >
-                <Check size={12} />
-                <span>코스 설계 완료</span>
-              </button>
-            </>
-          )}
+          <button
+            onClick={onSave}
+            className="flex-1 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 active:scale-[0.98] transition-all shadow-lg shadow-red-500/15 flex items-center justify-center gap-1.5 cursor-pointer border border-white/10"
+          >
+            <Check size={12} />
+            <span>코스 설계 완료</span>
+          </button>
         </div>
       )}
     </motion.div>
