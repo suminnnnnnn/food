@@ -75,6 +75,7 @@ export interface Itinerary {
   end_date?: string;
   companion?: string;
   theme?: string;
+  transport?: string;
   days: DailyItinerary[];
   created_at: string;
 }

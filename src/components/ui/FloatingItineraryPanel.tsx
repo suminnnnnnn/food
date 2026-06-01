@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DailyItinerary, ItineraryItem, Itinerary, Restaurant } from '@/types';
-import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search } from 'lucide-react';
+import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Car, Footprints } from 'lucide-react';
+import { getDistance } from '@/lib/geoUtils';
 
 interface Props {
   itinerary: Itinerary;
@@ -215,8 +216,37 @@ export default function FloatingItineraryPanel({
                     ) : (
                       dayItems.map((item, idx) => {
                         const isSelected = selectedItemId === item.id;
+                        
+                        // 이전 장소와의 거리 및 이동 시간 칩 연산
+                        let connectorChip = null;
+                        if (idx > 0) {
+                          const prevItem = dayItems[idx - 1];
+                          const distance = getDistance(prevItem.lat, prevItem.lng, item.lat, item.lng);
+                          const isCar = itinerary.transport === '자차/렌터카';
+                          
+                          // 자동차(40km/h), 도보(4km/h) 기준 속력 환산 시간 계산
+                          const speedKmh = isCar ? 40 : 4;
+                          const minutes = Math.max(1, Math.round((distance / speedKmh) * 60));
+                          
+                          connectorChip = (
+                            <div className="relative left-[-19px] py-1 flex items-center gap-1.5 z-10 my-0.5 select-none" onClick={e => e.stopPropagation()}>
+                              {/* 수직 도트 보조선 */}
+                              <div className="w-[2px] h-4 border-l-2 border-dashed border-zinc-800 absolute left-[19px] top-[-6px] bottom-[-6px] z-[-1]" />
+                              
+                              <div className="flex items-center gap-1.5 ml-2.5 bg-zinc-950/90 border border-white/5 px-2 py-0.5 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.4)] text-[7.5px] font-black text-zinc-400">
+                                {isCar ? <Car size={10} className="text-orange-400" /> : <Footprints size={10} className="text-orange-400" />}
+                                <span>{isCar ? '차량' : '도보'} {distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`}</span>
+                                <span className="text-zinc-500">•</span>
+                                <span className="text-orange-400">약 {minutes}분</span>
+                              </div>
+                            </div>
+                          );
+                        }
+
                         return (
                           <div key={item.id} className="relative group/panel">
+                            {connectorChip}
+
                             {/* 좌측 넘버링 인디케이터 */}
                             <div className="absolute right-full mr-2.5 top-1.5 flex flex-col items-center">
                               <div className="w-5 h-5 rounded-full bg-gradient-to-r from-red-600 to-orange-500 text-[9px] font-black flex items-center justify-center text-white shadow">
