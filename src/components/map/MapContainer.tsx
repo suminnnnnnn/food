@@ -4,7 +4,7 @@ const INITIAL_CENTER = { lat: 37.5665, lng: 126.9780 };
 const INITIAL_LEVEL = 5;
 
 import { useEffect, useState, useRef } from 'react';
-import { Map, CustomOverlayMap, MarkerClusterer, Polygon, Polyline, useKakaoLoader } from 'react-kakao-maps-sdk';
+import { Map, CustomOverlayMap, MapMarker, MarkerClusterer, Polygon, Polyline, useKakaoLoader } from 'react-kakao-maps-sdk';
 
 import { supabase } from '@/lib/supabase/client';
 import { Restaurant, ItineraryItem, Itinerary } from '@/types';
@@ -39,6 +39,82 @@ const getBestVideo = (videos: any[] | undefined) => {
   if (!videos || videos.length === 0) return null;
   return videos.reduce((best, curr) => (best.view_count || 0) > (curr.view_count || 0) ? best : curr, videos[0]);
 };
+
+// OSRM API를 사용해 두 점 사이의 실제 도로망 위경도 좌표 목록 조회
+async function fetchOSRMRoute(ptA: { lat: number; lng: number }, ptB: { lat: number; lng: number }): Promise<{ lat: number; lng: number }[]> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${ptA.lng},${ptA.lat};${ptB.lng},${ptB.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.routes && data.routes.length > 0) {
+      const coordinates = data.routes[0].geometry.coordinates as [number, number][];
+      return coordinates.map((coord: [number, number]) => ({
+        lat: coord[1],
+        lng: coord[0]
+      }));
+    }
+  } catch (e) {
+    console.error("OSRM Route fetch failed", e);
+  }
+  // 에러 또는 빈 응답 시 단순 직선으로 폴백
+  return [ptA, ptB];
+}
+
+// OSRM API를 사용해 경유지를 포함한 세 점 사이의 실제 도로망 위경도 좌표 목록 조회
+async function fetchOSRMRouteWithWaypoint(
+  ptA: { lat: number; lng: number },
+  waypoint: { lat: number; lng: number },
+  ptB: { lat: number; lng: number }
+): Promise<{ lat: number; lng: number }[]> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${ptA.lng},${ptA.lat};${waypoint.lng},${waypoint.lat};${ptB.lng},${ptB.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.routes && data.routes.length > 0) {
+      const coordinates = data.routes[0].geometry.coordinates as [number, number][];
+      return coordinates.map((coord: [number, number]) => ({
+        lat: coord[1],
+        lng: coord[0]
+      }));
+    }
+  } catch (e) {
+    console.error("OSRM Route with waypoint fetch failed", e);
+  }
+  return [ptA, waypoint, ptB];
+}
+
+// 카카오 Places 서비스를 이용해 특정 중심점 좌표 기준 가장 가까운 지하철역(SW8) 정보 조회
+function findNearbySubwayStation(lat: number, lng: number): Promise<{ name: string; lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
+      resolve(null);
+      return;
+    }
+    try {
+      const ps = new window.kakao.maps.services.Places();
+      ps.categorySearch('SW8', (data: any, status: any) => {
+        if (status === window.kakao.maps.services.Status.OK && data && data.length > 0) {
+          const station = data[0];
+          resolve({
+            name: station.place_name,
+            lat: parseFloat(station.y),
+            lng: parseFloat(station.x)
+          });
+        } else {
+          resolve(null);
+        }
+      }, {
+        location: new window.kakao.maps.LatLng(lat, lng),
+        radius: 2000, // 2km 반경 탐색
+        sort: window.kakao.maps.services.SortBy.ACCURACY
+      });
+    } catch (e) {
+      console.error("Subway search error", e);
+      resolve(null);
+    }
+  });
+}
+
 import { EffectCoverflow } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/effect-coverflow';
@@ -103,6 +179,11 @@ export default function MapContainer({
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [selectedPlanningItemId, setSelectedPlanningItemId] = useState<string | null>(null);
   const [recommendedRestaurantsForSelectedSpot, setRecommendedRestaurantsForSelectedSpot] = useState<{ restaurant: Restaurant; distance: number; type: 'near' | 'on_the_way' }[]>([]);
+  // OSRM 실제 도로망 기반 구간별 경로 좌표 상태 (각 구간의 좌표 배열의 배열)
+  const [planningRouteCoordinates, setPlanningRouteCoordinates] = useState<any[]>([]);
+  const [customWaypoints, setCustomWaypoints] = useState<Record<string, { lat: number; lng: number }>>({});
+  const [activeRouteCoordinates, setActiveRouteCoordinates] = useState<{ lat: number; lng: number }[][]>([]);
+  const [nearRouteRestaurants, setNearRouteRestaurants] = useState<Restaurant[]>([]);
 
   // 신규 일정 수립 날짜/제목 설정 폼 상태
   const [showInitPlanningModal, setShowInitPlanningModal] = useState<boolean>(false);
@@ -267,6 +348,187 @@ export default function MapContainer({
     setShowInitPlanningModal(false);
     setActiveTab('home');
   };
+
+  // 계획 모드 또는 활성 일정 모드 OSRM 실제 도로망 경로 구간 좌표 계산
+  useEffect(() => {
+    if (!isPlanningMode || !activePlanningItinerary) {
+      setPlanningRouteCoordinates([]);
+      return;
+    }
+
+    const dayData = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay);
+    const dayItems = dayData?.items || [];
+    if (dayItems.length === 0) {
+      setPlanningRouteCoordinates([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    async function calculateRoutes() {
+      const routeSegments: {
+        targetId: string;
+        ptA: { lat: number; lng: number; name: string };
+        ptB: { lat: number; lng: number; name: string };
+        coordinates: { lat: number; lng: number }[];
+      }[] = [];
+
+      // 1. 2일차 이상일 때 전날 마지막 스팟 연계 경로 계산 (0번째 세그먼트로 보관)
+      if (planningActiveDay >= 2) {
+        const prevDayData = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay - 1);
+        const prevDayItems = prevDayData?.items || [];
+        const lastSpot = prevDayItems[prevDayItems.length - 1];
+
+        if (lastSpot) {
+          const ptA = lastSpot;
+          const ptB = dayItems[0];
+          const transport = ptB.transportType || (activePlanningItinerary.transport === '자차/렌터카' ? 'car' : 'walk');
+          const waypoint = customWaypoints[ptB.id];
+
+          let segmentCoords: { lat: number; lng: number }[] = [];
+
+          if (waypoint) {
+            segmentCoords = await fetchOSRMRouteWithWaypoint(
+              { lat: ptA.lat, lng: ptA.lng },
+              waypoint,
+              { lat: ptB.lat, lng: ptB.lng }
+            );
+          } else if (transport === 'transit') {
+            const dist = getDistance(ptA.lat, ptA.lng, ptB.lat, ptB.lng);
+            if (dist >= 3.0) {
+              const stationA = await findNearbySubwayStation(ptA.lat, ptA.lng);
+              const stationB = await findNearbySubwayStation(ptB.lat, ptB.lng);
+
+              if (stationA && stationB && stationA.name !== stationB.name) {
+                const part1 = await fetchOSRMRoute({ lat: ptA.lat, lng: ptA.lng }, { lat: stationA.lat, lng: stationA.lng });
+                const part2 = await fetchOSRMRoute({ lat: stationA.lat, lng: stationA.lng }, { lat: stationB.lat, lng: stationB.lng });
+                const part3 = await fetchOSRMRoute({ lat: stationB.lat, lng: stationB.lng }, { lat: ptB.lat, lng: ptB.lng });
+                segmentCoords = [...part1, ...part2.slice(1), ...part3.slice(1)];
+              } else {
+                segmentCoords = await fetchOSRMRoute({ lat: ptA.lat, lng: ptA.lng }, { lat: ptB.lat, lng: ptB.lng });
+              }
+            } else {
+              segmentCoords = await fetchOSRMRoute({ lat: ptA.lat, lng: ptA.lng }, { lat: ptB.lat, lng: ptB.lng });
+            }
+          } else {
+            segmentCoords = await fetchOSRMRoute({ lat: ptA.lat, lng: ptA.lng }, { lat: ptB.lat, lng: ptB.lng });
+          }
+          routeSegments.push({
+            targetId: ptB.id,
+            ptA: { lat: ptA.lat, lng: ptA.lng, name: ptA.name },
+            ptB: { lat: ptB.lat, lng: ptB.lng, name: ptB.name },
+            coordinates: segmentCoords
+          });
+        }
+      }
+
+      // 2. 당일 장소들 간의 구간 경로 계산
+      if (dayItems.length >= 2) {
+        for (let i = 0; i < dayItems.length - 1; i++) {
+          const ptA = dayItems[i];
+          const ptB = dayItems[i + 1];
+          const transport = ptB.transportType || (activePlanningItinerary.transport === '자차/렌터카' ? 'car' : 'walk');
+          const waypoint = customWaypoints[ptB.id];
+
+          let segmentCoords: { lat: number; lng: number }[] = [];
+
+          if (waypoint) {
+            segmentCoords = await fetchOSRMRouteWithWaypoint(
+              { lat: ptA.lat, lng: ptA.lng },
+              waypoint,
+              { lat: ptB.lat, lng: ptB.lng }
+            );
+          } else if (transport === 'transit') {
+            const dist = getDistance(ptA.lat, ptA.lng, ptB.lat, ptB.lng);
+            if (dist >= 3.0) {
+              const stationA = await findNearbySubwayStation(ptA.lat, ptA.lng);
+              const stationB = await findNearbySubwayStation(ptB.lat, ptB.lng);
+
+              if (stationA && stationB && stationA.name !== stationB.name) {
+                const part1 = await fetchOSRMRoute({ lat: ptA.lat, lng: ptA.lng }, { lat: stationA.lat, lng: stationA.lng });
+                const part2 = await fetchOSRMRoute({ lat: stationA.lat, lng: stationA.lng }, { lat: stationB.lat, lng: stationB.lng });
+                const part3 = await fetchOSRMRoute({ lat: stationB.lat, lng: stationB.lng }, { lat: ptB.lat, lng: ptB.lng });
+                segmentCoords = [...part1, ...part2.slice(1), ...part3.slice(1)];
+              } else {
+                segmentCoords = await fetchOSRMRoute({ lat: ptA.lat, lng: ptA.lng }, { lat: ptB.lat, lng: ptB.lng });
+              }
+            } else {
+              segmentCoords = await fetchOSRMRoute({ lat: ptA.lat, lng: ptA.lng }, { lat: ptB.lat, lng: ptB.lng });
+            }
+          } else {
+            segmentCoords = await fetchOSRMRoute({ lat: ptA.lat, lng: ptA.lng }, { lat: ptB.lat, lng: ptB.lng });
+          }
+          routeSegments.push({
+            targetId: ptB.id,
+            ptA: { lat: ptA.lat, lng: ptA.lng, name: ptA.name },
+            ptB: { lat: ptB.lat, lng: ptB.lng, name: ptB.name },
+            coordinates: segmentCoords
+          });
+        }
+      }
+
+      if (isMounted) {
+        setPlanningRouteCoordinates(routeSegments);
+      }
+    }
+
+    calculateRoutes();
+    return () => {
+      isMounted = false;
+    };
+  }, [isPlanningMode, activePlanningItinerary, planningActiveDay, customWaypoints]);
+
+  // OSRM 실제 경로(planningRouteCoordinates)가 변경될 때마다 주변 맛집을 실시간 조회하여 갱신
+  useEffect(() => {
+    if (!isPlanningMode || !activePlanningItinerary || planningRouteCoordinates.length === 0) {
+      setNearRouteRestaurants([]);
+      return;
+    }
+
+    const flatCoordinates = planningRouteCoordinates.flatMap(seg => seg.coordinates).map((pt) => [pt.lng, pt.lat]);
+    if (flatCoordinates.length < 2) {
+      setNearRouteRestaurants([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    async function fetchNearRouteRestaurants() {
+      try {
+        // 교통수단별 버퍼 반경 정의 (도보 200m -> 0.2, 대중교통 500m -> 0.5, 자차 2km -> 2.0)
+        const dayData = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay);
+        const dayItems = dayData?.items || [];
+        const transport = dayItems[0]?.transportType || (activePlanningItinerary.transport === '자차/렌터카' ? 'car' : 'walk');
+        const radiusKm = transport === 'car' ? 2.0 : transport === 'transit' ? 0.5 : 0.2;
+
+        const res = await fetch('/api/restaurants/near-route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            coordinates: flatCoordinates,
+            radiusKm
+          })
+        });
+
+        const json = await res.json();
+        if (json.success && json.data && isMounted) {
+          setNearRouteRestaurants(json.data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch near route restaurants", e);
+      }
+    }
+
+    // 과도한 API 호출 방지를 위해 디바운스 적용
+    const timer = setTimeout(() => {
+      fetchNearRouteRestaurants();
+    }, 450);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [planningRouteCoordinates, isPlanningMode, activePlanningItinerary, planningActiveDay]);
 
   const isMountedRef = useRef(false);
 
@@ -633,7 +895,7 @@ export default function MapContainer({
     const isSelected = selectedRestaurant?.id === restaurant.id;
     const isHovered = effectiveHoveredId === restaurant.id;
     const isMapHovered = mapHoveredRestaurantId === restaurant.id;
-    const isBufferPlanningRecommended = isPlanningMode && isRestaurantInPlanningBuffer(restaurant);
+    const isBufferPlanningRecommended = isPlanningMode && nearRouteRestaurants.some(r => r.id === restaurant.id);
     const isHighlighted = isSelected || isHovered || isMapHovered || isBufferPlanningRecommended;
 
     // 줌 아웃 시 미니 도트 (호버/선택 시 복원)
@@ -804,7 +1066,7 @@ export default function MapContainer({
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -400, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="hidden md:flex absolute top-6 left-6 bottom-6 w-[380px] z-20 flex-col bg-zinc-950/85 backdrop-blur-2xl rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10"
+            className="hidden md:flex absolute top-6 left-6 bottom-6 w-[420px] z-20 flex-col bg-zinc-950/85 backdrop-blur-2xl rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10"
           >
             {/* Sidebar Header & Filters */}
             <div className="pt-7 pb-4 px-7 shrink-0 bg-white/[0.02] border-b border-white/5 backdrop-blur-md z-10 rounded-t-[28px]">
@@ -1103,7 +1365,7 @@ export default function MapContainer({
                   setIsSidebarCollapsed(true);
                 }
               }}
-              animate={{ x: selectedRestaurant ? 388 : 0 }}
+              animate={{ x: selectedRestaurant ? 428 : 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="absolute left-full top-1/2 -translate-y-1/2 w-[22px] h-[64px] bg-zinc-950/85 backdrop-blur-2xl border-y border-r border-white/10 rounded-r-2xl flex items-center justify-center cursor-pointer text-orange-500 hover:text-orange-400 shadow-[6px_0_15px_-3px_rgba(0,0,0,0.4)] z-50 group"
               whileHover={{ width: '26px' }}
@@ -1179,17 +1441,65 @@ export default function MapContainer({
           />
         ))}
 
-        {/* 3차 기획: 실시간 일정 드로잉 경로선(Polyline) 렌더링 */}
+        {/* 3차 기획: OSRM 실제 도로망 경로 및 드래그 조절점 렌더링 */}
         {isPlanningMode && activePlanningItinerary && (() => {
           const dayItems = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay)?.items || [];
+          if (dayItems.length < 2) return null;
+
+          // OSRM 경로 세그먼트들이 존재하면 실제 도로망으로 렌더링
+          if (planningRouteCoordinates && planningRouteCoordinates.length > 0) {
+            return (
+              <>
+                {planningRouteCoordinates.map((seg, sIdx) => {
+                  const midPoint = seg.coordinates[Math.floor(seg.coordinates.length / 2)] || {
+                    lat: (seg.ptA.lat + seg.ptB.lat) / 2,
+                    lng: (seg.ptA.lng + seg.ptB.lng) / 2
+                  };
+
+                  return (
+                    <div key={`route-segment-group-${seg.targetId}-${sIdx}`}>
+                      {/* OSRM 세그먼트 경로선 */}
+                      <Polyline
+                        path={seg.coordinates}
+                        strokeWeight={5}
+                        strokeColor="#ef4444"
+                        strokeOpacity={0.85}
+                        strokeStyle="solid"
+                      />
+
+                      {/* 드래그형 Snap-to-Road 경로 조절점 */}
+                      <MapMarker
+                        position={midPoint}
+                        draggable={true}
+                        onDragEnd={(marker) => {
+                          const newPos = marker.getPosition();
+                          setCustomWaypoints((prev) => ({
+                            ...prev,
+                            [seg.targetId]: { lat: newPos.getLat(), lng: newPos.getLng() }
+                          }));
+                        }}
+                        image={{
+                          src: 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png',
+                          size: { width: 24, height: 35 },
+                          options: { offset: { x: 12, y: 35 } }
+                        }}
+                        title={`${seg.ptB.name} 가는 경로 조절점 (드래그하여 원하는 골목길로 경로 수정)`}
+                      />
+                    </div>
+                  );
+                })}
+              </>
+            );
+          }
+
+          // OSRM이 로드되기 전이나 에러 시의 단순 직선 폴백
           const linePath = dayItems.map((item: any) => ({ lat: item.lat, lng: item.lng }));
-          if (linePath.length < 2) return null;
           return (
             <Polyline
               path={linePath}
               strokeWeight={5}
               strokeColor="#ef4444"
-              strokeOpacity={0.9}
+              strokeOpacity={0.6}
               strokeStyle="solid"
             />
           );
@@ -1718,7 +2028,7 @@ export default function MapContainer({
       <RestaurantInfoCard 
         restaurant={selectedRestaurant} 
         onClose={() => handleSelectRestaurant(null)} 
-        isSidebarCollapsed={isSidebarCollapsed}
+        isSidebarCollapsed={isSidebarCollapsed || hideDefaultSidebar}
         favorites={favorites}
         toggleFavorite={(id) => {
           const isFav = favorites.includes(id);
@@ -1999,7 +2309,28 @@ export default function MapContainer({
             }}
             selectedItemId={selectedPlanningItemId}
             onSelectItem={handleSelectPlanningItem}
-            recommendedRestaurants={recommendedRestaurantsForSelectedSpot}
+            recommendedRestaurants={(() => {
+              const currentPlanningItem = (() => {
+                if (!activePlanningItinerary) return [];
+                const dayData = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay);
+                const dayItems = dayData?.items || [];
+                if (selectedPlanningItemId) {
+                  return dayItems.find((it: any) => it.id === selectedPlanningItemId) || dayItems[0];
+                }
+                return dayItems[0];
+              })();
+
+              return nearRouteRestaurants.map(restaurant => {
+                const distance = currentPlanningItem 
+                  ? getDistance(currentPlanningItem.lat, currentPlanningItem.lng, restaurant.lat, restaurant.lng) 
+                  : 0;
+                return {
+                  restaurant,
+                  distance,
+                  type: 'near' as const
+                };
+              }).sort((a, b) => a.distance - b.distance);
+            })()}
             onAddRecommendedRestaurant={(res) => {
               insertRestaurantToPlanningRoute(res);
               alert(`${res.name} 맛집을 최적 경로 중간에 경유지로 추가했습니다 ✨`);
@@ -2045,6 +2376,13 @@ export default function MapContainer({
                 is_custom_spot: true
               });
               alert(`${place.place_name}을(를) 일정 코스에 추가하였습니다.`);
+            }}
+            favorites={favorites}
+            restaurants={restaurants}
+            onUpdateItinerary={(updated) => setActivePlanningItinerary(updated)}
+            onResetCustomWaypoints={() => {
+              setCustomWaypoints({});
+              alert('경로 Rerouting이 초기화되어 최초 실제 도로망 경로로 복구되었습니다 🔄');
             }}
           />
         )}

@@ -763,12 +763,12 @@ export default function RestaurantInfoCard({
       {/* 데스크탑 좌측 상세 패널 */}
       <motion.div
         animate={{ 
-          x: restaurant ? (isSidebarCollapsed ? -396 : 0) : -450, 
+          x: restaurant ? (isSidebarCollapsed ? -428 : 0) : -500, 
           opacity: restaurant ? 1 : 0 
         }}
         transition={{ type: 'spring', damping: 28, stiffness: 220 }}
         style={{ pointerEvents: restaurant ? 'auto' : 'none' }}
-        className="hidden md:flex absolute top-6 left-[412px] bottom-6 w-[380px] z-30 flex-col bg-zinc-950/70 border border-white/10 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] overflow-hidden"
+        className="hidden md:flex absolute top-6 left-[452px] bottom-6 w-[420px] z-30 flex-col bg-zinc-950/70 border border-white/10 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] overflow-hidden"
       >
         {restaurant && <Content />}
       </motion.div>

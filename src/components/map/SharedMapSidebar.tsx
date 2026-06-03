@@ -161,7 +161,7 @@ export default function SharedMapSidebar({
 
   return (
     <motion.div
-      initial={{ x: 440, opacity: 0 }}
+      initial={{ x: 450, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       className="absolute top-6 right-6 bottom-6 w-[420px] z-30 flex flex-col bg-[#0c0c0e]/85 border border-white/8 backdrop-blur-3xl rounded-[28px] shadow-2xl overflow-hidden pointer-events-auto"
     >

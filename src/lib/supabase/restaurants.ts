@@ -10,7 +10,7 @@ export async function getRestaurantsInBounds(
   const { data, error } = await supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info,
       restaurant_videos (
         quote, mention_time, keywords,
         videos (
@@ -108,6 +108,12 @@ export async function getRestaurantsInBounds(
       lng: row.lng,
       videos,
       content_tags,
+      phone: row.phone || '',
+      parking: row.parking || '',
+      packaging: row.packaging || '',
+      reservation: row.reservation || '',
+      business_hours: row.business_hours || '',
+      menu_info: row.menu_info || '',
     };
   });
 }
@@ -116,7 +122,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
   const { data, error } = await supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info,
       restaurant_videos (
         quote, mention_time, keywords,
         videos (
@@ -208,6 +214,12 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
     lng: data.lng,
     videos,
     content_tags,
+    phone: data.phone || '',
+    parking: data.parking || '',
+    packaging: data.packaging || '',
+    reservation: data.reservation || '',
+    business_hours: data.business_hours || '',
+    menu_info: data.menu_info || '',
   };
 }
 
@@ -217,7 +229,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
   const { data, error } = await supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info,
       restaurant_videos (
         quote, mention_time, keywords,
         videos (
@@ -306,6 +318,12 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
       lng: row.lng,
       videos,
       content_tags,
+      phone: row.phone || '',
+      parking: row.parking || '',
+      packaging: row.packaging || '',
+      reservation: row.reservation || '',
+      business_hours: row.business_hours || '',
+      menu_info: row.menu_info || '',
     };
   });
 }

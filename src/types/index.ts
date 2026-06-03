@@ -37,6 +37,12 @@ export interface Restaurant {
   primary_video?: Video;
   content_tags: ContentTag[];
   is_trending?: boolean;
+  phone?: string;
+  parking?: string;
+  packaging?: string;
+  reservation?: string;
+  business_hours?: string;
+  menu_info?: string;
 }
 
 export interface AffiliateProduct {
@@ -61,6 +67,12 @@ export interface ItineraryItem {
   restaurant_id?: string;
   visit_time?: string;
   memo?: string;
+  budget?: number;
+  status?: 'pending' | 'confirmed';
+  checklist?: { text: string; done: boolean }[];
+  transportType?: 'walk' | 'transit' | 'car';
+  customDuration?: number;
+  customTransportDetail?: string;
 }
 
 export interface DailyItinerary {

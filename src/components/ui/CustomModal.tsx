@@ -49,7 +49,7 @@ export default function CustomModal({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/75 backdrop-blur-[4px]"
+            className="fixed inset-0 bg-zinc-950/80 backdrop-blur-[6px]"
           />
 
           {/* 센터 모달 컨테이너 */}
@@ -59,7 +59,7 @@ export default function CustomModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 15 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="relative w-full max-w-lg bg-[#141416]/90 backdrop-blur-2xl border border-white/10 rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col z-10"
+            className="relative w-full max-w-lg bg-[#1c1c20]/95 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.03)] overflow-hidden flex flex-col z-10"
           >
 
 

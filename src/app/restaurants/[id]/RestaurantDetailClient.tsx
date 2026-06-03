@@ -10,48 +10,6 @@ import { supabase } from '@/lib/supabase/client';
 import { AffiliateDisclosure } from '@/components/AffiliateDisclosure';
 import Link from 'next/link';
 
-declare global {
-  interface Window {
-    YT: any;
-    onYouTubeIframeAPIReady: (() => void) | undefined;
-  }
-}
-
-const loadYouTubeIframeAPI = (): Promise<void> => {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined') {
-      resolve();
-      return;
-    }
-    if (window.YT && window.YT.Player) {
-      resolve();
-      return;
-    }
-
-    const previousOnReady = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      if (previousOnReady) previousOnReady();
-      resolve();
-    };
-
-    const existingScript = document.getElementById('youtube-iframe-api');
-    if (!existingScript) {
-      const tag = document.createElement('script');
-      tag.id = 'youtube-iframe-api';
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-    } else {
-      const checkInterval = setInterval(() => {
-        if (window.YT && window.YT.Player) {
-          clearInterval(checkInterval);
-          resolve();
-        }
-      }, 100);
-    }
-  });
-};
-
 const getFallbackThumbnail = (category: string) => {
   const cat = category || '';
   if (cat.includes('삼겹살') || cat.includes('고기') || cat.includes('갈비') || cat.includes('육류')) {
@@ -105,103 +63,13 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
   const [affiliateProduct, setAffiliateProduct] = useState<AffiliateProduct | null>(null);
   const [loadingProduct, setLoadingProduct] = useState(false);
 
-  // 유튜브 플레이어 API 상태 및 예외 제어 관리
-  const [embedError, setEmbedError] = useState(false);
-  const playerInstanceRef = useRef<any>(null);
-
   useEffect(() => {
     setActiveVideoIndex(0);
     setIsPlayingVideo(false);
     setIsStickyVideo(false);
     setIsPipClosed(false);
-    setEmbedError(false);
     loadAffiliateProduct(restaurant);
   }, [restaurant.id]);
-
-  // 유튜브 Iframe Player API 동적 로딩 및 재생 수명주기 제어
-  useEffect(() => {
-    if (!isPlayingVideo || !cleanYoutubeId) return;
-
-    let destroyed = false;
-    setEmbedError(false);
-    let mountTimer: NodeJS.Timeout | null = null;
-
-    loadYouTubeIframeAPI().then(() => {
-      if (destroyed) return;
-
-      // 기존 플레이어 세션이 있다면 파괴하여 메모리 누수 원천 제거
-      if (playerInstanceRef.current) {
-        try {
-          playerInstanceRef.current.destroy();
-        } catch (e) {
-          console.error('Error destroying previous YouTube Player:', e);
-        }
-        playerInstanceRef.current = null;
-      }
-
-      const containerId = `yt-player-${cleanYoutubeId}`;
-
-      // 가상 DOM 렌더링과 Iframe API 인스턴스화 타이밍 동기화를 위한 보정식 도입
-      mountTimer = setTimeout(() => {
-        if (destroyed) return;
-        const container = document.getElementById(containerId);
-        if (!container) {
-          console.warn(`Target YouTube player container [${containerId}] not found in DOM yet.`);
-          return;
-        }
-
-        try {
-          const newPlayer = new window.YT.Player(containerId, {
-            videoId: cleanYoutubeId,
-            playerVars: {
-              autoplay: 1,
-              mute: 1,
-              playsinline: 1,
-              rel: 0,
-              modestbranding: 1,
-              controls: 1,
-            },
-            events: {
-              onReady: (event: any) => {
-                if (destroyed) return;
-                try {
-                  event.target.playVideo();
-                } catch (playErr) {
-                  console.error('Error playing video onReady:', playErr);
-                }
-              },
-              onError: (event: any) => {
-                if (destroyed) return;
-                const errCode = event.data;
-                console.warn(`YouTube Player error [Code: ${errCode}] detected for: ${cleanYoutubeId}`);
-                // 에러 101, 150(임베드 차단), 100(삭제/비공개), 2(잘못된 ID), 5(HTML5) 검출 시 폴백 카드 노출
-                if (errCode === 101 || errCode === 150 || errCode === 100 || errCode === 2 || errCode === 5) {
-                  setEmbedError(true);
-                }
-              }
-            }
-          });
-          playerInstanceRef.current = newPlayer;
-        } catch (initErr) {
-          console.error('Failed to initialize YouTube Player:', initErr);
-          setEmbedError(true);
-        }
-      }, 50); // 50ms 미세 지연 보정으로 마운트 타이밍 보장
-    });
-
-    return () => {
-      destroyed = true;
-      if (mountTimer) clearTimeout(mountTimer);
-      if (playerInstanceRef.current) {
-        try {
-          playerInstanceRef.current.destroy();
-        } catch (e) {
-          console.error('Error destroying player on cleanup:', e);
-        }
-        playerInstanceRef.current = null;
-      }
-    };
-  }, [isPlayingVideo, cleanYoutubeId]);
 
   // IntersectionObserver를 통한 정밀한 메인 비디오 영역 스크롤 탈출 감지 (비디오 재생 중에만 스마트 작동)
   useEffect(() => {
@@ -373,9 +241,9 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
       {/* 글로벌 SVG 그라데이션 정의 */}
       <svg width="0" height="0" className="absolute pointer-events-none" aria-hidden="true">
         <defs>
-          <linearGradient id="red-orange-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FF0000" />
-            <stop offset="100%" stopColor="#FF7A00" />
+          <linearGradient id="red-orange-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#E11D48" />
+            <stop offset="100%" stopColor="#EA580C" />
           </linearGradient>
         </defs>
       </svg>
@@ -386,12 +254,12 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
           href="/"
           className="flex items-center gap-2 group text-white/70 hover:text-white transition-colors"
         >
-          <div className="p-2.5 bg-white/5 group-hover:bg-gradient-to-tr group-hover:from-brand-orange group-hover:to-brand-orange-light group-hover:scale-105 rounded-2xl border border-white/5 transition-all">
+          <div className="p-2.5 bg-white/5 group-hover:bg-gradient-to-tr group-hover:from-red-600 group-hover:to-orange-500 group-hover:scale-105 rounded-2xl border border-white/5 transition-all">
             <Home size={18} />
           </div>
           <span className="font-extrabold text-sm tracking-tight hidden sm:inline">모두의 맛집</span>
         </Link>
-        <div className="flex items-center gap-1.5 bg-gradient-to-r from-brand-orange to-brand-orange-light px-3.5 py-1.5 rounded-full text-xs font-black shadow-lg shadow-brand-orange/15 border border-brand-orange-light/20">
+        <div className="flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-orange-500 px-3.5 py-1.5 rounded-full text-xs font-black shadow-lg shadow-red-600/15 border border-orange-500/20">
           🔥 CREATOR PICK
         </div>
       </header>
@@ -414,42 +282,24 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                 repeat: Infinity,
                 ease: "easeInOut"
               }}
-              className="absolute inset-0 bg-brand-orange/20 blur-3xl rounded-full -z-10"
+              className="absolute inset-0 bg-gradient-to-tr from-red-600/20 to-orange-500/20 blur-3xl rounded-full -z-10"
             />
 
             {/* 재생 끊김 방지를 위한 무중단 컨테이너 연동 (모바일 크기 정밀 보정) */}
             <div className={
               isPipActive
-                ? "fixed bottom-6 right-6 w-[170px] sm:w-[280px] aspect-video z-50 rounded-2xl shadow-[0_12px_45px_rgba(255,94,0,0.4)] border-2 border-brand-orange bg-black overflow-hidden transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1)"
+                ? "fixed bottom-6 right-6 w-[170px] sm:w-[280px] aspect-video z-50 rounded-2xl shadow-[0_12px_45px_rgba(234,88,12,0.4)] border-2 border-orange-500 bg-black overflow-hidden transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1)"
                 : "absolute inset-0 w-full h-full rounded-[28px] border border-white/10 bg-black overflow-hidden transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1)"
             }>
               {isPlayingVideo ? (
                 <div className="relative w-full h-full group">
-                  {/* YouTube Iframe Player가 인스턴스화될 마운트 타겟 */}
-                  <div id={`yt-player-${cleanYoutubeId}`} className="w-full h-full border-0" />
-
-                  {/* 외부 재생 임베드 차단 감지 시 세련된 다크 안내 카드 노출 */}
-                  {embedError && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#141416]/95 backdrop-blur-md p-6 text-center z-30 space-y-4">
-                      <div className="absolute inset-0 bg-brand-orange/5 blur-xl rounded-full" />
-                      <div className="w-11 h-11 rounded-full bg-brand-orange/10 border border-brand-orange/30 flex items-center justify-center text-brand-orange-light relative z-10 animate-pulse">
-                        <Flame size={18} className="fill-current" />
-                      </div>
-                      <div className="space-y-1.5 relative z-10 max-w-sm px-2">
-                        <h4 className="text-white text-[13px] font-black tracking-tight">유튜브 외부 재생이 제한된 동영상입니다</h4>
-                        <p className="text-white/40 text-[10px] font-semibold leading-relaxed">
-                          해당 유튜버의 정책 및 저작권 설정으로 외부 플레이어의 스트리밍이 차단되었습니다. 오리지널 창작자를 존중하기 위해 유튜브 앱 또는 웹으로 즉시 이동하여 감상해 보세요!
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => openExternal(`https://www.youtube.com/watch?v=${cleanYoutubeId}`, { reason: 'embed_fallback_jump' })}
-                        className="relative z-10 px-4.5 py-2.5 bg-gradient-to-r from-brand-orange to-brand-orange-light hover:brightness-110 text-white text-[11px] font-black rounded-xl shadow-lg transition-all duration-300 flex items-center gap-1.5 cursor-pointer border border-brand-orange-light/15"
-                      >
-                        유튜브에서 바로 감상하기
-                        <ExternalLink size={11} />
-                      </button>
-                    </div>
-                  )}
+                  {/* 유튜브 영상 직접 임베드 렌더링으로 100% 안정적 재생 지원 */}
+                  <iframe
+                    src={`https://www.youtube.com/embed/${cleanYoutubeId}?autoplay=1&mute=1&playsinline=1`}
+                    className="w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
                   
                   {/* Pip 미니 플레이어 전용 간이 오버레이 및 터치 최적화 닫기 버튼 */}
                   {isPipActive && (
@@ -488,7 +338,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                   
                   {/* 썸네일 내 숏츠 마크 */}
                   {activeVideo.is_short && (
-                    <div className="absolute top-5 left-5 bg-gradient-to-r from-brand-orange to-brand-orange-light text-white text-[10px] font-black px-2.5 py-1 rounded-xl tracking-wider flex items-center gap-1 border border-brand-orange-light/20 shadow-lg z-20">
+                    <div className="absolute top-5 left-5 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-black px-2.5 py-1 rounded-xl tracking-wider flex items-center gap-1 border border-orange-500/20 shadow-lg z-20">
                       <Play size={8} fill="currentColor" /> SHORTS
                     </div>
                   )}
@@ -496,7 +346,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                   {/* 유튜브 오리지널 앱 딥링크 숏컷 칩 */}
                   <button
                     onClick={() => openExternal(`https://www.youtube.com/watch?v=${cleanYoutubeId}`, { reason: 'original_youtube_jump' })}
-                    className="absolute top-5 right-5 z-20 px-3.5 py-1.5 bg-black/60 hover:bg-brand-orange hover:text-white backdrop-blur-md text-white text-[10px] font-black rounded-full border border-white/10 shadow-lg flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="absolute top-5 right-5 z-20 px-3.5 py-1.5 bg-black/60 hover:bg-orange-500 hover:text-white backdrop-blur-md text-white text-[10px] font-black rounded-full border border-white/10 shadow-lg flex items-center gap-1.5 transition-all cursor-pointer"
                     title="유튜브 앱에서 감상"
                   >
                     <span>유튜브 앱으로 열기</span>
@@ -509,7 +359,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                       whileHover={{ scale: 1.12 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setIsPlayingVideo(true)}
-                      className="relative w-16 h-16 rounded-full bg-brand-orange flex items-center justify-center text-white shadow-[0_8px_30px_rgba(255,94,0,0.5)] cursor-pointer border border-brand-orange-light/25 group overflow-hidden"
+                      className="relative w-16 h-16 rounded-full bg-gradient-to-r from-red-600 to-orange-500 flex items-center justify-center text-white shadow-[0_8px_30px_rgba(234,88,12,0.5)] cursor-pointer border border-orange-500/25 group overflow-hidden"
                     >
                       <div className="absolute inset-0 w-1/2 h-full bg-white/20 skew-x-12 -translate-x-full group-hover:translate-x-[200%] transition-transform duration-1000" />
                       <Play size={22} className="ml-1 fill-current" />
@@ -519,7 +369,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                   {/* 하단 조회수 정보 오버레이 */}
                   {activeVideo.view_count && (
                     <div className="absolute bottom-5 left-5 z-20 bg-black/55 backdrop-blur-md border border-white/10 text-white/90 text-[11px] font-black px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-md">
-                      <Flame size={12} className="text-brand-orange fill-current" />
+                      <Flame size={12} className="text-red-500 fill-current animate-pulse" />
                       조회수 {activeVideo.view_count.toLocaleString()}뷰 돌파
                     </div>
                   )}
@@ -546,10 +396,10 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] font-bold text-brand-orange-light/80 bg-brand-orange/5 border border-brand-orange/10 py-2.5 px-4 rounded-xl"
+              className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-400 bg-orange-500/5 border border-orange-500/10 py-2.5 px-4 rounded-xl"
             >
-              <Volume2 size={12} className="animate-pulse text-brand-orange-light shrink-0" />
-              <span className="leading-relaxed text-center sm:text-left">브라우저 자동 재생 정책에 따라 음소거로 재생이 시작됩니다. 영상 내의 볼륨 아이콘을 클릭하여 소리를 켜주세요.</span>
+              <Volume2 size={12} className="animate-pulse text-orange-400 shrink-0" />
+              <span className="leading-relaxed text-center sm:text-left text-zinc-300">브라우저 자동 재생 정책에 따라 음소거로 재생이 시작됩니다. 영상 내의 볼륨 아이콘을 클릭하여 소리를 켜주세요.</span>
             </motion.div>
           )}
         </>
@@ -566,10 +416,10 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
               repeat: Infinity,
               ease: "easeInOut"
             }}
-            className="absolute inset-0 bg-gradient-to-tr from-brand-orange/20 to-transparent blur-3xl rounded-full"
+            className="absolute inset-0 bg-gradient-to-tr from-red-600/10 to-orange-500/10 blur-3xl rounded-full"
           />
           <div className="relative z-10 space-y-4 flex flex-col items-center">
-            <div className="w-12 h-12 bg-brand-orange/10 border border-brand-orange/35 text-brand-orange-light rounded-full flex items-center justify-center shadow-lg animate-pulse">
+            <div className="w-12 h-12 bg-orange-500/10 border border-orange-500/35 text-brand-orange-light rounded-full flex items-center justify-center shadow-lg animate-pulse">
               <Sparkles size={20} className="fill-current" />
             </div>
             <div className="space-y-1">
@@ -584,7 +434,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
 
       {/* 2단계: 프리미엄 식당 기본 프로필 */}
       <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-orange/15 rounded-full filter blur-3xl -z-10" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/15 rounded-full filter blur-3xl -z-10" />
         
         <h1 className="text-3xl font-black tracking-tight text-white mb-4">
           {restaurant.name}
@@ -602,7 +452,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
             <span className="font-semibold text-zinc-400">{restaurant.category}</span>
           </div>
           <div className="flex items-center">
-            <div className="p-2 bg-white/5 border border-white/5 rounded-xl mr-3 text-brand-orange-light">
+            <div className="p-2 bg-white/5 border border-white/5 rounded-xl mr-3 text-orange-400">
               <MapPin size={14} />
             </div>
             <span className="font-semibold text-white/90">{restaurant.address}</span>
@@ -614,7 +464,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
       {restaurant.videos && restaurant.videos.length > 0 && (
         <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md">
           <div className="flex items-center gap-1.5 mb-5">
-            <Flame size={18} className="text-brand-orange fill-current" />
+            <Flame size={18} className="text-red-500 fill-current animate-pulse" />
             <span className="text-[15px] font-black tracking-tight text-white">이 맛집을 인증한 크리에이터들</span>
           </div>
           
@@ -628,11 +478,10 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                   onClick={() => {
                     setActiveVideoIndex(idx);
                     setIsPlayingVideo(true); // 아바타 터치 시 해당 크리에이터 영상으로 원활히 복원 및 재생 스위칭
-                    setEmbedError(false); // 동영상 바뀔 때 에러 상태 리셋
                   }}
                   className="flex flex-col items-center gap-2.5 cursor-pointer shrink-0 group select-none"
                 >
-                  <div className={`p-[3px] rounded-full bg-gradient-to-tr ${isActive ? 'from-brand-orange-light to-brand-orange scale-105' : 'from-white/10 to-white/20 hover:from-white/30 hover:to-white/40'} transition-all duration-300 transform group-hover:scale-105`}>
+                  <div className={`p-[3px] rounded-full bg-gradient-to-tr ${isActive ? 'from-red-600 to-orange-500 scale-105 shadow-[0_4px_15px_rgba(225,29,72,0.4)]' : 'from-white/10 to-white/20 hover:from-white/30 hover:to-white/40'} transition-all duration-300 transform group-hover:scale-105`}>
                     <div className="p-0.5 bg-brand-charcoal rounded-full">
                       <img 
                         src={vid.youtuber.profile_image} 
@@ -644,13 +493,28 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                       />
                     </div>
                   </div>
-                  <span className={`text-xs max-w-[76px] truncate text-center ${isActive ? 'font-black text-brand-orange-light' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
+                  <span className={`text-xs max-w-[76px] truncate text-center ${isActive ? 'font-black text-orange-400' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
                     {vid.youtuber.name}
                   </span>
                 </div>
               );
             })}
           </div>
+
+          {/* 유튜버의 생생한 시그니처 한줄평(Pick) 렌더링 */}
+          {activeVideo && activeVideo.quote && (
+            <div className="mt-6 p-5 bg-[#252528] border-l-4 border-orange-500 rounded-r-2xl relative overflow-hidden shadow-inner">
+              <span className="absolute -top-3 -left-1 text-[80px] text-orange-500/10 font-serif leading-none select-none">“</span>
+              <div className="flex items-center gap-2 mb-2 relative z-10">
+                <span className="text-[11px] font-black text-orange-400 tracking-wider">CREATOR PICK</span>
+                <span className="w-1 h-1 bg-white/20 rounded-full" />
+                <span className="text-[11px] font-bold text-white/40">{activeVideo.youtuber.name}</span>
+              </div>
+              <p className="text-zinc-200 text-sm italic font-medium relative z-10 pl-1 leading-relaxed">
+                {activeVideo.quote}
+              </p>
+            </div>
+          )}
 
           {/* AI 큐레이션 키워드 태그 */}
           {activeVideo?.keywords && activeVideo.keywords.length > 0 && (
@@ -659,7 +523,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                 <Link
                   key={`${activeVideo.id}-${kw}-${idx}`}
                   href={`/?search=%23${encodeURIComponent(kw)}`}
-                  className="px-3.5 py-1.5 bg-[#252528] hover:bg-[#2d2d31] hover:text-white border border-brand-orange/15 text-brand-orange-light text-xs font-bold rounded-xl shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                  className="px-3.5 py-1.5 bg-[#252528] hover:bg-[#2d2d31] hover:text-white border border-orange-500/15 text-orange-400 text-xs font-bold rounded-xl shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer"
                 >
                   #{kw}
                 </Link>
@@ -669,14 +533,93 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
         </div>
       )}
 
+      {/* 대표 메뉴 및 가격표 카드 */}
+      {restaurant.menu_info && restaurant.menu_info !== '정보 없음' && (
+        <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md">
+          <div className="flex items-center gap-1.5 mb-4">
+            <Utensils size={18} className="text-orange-500" />
+            <span className="text-[15px] font-black tracking-tight text-white">대표 메뉴 & 가격</span>
+          </div>
+          <div className="divide-y divide-white/5 bg-[#252528]/40 border border-white/5 rounded-2xl px-5 shadow-inner">
+            {restaurant.menu_info.split('\n').filter(item => item.trim() !== '').map((item, idx) => {
+              const parts = item.split(/[:|-]/);
+              const name = parts[0]?.trim();
+              const price = parts[1]?.trim();
+              return (
+                <div key={idx} className="flex justify-between py-4 text-sm font-semibold">
+                  <span className="text-zinc-300">{name}</span>
+                  {price && <span className="text-orange-400 font-bold">{price}</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 상세 편의 정보 위젯 */}
+      <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md">
+        <div className="flex items-center gap-1.5 mb-5">
+          <Sparkles size={18} className="text-orange-400 animate-pulse" />
+          <span className="text-[15px] font-black tracking-tight text-white">상세 미식 가이드 정보</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-start gap-3.5 p-4 bg-[#252528]/50 border border-white/5 rounded-2xl">
+            <div className="p-2.5 bg-orange-500/10 text-orange-400 rounded-xl shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.387a12.035 12.035 0 01-5.908-5.908c-.154-.441.012-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+              </svg>
+            </div>
+            <div className="space-y-1 min-w-0">
+              <span className="text-[11px] font-black text-white/30 uppercase tracking-wider block">전화번호</span>
+              <span className="text-xs font-bold text-white/80 block truncate">{restaurant.phone || '정보 없음'}</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-3.5 p-4 bg-[#252528]/50 border border-white/5 rounded-2xl">
+            <div className="p-2.5 bg-orange-500/10 text-orange-400 rounded-xl shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V18m1.5 1.75h9m1.5-1.75a1.5 1.5 0 003 0m-3 0a1.5 1.5 0 013 0m-3 0h3.375a1.125 1.125 0 001.125-1.125V18M2.25 9.75h19.5M2.25 5.625c0-.621.504-1.125 1.125-1.125h17.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125H3.375a1.125 1.125 0 01-1.125-1.125V5.625z" />
+              </svg>
+            </div>
+            <div className="space-y-1 min-w-0">
+              <span className="text-[11px] font-black text-white/30 uppercase tracking-wider block">주차 정보</span>
+              <span className="text-xs font-bold text-white/80 block truncate">{restaurant.parking || '정보 없음'}</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-3.5 p-4 bg-[#252528]/50 border border-white/5 rounded-2xl">
+            <div className="p-2.5 bg-orange-500/10 text-orange-400 rounded-xl shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="space-y-1 min-w-0">
+              <span className="text-[11px] font-black text-white/30 uppercase tracking-wider block">영업 시간</span>
+              <span className="text-xs font-bold text-white/80 block leading-relaxed">{restaurant.business_hours || '정보 없음'}</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-3.5 p-4 bg-[#252528]/50 border border-white/5 rounded-2xl">
+            <div className="p-2.5 bg-orange-500/10 text-orange-400 rounded-xl shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-12v.75m0 3v.75m0 3v.75m0 3V18M3 21h18L12.75 3.25a.75.75 0 00-1.5 0L3 21z" />
+              </svg>
+            </div>
+            <div className="space-y-1 min-w-0">
+              <span className="text-[11px] font-black text-white/30 uppercase tracking-wider block">예약 및 포장</span>
+              <span className="text-xs font-bold text-white/80 block leading-relaxed">
+                예약: {restaurant.reservation || '정보 없음'} / 포장: {restaurant.packaging || '정보 없음'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 4단계: Instant Taste 밀키트 쇼핑 배너 */}
       {affiliateProduct && (
-        <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-brand-orange/15 to-brand-orange-light/5 border border-brand-orange/20 p-5 shadow-2xl backdrop-blur-md">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-brand-orange/10 rounded-full filter blur-2xl -z-10" />
+        <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-orange-500/10 to-transparent border border-orange-500/20 p-5 shadow-2xl backdrop-blur-md">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full filter blur-2xl -z-10" />
 
           <div className="flex items-center gap-1.5 mb-4 shrink-0">
-            <ShoppingBag size={16} className="text-brand-orange-light animate-pulse" />
-            <span className="text-[11px] font-black text-brand-orange-light uppercase tracking-wider">Instant Taste 쇼핑</span>
+            <ShoppingBag size={16} className="text-orange-400 animate-pulse" />
+            <span className="text-[11px] font-black text-orange-400 uppercase tracking-wider">Instant Taste 쇼핑</span>
           </div>
 
           <div className="flex gap-4 items-center">
@@ -696,7 +639,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                 {affiliateProduct.title}
               </h4>
               <div className="flex items-baseline gap-2">
-                <span className="text-lg font-black text-brand-orange-light tracking-tight">
+                <span className="text-lg font-black text-orange-400 tracking-tight">
                   {affiliateProduct.price.toLocaleString()}원
                 </span>
                 <span className="text-xs text-white/35 line-through">
@@ -707,12 +650,12 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
           </div>
 
           <p className="text-[11px] text-white/60 mt-4 leading-relaxed tracking-tight">
-            크리에이터의 미식을 그대로 소환! 웨이팅 없는 초고속 로켓 배송으로 <span className="text-brand-orange-light font-extrabold">내일 집 앞</span>에서 밀키트를 만끽해 보세요. 🚀
+            크리에이터의 미식을 그대로 소환! 웨이팅 없는 초고속 로켓 배송으로 <span className="text-orange-400 font-extrabold">내일 집 앞</span>에서 밀키트를 만끽해 보세요. 🚀
           </p>
 
           <button 
             onClick={() => handleProductClick(affiliateProduct)}
-            className="w-full mt-4 py-3.5 bg-gradient-to-r from-brand-orange to-brand-orange-light hover:brightness-110 text-white font-extrabold rounded-2xl text-xs tracking-tight transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-brand-orange/15 border border-brand-orange-light/10"
+            className="w-full mt-4 py-3.5 bg-gradient-to-r from-red-600 to-orange-500 hover:brightness-110 text-white font-extrabold rounded-2xl text-xs tracking-tight transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-red-600/15 border border-orange-500/10"
           >
             대기 없이 바로 맛보기
             <ExternalLink size={12} />
@@ -723,7 +666,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
       {/* 5단계: 미식 지도 및 길찾기 퀵 액션 */}
       <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md space-y-4">
         <div className="flex items-center gap-1.5 mb-2">
-          <CheckCircle2 size={15} className="text-brand-orange-light" />
+          <CheckCircle2 size={15} className="text-orange-400" />
           <h3 className="font-extrabold text-white text-[14px] tracking-tight">미식 내비게이션</h3>
         </div>
         
@@ -739,7 +682,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
           />
           <div className="absolute inset-0 bg-black/25 flex items-center justify-center group-hover:bg-black/35 transition-all">
             <div className="px-3.5 py-2 bg-brand-charcoal/85 border border-white/10 backdrop-blur-md text-[11px] font-black rounded-xl flex items-center gap-1.5 text-white">
-              <MapPin size={11} className="text-brand-orange-light" /> 큰 지도로 위치 열기
+              <MapPin size={11} className="text-orange-400" /> 큰 지도로 위치 열기
             </div>
           </div>
         </div>
