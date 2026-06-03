@@ -141,6 +141,11 @@ export default function MapContainer({
   onExternalSelectedChange
 }: MapContainerProps) {
   const [map, setMap] = useState<kakao.maps.Map | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>('전체');
+  const [hoveredRestaurantId, setHoveredRestaurantId] = useState<string | null>(null);
+  const [mapHoveredRestaurantId, setMapHoveredRestaurantId] = useState<string | null>(null);
+  const [sonarPing, setSonarPing] = useState<number>(0);
+  const [mapTheme, setMapTheme] = useState<'theme-silver' | 'theme-navy' | 'theme-sand' | ''>('');
   const [loading, mapError] = useKakaoLoader({
     appkey: process.env.NEXT_PUBLIC_KAKAO_JS_API_KEY as string,
     libraries: ['services', 'clusterer', 'drawing'],
@@ -531,6 +536,10 @@ export default function MapContainer({
   }, [planningRouteCoordinates, isPlanningMode, activePlanningItinerary, planningActiveDay]);
 
   const isMountedRef = useRef(false);
+  const filterScrollRef = useRef<HTMLDivElement>(null);
+  const storyScrollRef = useRef<HTMLDivElement>(null);
+
+
 
 
 
@@ -704,10 +713,85 @@ export default function MapContainer({
     }
   }, [favorites]);
 
-  // 카테고리 필터링 상태 추가
-  const [activeCategory, setActiveCategory] = useState<string>('전체');
-  const [hoveredRestaurantId, setHoveredRestaurantId] = useState<string | null>(null);
-  const [mapHoveredRestaurantId, setMapHoveredRestaurantId] = useState<string | null>(null);
+  // 마우스 드래그 가로 스크롤 이벤트 바인딩
+  useEffect(() => {
+    if (loading) return;
+
+    let unbindFilters: (() => void) | null = null;
+    let unbindStories: (() => void) | null = null;
+
+    const timer = setTimeout(() => {
+      const bindDragScroll = (el: HTMLDivElement | null) => {
+        if (!el) return null;
+        
+        let isDown = false;
+        let startX: number;
+        let scrollLeft: number;
+        let hasDragged = false;
+        
+        const handleMouseDown = (e: MouseEvent) => {
+          isDown = true;
+          hasDragged = false;
+          startX = e.pageX - el.offsetLeft;
+          scrollLeft = el.scrollLeft;
+          el.style.cursor = 'grabbing';
+          el.style.userSelect = 'none';
+        };
+        
+        const handleMouseLeave = () => {
+          isDown = false;
+          el.style.cursor = 'grab';
+        };
+        
+        const handleMouseUp = (e: MouseEvent) => {
+          isDown = false;
+          el.style.cursor = 'grab';
+          
+          if (hasDragged) {
+            const preventClick = (clickEvent: MouseEvent) => {
+              clickEvent.stopImmediatePropagation();
+              clickEvent.preventDefault();
+              el.removeEventListener('click', preventClick, true);
+            };
+            el.addEventListener('click', preventClick, true);
+          }
+        };
+        
+        const handleMouseMove = (e: MouseEvent) => {
+          if (!isDown) return;
+          const x = e.pageX - el.offsetLeft;
+          const walk = (x - startX) * 1.5; // 스크롤 감도 배율
+          if (Math.abs(walk) > 3) {
+            hasDragged = true;
+            e.preventDefault();
+            el.scrollLeft = scrollLeft - walk;
+          }
+        };
+        
+        el.addEventListener('mousedown', handleMouseDown);
+        el.addEventListener('mouseleave', handleMouseLeave);
+        el.addEventListener('mouseup', handleMouseUp);
+        el.addEventListener('mousemove', handleMouseMove);
+        el.style.cursor = 'grab';
+        
+        return () => {
+          el.removeEventListener('mousedown', handleMouseDown);
+          el.removeEventListener('mouseleave', handleMouseLeave);
+          el.removeEventListener('mouseup', handleMouseUp);
+          el.removeEventListener('mousemove', handleMouseMove);
+        };
+      };
+      
+      unbindFilters = bindDragScroll(filterScrollRef.current);
+      unbindStories = bindDragScroll(storyScrollRef.current);
+    }, 150);
+    
+    return () => {
+      clearTimeout(timer);
+      if (unbindFilters) unbindFilters();
+      if (unbindStories) unbindStories();
+    };
+  }, [loading, desktopView, activeCategory]);
 
   // 내부 및 외부 호버 상태의 이중화 통합 연동 변수
   const effectiveHoveredId = externalHoveredRestaurantId || hoveredRestaurantId;
@@ -732,9 +816,6 @@ export default function MapContainer({
       onExternalSelectedChange(r);
     }
   };
-
-  const [sonarPing, setSonarPing] = useState<number>(0);
-  const [mapTheme, setMapTheme] = useState<'theme-silver' | 'theme-navy' | 'theme-sand' | ''>('');
 
   // 로컬스토리지 즐겨찾기 목록 초기 로드 및 저장
   useEffect(() => {
@@ -763,15 +844,15 @@ export default function MapContainer({
   // 줌 레벨에 따른 행정구역 클러스터 데이터 로드
   useEffect(() => {
     async function functionFetchRegionClusters() {
-      // 줌 레벨 4 이하(더 줌인된 상태)에서는 클러스터링을 끄고 개별 마커들을 노출시킴
-      if (zoomLevel <= 4) {
+      // 줌 레벨 7 이하(더 줌인된 상태)에서는 클러스터링을 끄고 개별 마커들을 노출시킴
+      if (zoomLevel <= 7) {
         setRegionClusters([]);
         setActivePolygons(null);
         return;
       }
-      // 레벨 8 이상은 시/도(depth 1) - 광역 단위 (예: 서울특별시)
-      // 레벨 5 ~ 7은 시/군/구(depth 2) - 기초 지자체 단위 (예: 서울 강남구)
-      const depth = zoomLevel >= 8 ? 1 : 2;
+      // 레벨 9 이상은 시/도(depth 1) - 광역 단위 (예: 서울특별시)
+      // 레벨 8은 시/군/구(depth 2) - 기초 지자체 단위 (예: 서울 강남구)
+      const depth = zoomLevel >= 9 ? 1 : 2;
       
       const { data, error } = await supabase.rpc('get_restaurant_clusters', { p_depth: depth });
       if (data) {
@@ -1104,7 +1185,7 @@ export default function MapContainer({
                   </div>
                   
                   {/* Filter Chips */}
-                  <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+                  <div ref={filterScrollRef} className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pb-1 select-none">
                     {['전체', '한식', '일식', '중식', '양식', '아시안'].map((category) => {
                       const isActive = activeCategory === category;
                       return (
@@ -1129,7 +1210,7 @@ export default function MapContainer({
                   {/* Instagram Story Slider */}
                   {desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) && (
                     <div className="mt-4 px-1 pb-3 border-b border-white/5 shrink-0 select-none">
-                      <div className="flex gap-4 overflow-x-auto hide-scrollbar py-0.5">
+                      <div ref={storyScrollRef} className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-0.5 select-none">
                         {filteredRestaurants
                           .filter(r => r.videos && r.videos.length > 0)
                           .map(r => {
@@ -1299,7 +1380,6 @@ export default function MapContainer({
                                 </svg>
                               </div>
                               <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{r.name}</h4>
-                              <span className="text-[11px] font-semibold text-zinc-400 shrink-0">| {r.category}</span>
                             </div>
                             {bestVid?.view_count !== undefined ? (
                               <span className="text-[11px] font-extrabold bg-red-950/20 px-2 py-0.5 rounded-md shrink-0 border border-red-500/10">
@@ -1579,7 +1659,7 @@ export default function MapContainer({
         })()}
 
         {/* 줌 아웃 시 행정구역 기반 커스텀 오버레이 (Phase 3 & 4) */}
-        {zoomLevel > 4 && map && regionClusters.filter(cluster => {
+        {zoomLevel > 7 && map && regionClusters.filter(cluster => {
           const bounds = map.getBounds();
           const p = new kakao.maps.LatLng(cluster.center_lat, cluster.center_lng);
           return bounds.contain(p);
@@ -1670,9 +1750,9 @@ export default function MapContainer({
                   if (map) {
                     const targetLat = cluster.center_lat;
                     const targetLng = cluster.center_lng;
-                    // 광역 지자체(8레벨 이상)에서 클릭 시 6레벨(시군구)로 자연스럽게 이동,
-                    // 시군구 지자체(5~7레벨)에서 클릭 시 4레벨(개별 맛집 마커 노출 레벨)로 자연스럽게 이동
-                    const nextLevel = zoomLevel >= 8 ? 6 : 4;
+                    // 광역 지자체(9레벨 이상)에서 클릭 시 8레벨(시군구)로 자연스럽게 이동,
+                    // 시군구 지자체(8레벨)에서 클릭 시 7레벨(개별 맛집 마커 노출 레벨)로 자연스럽게 이동
+                    const nextLevel = zoomLevel >= 9 ? 8 : 7;
                     
                     // 1단계: 클릭 지점으로 중심점 이동 (부드러운 스크롤링)
                     map.panTo(new kakao.maps.LatLng(targetLat, targetLng));
@@ -1707,8 +1787,8 @@ export default function MapContainer({
           );
         })}
 
-        {/* 맛집 핀/마커 렌더링 (줌 레벨 4 이하에서만 개별 노출) */}
-        {zoomLevel <= 4 && filteredRestaurants.map((restaurant) => (
+        {/* 맛집 핀/마커 렌더링 (줌 레벨 7 이하에서만 개별 노출) */}
+        {zoomLevel <= 7 && filteredRestaurants.map((restaurant) => (
           <CustomOverlayMap
             key={restaurant.id}
             position={{ lat: restaurant.lat, lng: restaurant.lng }}
