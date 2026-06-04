@@ -6,10 +6,7 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "ait-build": "node scripts/ait_build.mjs",
-    "ait-check": "node scripts/ait-precheck.js",
-    "deploy": "npm run ait-build && npx ait deploy --api-key $AIT_API_KEY"
+    "lint": "eslint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",

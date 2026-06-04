@@ -713,85 +713,46 @@ export default function MapContainer({
     }
   }, [favorites]);
 
-  // 마우스 드래그 가로 스크롤 이벤트 바인딩
-  useEffect(() => {
-    if (loading) return;
+  // 마우스 드래그 가로 스크롤 상태
+  const filterDrag = useRef({ isDown: false, startX: 0, scrollLeft: 0, hasDragged: false });
+  const storyDrag = useRef({ isDown: false, startX: 0, scrollLeft: 0, hasDragged: false });
 
-    let unbindFilters: (() => void) | null = null;
-    let unbindStories: (() => void) | null = null;
-
-    const timer = setTimeout(() => {
-      const bindDragScroll = (el: HTMLDivElement | null) => {
-        if (!el) return null;
-        
-        let isDown = false;
-        let startX: number;
-        let scrollLeft: number;
-        let hasDragged = false;
-        
-        const handleMouseDown = (e: MouseEvent) => {
-          isDown = true;
-          hasDragged = false;
-          startX = e.pageX - el.offsetLeft;
-          scrollLeft = el.scrollLeft;
-          el.style.cursor = 'grabbing';
-          el.style.userSelect = 'none';
-        };
-        
-        const handleMouseLeave = () => {
-          isDown = false;
-          el.style.cursor = 'grab';
-        };
-        
-        const handleMouseUp = (e: MouseEvent) => {
-          isDown = false;
-          el.style.cursor = 'grab';
-          
-          if (hasDragged) {
-            const preventClick = (clickEvent: MouseEvent) => {
-              clickEvent.stopImmediatePropagation();
-              clickEvent.preventDefault();
-              el.removeEventListener('click', preventClick, true);
-            };
-            el.addEventListener('click', preventClick, true);
-          }
-        };
-        
-        const handleMouseMove = (e: MouseEvent) => {
-          if (!isDown) return;
-          const x = e.pageX - el.offsetLeft;
-          const walk = (x - startX) * 1.5; // 스크롤 감도 배율
-          if (Math.abs(walk) > 3) {
-            hasDragged = true;
-            e.preventDefault();
-            el.scrollLeft = scrollLeft - walk;
-          }
-        };
-        
-        el.addEventListener('mousedown', handleMouseDown);
-        el.addEventListener('mouseleave', handleMouseLeave);
-        el.addEventListener('mouseup', handleMouseUp);
-        el.addEventListener('mousemove', handleMouseMove);
-        el.style.cursor = 'grab';
-        
-        return () => {
-          el.removeEventListener('mousedown', handleMouseDown);
-          el.removeEventListener('mouseleave', handleMouseLeave);
-          el.removeEventListener('mouseup', handleMouseUp);
-          el.removeEventListener('mousemove', handleMouseMove);
-        };
-      };
-      
-      unbindFilters = bindDragScroll(filterScrollRef.current);
-      unbindStories = bindDragScroll(storyScrollRef.current);
-    }, 150);
-    
-    return () => {
-      clearTimeout(timer);
-      if (unbindFilters) unbindFilters();
-      if (unbindStories) unbindStories();
-    };
-  }, [loading, desktopView, activeCategory]);
+  const getDragHandlers = (dragRef: React.MutableRefObject<any>) => ({
+    onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => {
+      const el = e.currentTarget;
+      dragRef.current.isDown = true;
+      dragRef.current.hasDragged = false;
+      dragRef.current.startX = e.pageX - el.offsetLeft;
+      dragRef.current.scrollLeft = el.scrollLeft;
+      el.style.cursor = 'grabbing';
+    },
+    onMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => {
+      dragRef.current.isDown = false;
+      e.currentTarget.style.cursor = 'grab';
+    },
+    onMouseUp: (e: React.MouseEvent<HTMLDivElement>) => {
+      dragRef.current.isDown = false;
+      e.currentTarget.style.cursor = 'grab';
+    },
+    onMouseMove: (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!dragRef.current.isDown) return;
+      e.preventDefault();
+      const el = e.currentTarget;
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - dragRef.current.startX) * 1.5;
+      if (Math.abs(walk) > 3) {
+        dragRef.current.hasDragged = true;
+        el.scrollLeft = dragRef.current.scrollLeft - walk;
+      }
+    },
+    onClickCapture: (e: React.MouseEvent<HTMLDivElement>) => {
+      if (dragRef.current.hasDragged) {
+        e.stopPropagation();
+        e.preventDefault();
+        dragRef.current.hasDragged = false;
+      }
+    }
+  });
 
   // 내부 및 외부 호버 상태의 이중화 통합 연동 변수
   const effectiveHoveredId = externalHoveredRestaurantId || hoveredRestaurantId;
@@ -1185,7 +1146,7 @@ export default function MapContainer({
                   </div>
                   
                   {/* Filter Chips */}
-                  <div ref={filterScrollRef} className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pb-1 select-none">
+                  <div ref={filterScrollRef} {...getDragHandlers(filterDrag)} className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pb-1 select-none cursor-grab">
                     {['전체', '한식', '일식', '중식', '양식', '아시안'].map((category) => {
                       const isActive = activeCategory === category;
                       return (
@@ -1210,7 +1171,7 @@ export default function MapContainer({
                   {/* Instagram Story Slider */}
                   {desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) && (
                     <div className="mt-4 px-1 pb-3 border-b border-white/5 shrink-0 select-none">
-                      <div ref={storyScrollRef} className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-0.5 select-none">
+                      <div ref={storyScrollRef} {...getDragHandlers(storyDrag)} className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-0.5 select-none cursor-grab">
                         {filteredRestaurants
                           .filter(r => r.videos && r.videos.length > 0)
                           .map(r => {
