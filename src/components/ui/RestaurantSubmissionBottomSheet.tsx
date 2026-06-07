@@ -11,6 +11,7 @@ import Toast from './Toast';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  initialRestaurant?: { id: string; name: string } | null;
 }
 
 interface PlaceResult {
@@ -25,7 +26,7 @@ interface PlaceResult {
   place_url: string; // 카카오맵 상세 주소
 }
 
-export default function RestaurantSubmissionBottomSheet({ isOpen, onClose }: Props) {
+export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initialRestaurant }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([]);
@@ -35,9 +36,25 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose }: Pro
   const [aiResult, setAiResult] = useState<{ status: 'approved' | 'rejected', reason: string, youtuber_name?: string, extracted_menu?: string, parking_info?: string } | null>(null);
   const { toastMessage, isVisible, showToast } = useToast();
 
+  // initialRestaurant prop이 있을 경우 바로 2단계로 점프
+  useEffect(() => {
+    if (isOpen && initialRestaurant) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStep(2);
+    } else if (!isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStep(1);
+      setYoutubeUrl('');
+      setAiResult(null);
+      setSelectedPlace(null);
+      setSearchQuery('');
+    }
+  }, [isOpen, initialRestaurant]);
+
   // 카카오 장소 검색
   useEffect(() => {
     if (!searchQuery.trim() || !window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearchResults([]);
       return;
     }
@@ -69,7 +86,7 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose }: Pro
   };
 
   const handleSubmit = async () => {
-    if (!selectedPlace) {
+    if (!initialRestaurant && !selectedPlace) {
       showToast({ message: "장소를 먼저 선택해주세요." });
       return;
     }
@@ -84,60 +101,88 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose }: Pro
     
     setIsSubmitting(true);
     try {
-      const { data: insertData, error } = await supabase.from('user_submissions').insert({
-        kakao_place_id: selectedPlace.id,
-        raw_name: selectedPlace.place_name,
-        raw_address: selectedPlace.road_address_name || selectedPlace.address_name,
-        lat: parseFloat(selectedPlace.y),
-        lng: parseFloat(selectedPlace.x),
-        source_url: youtubeUrl,
-        source_type: 'youtube',
-        status: 'pending'
-      }).select('id').single();
+      if (initialRestaurant) {
+        // 기존 식당 영상 추가 로직
+        const res = await fetch('/api/videos/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurantId: initialRestaurant.id,
+            restaurantName: initialRestaurant.name,
+            youtubeUrl: youtubeUrl.trim(),
+          }),
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+          setAiResult({
+            status: 'rejected',
+            reason: data.error || '영상 검수에 실패했습니다.',
+          });
+        } else {
+          setAiResult({
+            status: 'approved',
+            reason: '영상이 성공적으로 등록되었습니다.',
+          });
+          window.dispatchEvent(new Event('refresh-restaurants'));
+        }
+      } else {
+        // 신규 식당 제보 로직
+        const { data: insertData, error } = await supabase.from('user_submissions').insert({
+          kakao_place_id: selectedPlace!.id,
+          raw_name: selectedPlace!.place_name,
+          raw_address: selectedPlace!.road_address_name || selectedPlace!.address_name,
+          lat: parseFloat(selectedPlace!.y),
+          lng: parseFloat(selectedPlace!.x),
+          source_url: youtubeUrl,
+          source_type: 'youtube',
+          status: 'pending'
+        }).select('id').single();
 
-      if (error) {
-        console.error("Supabase Error:", error);
-        throw new Error(error.message);
-      }
-      
-      // 동기식으로 AI 심사 기다리기
-      const reviewRes = await fetch('/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ submission_id: insertData.id })
-      });
-      
-      const reviewData = await reviewRes.json();
-      
-      if (!reviewRes.ok) {
-        throw new Error(reviewData.error || 'AI 심사 중 오류가 발생했습니다.');
-      }
-      
-      setAiResult({
-        status: reviewData.status,
-        reason: reviewData.aiResult?.reason || '이유 알 수 없음',
-        youtuber_name: reviewData.aiResult?.youtuber_name,
-        extracted_menu: reviewData.aiResult?.extracted_menu,
-        parking_info: reviewData.aiResult?.parking_info
-      });
+        if (error) {
+          console.error("Supabase Error:", error);
+          throw new Error(error.message);
+        }
+        
+        // 동기식으로 AI 심사 기다리기
+        const reviewRes = await fetch('/api/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ submission_id: insertData.id })
+        });
+        
+        const reviewData = await reviewRes.json();
+        
+        if (!reviewRes.ok) {
+          throw new Error(reviewData.error || 'AI 심사 중 오류가 발생했습니다.');
+        }
+        
+        setAiResult({
+          status: reviewData.status,
+          reason: reviewData.aiResult?.reason || '이유 알 수 없음',
+          youtuber_name: reviewData.aiResult?.youtuber_name,
+          extracted_menu: reviewData.aiResult?.extracted_menu,
+          parking_info: reviewData.aiResult?.parking_info
+        });
 
-      // 로컬스토리지에 제보 내역 저장 및 동기화
-      try {
-        const savedHistory = localStorage.getItem('user_submissions_history');
-        const history = savedHistory ? JSON.parse(savedHistory) : [];
-        const newSubmission = {
-          id: insertData.id,
-          name: selectedPlace.place_name,
-          address: selectedPlace.road_address_name || selectedPlace.address_name,
-          date: new Date().toISOString().split('T')[0],
-          status: reviewData.status || 'pending'
-        };
-        const nextHistory = [newSubmission, ...history.filter((h: any) => h.id !== insertData.id)];
-        localStorage.setItem('user_submissions_history', JSON.stringify(nextHistory));
-        // 업데이트 이벤트 트리거
-        window.dispatchEvent(new Event('refresh-restaurants'));
-      } catch (storageErr) {
-        console.error('Failed to update submission history in localStorage', storageErr);
+        // 로컬스토리지에 제보 내역 저장 및 동기화
+        try {
+          const savedHistory = localStorage.getItem('user_submissions_history');
+          const history = savedHistory ? JSON.parse(savedHistory) : [];
+          const newSubmission = {
+            id: insertData.id,
+            name: selectedPlace!.place_name,
+            address: selectedPlace!.road_address_name || selectedPlace!.address_name,
+            date: new Date().toISOString().split('T')[0],
+            status: reviewData.status || 'pending'
+          };
+          const nextHistory = [newSubmission, ...history.filter((h: any) => h.id !== insertData.id)];
+          localStorage.setItem('user_submissions_history', JSON.stringify(nextHistory));
+          // 업데이트 이벤트 트리거
+          window.dispatchEvent(new Event('refresh-restaurants'));
+        } catch (storageErr) {
+          console.error('Failed to update submission history in localStorage', storageErr);
+        }
       }
       
     } catch (err: any) {
@@ -207,8 +252,8 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose }: Pro
       <CustomModal 
         isOpen={isOpen} 
         onClose={resetForm} 
-        title={aiResult ? undefined : "맛집 제보하기"}
-        subtitle={aiResult ? undefined : "나만의 맛집을 제보하고 AI에게 맛집 심사를 받아보세요."}
+        title={aiResult ? undefined : (initialRestaurant ? "영상 제보하기" : "맛집 제보하기")}
+        subtitle={aiResult ? undefined : (initialRestaurant ? "유튜브 리뷰 영상을 추가하여 더 풍성한 지도를 만들어보세요." : "나만의 맛집을 제보하고 AI에게 맛집 심사를 받아보세요.")}
       >
         <div className="py-1 min-h-[350px]">
           {aiResult ? (
@@ -368,11 +413,11 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose }: Pro
             </AnimatePresence>
           ) : (
             <>
-              {/* 스텝 프로그레스 */}
-              <StepProgressBar />
+              {/* 스텝 프로그레스 (영상 제보 모드일 때는 숨김) */}
+              {!initialRestaurant && StepProgressBar()}
 
               <AnimatePresence mode="wait">
-                {step === 1 ? (
+                {step === 1 && !initialRestaurant ? (
                   /* ───── Step 1: 장소 검색 ───── */
                   <motion.div 
                     key="step1"
@@ -494,17 +539,19 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose }: Pro
                             <MapPin size={18} className="text-orange-400" />
                           </div>
                           <div className="min-w-0">
-                            <div className="text-[14px] font-bold text-white truncate">{selectedPlace?.place_name}</div>
-                            <div className="text-[11px] text-zinc-500 font-medium truncate mt-0.5">{selectedPlace?.road_address_name || selectedPlace?.address_name}</div>
+                            <div className="text-[14px] font-bold text-white truncate">{initialRestaurant ? initialRestaurant.name : selectedPlace?.place_name}</div>
+                            {!initialRestaurant && <div className="text-[11px] text-zinc-500 font-medium truncate mt-0.5">{selectedPlace?.road_address_name || selectedPlace?.address_name}</div>}
                           </div>
                         </div>
-                        <button 
-                          onClick={() => setStep(1)} 
-                          className="flex items-center gap-1 text-[11px] text-zinc-400 font-bold px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-colors cursor-pointer shrink-0"
-                        >
-                          <ArrowLeft size={12} />
-                          변경
-                        </button>
+                        {!initialRestaurant && (
+                          <button 
+                            onClick={() => setStep(1)} 
+                            className="flex items-center gap-1 text-[11px] text-zinc-400 font-bold px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-colors cursor-pointer shrink-0"
+                          >
+                            <ArrowLeft size={12} />
+                            변경
+                          </button>
+                        )}
                       </div>
                     </div>
 

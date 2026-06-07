@@ -56,7 +56,9 @@ export default function RandomDrawModal({ onClose, restaurants, onSelect }: Rand
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     handleDraw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurants]);
 
   return (

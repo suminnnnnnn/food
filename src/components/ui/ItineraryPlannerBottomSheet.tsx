@@ -234,7 +234,7 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
       const neLat = spot.lat + 0.0135;
       const neLng = spot.lng + 0.017;
 
-      const data = await getRestaurantsInBounds(swLat, swLng, neLat, neLng);
+      const data = await getRestaurantsInBounds(swLat, swLng, neLat, neLng, true);
       
       const mapped = data.map(res => {
         const dist = getDistance(spot.lat, spot.lng, res.lat, res.lng);

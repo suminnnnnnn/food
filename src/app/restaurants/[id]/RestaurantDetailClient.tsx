@@ -63,60 +63,6 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
   const [affiliateProduct, setAffiliateProduct] = useState<AffiliateProduct | null>(null);
   const [loadingProduct, setLoadingProduct] = useState(false);
 
-  useEffect(() => {
-    setActiveVideoIndex(0);
-    setIsPlayingVideo(false);
-    setIsStickyVideo(false);
-    setIsPipClosed(false);
-    loadAffiliateProduct(restaurant);
-  }, [restaurant.id]);
-
-  // IntersectionObserver를 통한 정밀한 메인 비디오 영역 스크롤 탈출 감지 (비디오 재생 중에만 스마트 작동)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    // 비디오가 재생 중이지 않은 경우 관찰을 아예 개시하지 않음으로써 PIP 전환 오동작 원천 방지
-    if (!isPlayingVideo) {
-      setIsStickyVideo(false);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        // 레이아웃 계산 초기 상태(너비가 0인 시점)의 무의미한 교차 리포팅은 방어 무시
-        if (entry.boundingClientRect && entry.boundingClientRect.width === 0) return;
-        
-        // 윈도우 스크롤이 맨 위에 가깝다면 절대 스티키로 판단하지 않음 (초기 레이아웃 요동 오감지 차단)
-        if (typeof window !== 'undefined' && window.scrollY < 100) {
-          setIsStickyVideo(false);
-          return;
-        }
-
-        // 메인 플레이어가 화면 뷰포트에서 완전히 이탈했는지를 감지 (교차 영역 1% 미만일 때)
-        setIsStickyVideo(!entry.isIntersecting);
-      },
-      {
-        root: null,
-        threshold: 0.05, // 5% 미만으로 보일 때 이탈로 신속 감지
-      }
-    );
-
-    if (mainVideoRef.current) {
-      observer.observe(mainVideoRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [restaurant.id, isPlayingVideo]);
-
-  // 스크롤이 다시 맨 위로 복귀하여 메인 비디오가 화면에 모습을 드러내면, 닫혔던 Pip 상태를 자동으로 잠금 해제하여 순환 동선을 보존
-  useEffect(() => {
-    if (!isStickyVideo) {
-      setIsPipClosed(false);
-    }
-  }, [isStickyVideo]);
-
   // 식당 카테고리별 정합 밀키트 (Mock)
   const getMockProduct = (res: Restaurant): AffiliateProduct => {
     const cat = res.category || '';
@@ -200,6 +146,65 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
       setLoadingProduct(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveVideoIndex(0);
+    setIsPlayingVideo(false);
+    setIsStickyVideo(false);
+    setIsPipClosed(false);
+    loadAffiliateProduct(restaurant);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant.id]);
+
+  // IntersectionObserver를 통한 정밀한 메인 비디오 영역 스크롤 탈출 감지 (비디오 재생 중에만 스마트 작동)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // 비디오가 재생 중이지 않은 경우 관찰을 아예 개시하지 않음으로써 PIP 전환 오동작 원천 방지
+    if (!isPlayingVideo) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsStickyVideo(false);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // 레이아웃 계산 초기 상태(너비가 0인 시점)의 무의미한 교차 리포팅은 방어 무시
+        if (entry.boundingClientRect && entry.boundingClientRect.width === 0) return;
+        
+        // 윈도우 스크롤이 맨 위에 가깝다면 절대 스티키로 판단하지 않음 (초기 레이아웃 요동 오감지 차단)
+        if (typeof window !== 'undefined' && window.scrollY < 100) {
+          setIsStickyVideo(false);
+          return;
+        }
+
+        // 메인 플레이어가 화면 뷰포트에서 완전히 이탈했는지를 감지 (교차 영역 1% 미만일 때)
+        setIsStickyVideo(!entry.isIntersecting);
+      },
+      {
+        root: null,
+        threshold: 0.05, // 5% 미만으로 보일 때 이탈로 신속 감지
+      }
+    );
+
+    if (mainVideoRef.current) {
+      observer.observe(mainVideoRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [restaurant.id, isPlayingVideo]);
+
+  // 스크롤이 다시 맨 위로 복귀하여 메인 비디오가 화면에 모습을 드러내면, 닫혔던 Pip 상태를 자동으로 잠금 해제하여 순환 동선을 보존
+  useEffect(() => {
+    if (!isStickyVideo) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsPipClosed(false);
+    }
+  }, [isStickyVideo]);
+
 
   const handleProductClick = async (product: AffiliateProduct) => {
     try {

@@ -3,7 +3,7 @@
 const INITIAL_CENTER = { lat: 37.5665, lng: 126.9780 };
 const INITIAL_LEVEL = 5;
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Map, CustomOverlayMap, MapMarker, MarkerClusterer, Polygon, Polyline, useKakaoLoader } from 'react-kakao-maps-sdk';
 
 import { supabase } from '@/lib/supabase/client';
@@ -11,7 +11,7 @@ import { Restaurant, ItineraryItem, Itinerary } from '@/types';
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange } from 'lucide-react';
+import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
@@ -35,9 +35,19 @@ const formatViewCount = (count: number) => {
   return count.toString();
 };
 
-const getBestVideo = (videos: any[] | undefined) => {
+const getBestVideo = (videos: any[] | undefined, preferredType?: string) => {
   if (!videos || videos.length === 0) return null;
-  return videos.reduce((best, curr) => (best.view_count || 0) > (curr.view_count || 0) ? best : curr, videos[0]);
+  
+  let targetVideos = videos;
+  if (preferredType === '쇼츠 리뷰') {
+    const shorts = videos.filter(v => v.is_short);
+    if (shorts.length > 0) targetVideos = shorts;
+  } else if (preferredType === '롱폼 리뷰') {
+    const longs = videos.filter(v => !v.is_short);
+    if (longs.length > 0) targetVideos = longs;
+  }
+
+  return targetVideos.reduce((best, curr) => (best.view_count || 0) > (curr.view_count || 0) ? best : curr, targetVideos[0]);
 };
 
 // OSRM API를 사용해 두 점 사이의 실제 도로망 위경도 좌표 목록 조회
@@ -142,6 +152,11 @@ export default function MapContainer({
 }: MapContainerProps) {
   const [map, setMap] = useState<kakao.maps.Map | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('전체');
+  const [activeSort, setActiveSort] = useState<'latest' | 'views'>('latest');
+  const [activeVideoType, setActiveVideoType] = useState<'영상 전체' | '쇼츠 리뷰' | '롱폼 리뷰'>('영상 전체');
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const [isVideoTypeOpen, setIsVideoTypeOpen] = useState(false);
   const [hoveredRestaurantId, setHoveredRestaurantId] = useState<string | null>(null);
   const [mapHoveredRestaurantId, setMapHoveredRestaurantId] = useState<string | null>(null);
   const [sonarPing, setSonarPing] = useState<number>(0);
@@ -153,15 +168,12 @@ export default function MapContainer({
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [selectedCluster, setSelectedCluster] = useState<Restaurant[] | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(INITIAL_LEVEL);
-  const [regionClusters, setRegionClusters] = useState<any[]>([]);
-  const [activePolygons, setActivePolygons] = useState<{lat: number, lng: number}[][] | null>(null);
-  const [hoveredClusterIdx, setHoveredClusterIdx] = useState<number | null>(null);
-  const [polygonOpacity, setPolygonOpacity] = useState<number>(0.8);
   // 스마트 탭 시스템 및 제보하기 상태 추가
   const [activeTab, setActiveTab] = useState<any>('home');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [desktopView, setDesktopView] = useState<'list' | 'mypage'>('list');
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
+  const [submissionTarget, setSubmissionTarget] = useState<{id: string, name: string} | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [user, setUser] = useState<{ name: string; email: string; provider: 'kakao' | 'google' | 'naver'; avatarUrl?: string } | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -770,6 +782,20 @@ export default function MapContainer({
     }
   }, [externalSelectedRestaurant, map]);
 
+  // restaurants 데이터 갱신 시 현재 선택된 식당 정보 동기화 (영상 제보 등 즉각 반영)
+  useEffect(() => {
+    if (selectedRestaurant) {
+      const updated = restaurants.find(r => r.id === selectedRestaurant.id);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(selectedRestaurant)) {
+        setSelectedRestaurant(updated);
+        if (onExternalSelectedChange) {
+          onExternalSelectedChange(updated);
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurants]);
+
   // 내부에서 식당을 클릭했을 때 외부 상태까지 통합 전파하는 핸들러
   const handleSelectRestaurant = (r: Restaurant | null) => {
     setSelectedRestaurant(r);
@@ -802,33 +828,6 @@ export default function MapContainer({
     }
   }, [favorites]);
 
-  // 줌 레벨에 따른 행정구역 클러스터 데이터 로드
-  useEffect(() => {
-    async function functionFetchRegionClusters() {
-      // 줌 레벨 7 이하(더 줌인된 상태)에서는 클러스터링을 끄고 개별 마커들을 노출시킴
-      if (zoomLevel <= 7) {
-        setRegionClusters([]);
-        setActivePolygons(null);
-        return;
-      }
-      // 레벨 9 이상은 시/도(depth 1) - 광역 단위 (예: 서울특별시)
-      // 레벨 8은 시/군/구(depth 2) - 기초 지자체 단위 (예: 서울 강남구)
-      const depth = zoomLevel >= 9 ? 1 : 2;
-      
-      const { data, error } = await supabase.rpc('get_restaurant_clusters', { p_depth: depth });
-      if (data) {
-        setRegionClusters(data);
-      }
-    }
-    functionFetchRegionClusters();
-  }, [zoomLevel]);
-
-  // 폴리곤 포커스 플래시(Focus Flash) 애니메이션 비활성화 (호버 시에만 명시적으로 보여지도록 처리)
-  useEffect(() => {
-    if (activePolygons) {
-      setPolygonOpacity(0.45); // 고정된 은은한 네온 아우라 투명도 유지
-    }
-  }, [activePolygons]);
 
   // 지도 범위 변경
   useEffect(() => {
@@ -941,7 +940,7 @@ export default function MapContainer({
     const isHighlighted = isSelected || isHovered || isMapHovered || isBufferPlanningRecommended;
 
     // 줌 아웃 시 미니 도트 (호버/선택 시 복원)
-    if (zoomLevel >= 7 && !isHighlighted) {
+    if (zoomLevel >= 8 && !isHighlighted) {
       const dotSize = viewLevel === 3 ? 'w-3.5 h-3.5' : viewLevel === 2 ? 'w-2.5 h-2.5' : 'w-2 h-2';
       return (
         <div className="relative flex items-center justify-center w-5 h-5 select-none">
@@ -1027,37 +1026,94 @@ export default function MapContainer({
           style={{ width: PIN_SIZE, height: PIN_SIZE }}
         >
           <div
-            className={`absolute inset-0 ${isBufferPlanningRecommended ? 'bg-gradient-to-br from-orange-500 to-red-600' : 'bg-gradient-to-br from-red-500 to-orange-500'}`}
+            className={`absolute inset-0 flex items-center justify-center ${isBufferPlanningRecommended ? 'bg-gradient-to-br from-orange-500 to-red-600' : 'bg-gradient-to-br from-red-500 to-orange-500'}`}
             style={{
               borderRadius: '50% 50% 50% 0',
               transform: 'rotate(-45deg)',
               boxShadow: `0 0 0 1.5px ${ringColor}, ${glowShadow}`,
             }}
-          />
+          >
+            {/* 마커 중앙 구멍 (Inner Hole) */}
+            <div 
+              className="bg-white rounded-full shadow-[inset_0_1px_3px_rgba(0,0,0,0.25)]" 
+              style={{ width: PIN_SIZE * 0.35, height: PIN_SIZE * 0.35 }}
+            />
+          </div>
         </div>
+
+        {/* 4단계: 줌 레벨 1~4 상세 텍스트 렌더링 */}
+        {(zoomLevel <= 4 || isHighlighted) && (
+          <div className="absolute top-full mt-2 flex flex-col items-center pointer-events-none z-20">
+            <div className="bg-white/95 backdrop-blur-md px-2 py-0.5 rounded shadow-sm border border-gray-200/50 whitespace-nowrap">
+              <span className="text-xs font-bold text-gray-800 tracking-tight">{restaurant.name}</span>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
 
-  // 카테고리에 따른 맛집 필터링
-  const filteredRestaurants = restaurants.filter(r => {
-    if (activeCategory === '전체') return true;
-    const cat = r.category || '';
-    if (activeCategory === '아시안') {
-      return cat.includes('아시안') || 
-             cat.includes('태국') || 
-             cat.includes('베트남') || 
-             cat.includes('동남아') || 
-             cat.includes('인도') || 
-             cat.includes('아시아') || 
-             cat.includes('퓨전') || 
-             cat.includes('세계') || 
-             cat.includes('멕시코') || 
-             cat.includes('타코');
+  // 카테고리, 영상 포맷 필터 및 정렬 로직 (useMemo 적용)
+  const filteredRestaurants = useMemo(() => {
+    let result = restaurants.filter(r => {
+      // 1. 음식 종류 필터
+      let catMatch = false;
+      if (activeCategory === '전체') {
+        catMatch = true;
+      } else {
+        const cat = r.category || '';
+        if (activeCategory === '아시안') {
+          catMatch = cat.includes('아시안') || cat.includes('태국') || cat.includes('베트남') || cat.includes('동남아') || cat.includes('인도') || cat.includes('아시아') || cat.includes('퓨전') || cat.includes('세계') || cat.includes('멕시코') || cat.includes('타코');
+        } else if (activeCategory === '카페/디저트') {
+          catMatch = cat.includes('카페') || cat.includes('디저트') || cat.includes('베이커리') || cat.includes('커피');
+        } else if (activeCategory === '술집') {
+          catMatch = cat.includes('술집') || cat.includes('주점') || cat.includes('포차') || cat.includes('이자카야');
+        } else {
+          catMatch = cat.includes(activeCategory);
+        }
+      }
+      if (!catMatch) return false;
+
+      // 2. 영상 포맷 필터
+      if (activeVideoType !== '영상 전체') {
+        if (!r.videos || r.videos.length === 0) return false;
+        
+        if (activeVideoType === '쇼츠 리뷰') {
+          // 식당의 여러 영상 중 쇼츠가 하나라도 있으면 포함
+          const hasShorts = r.videos.some(vid => vid.is_short === true);
+          if (!hasShorts) return false;
+        } else if (activeVideoType === '롱폼 리뷰') {
+          // 식당의 여러 영상 중 롱폼이 하나라도 있으면 포함
+          const hasLongForm = r.videos.some(vid => vid.is_short !== true);
+          if (!hasLongForm) return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (activeSort === 'latest') {
+      result = result.sort((a, b) => {
+        const vidA = getBestVideo(a.videos, activeVideoType);
+        const vidB = getBestVideo(b.videos, activeVideoType);
+        if (!vidA && !vidB) return 0;
+        if (!vidA) return 1;
+        if (!vidB) return -1;
+        return new Date(vidB.published_at).getTime() - new Date(vidA.published_at).getTime();
+      });
+    } else if (activeSort === 'views') {
+      result = result.sort((a, b) => {
+        const vidA = getBestVideo(a.videos, activeVideoType);
+        const vidB = getBestVideo(b.videos, activeVideoType);
+        if (!vidA && !vidB) return 0;
+        if (!vidA) return 1;
+        if (!vidB) return -1;
+        return (vidB.view_count || 0) - (vidA.view_count || 0);
+      });
     }
-    return cat.includes(activeCategory);
-  });
+    return result;
+  }, [restaurants, activeCategory, activeSort, activeVideoType]);
 
   if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center">Loading Maps...</div>;
   if (mapError) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center text-red-500 font-bold">Failed to load Kakao Maps: {mapError.message}</div>;
@@ -1074,31 +1130,7 @@ export default function MapContainer({
         </defs>
       </svg>
       
-      {/* 맵 스킨 선택 플로팅 UI (좌측 중앙) */}
-      <div className="absolute left-4 top-1/3 -translate-y-1/2 z-20 flex flex-col gap-3 bg-white/80 backdrop-blur-md p-2.5 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-white/50">
-        <button 
-          onClick={() => setMapTheme('theme-silver')}
-          className={`w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-400 shadow-inner transition-transform hover:scale-110 ${mapTheme === 'theme-silver' ? 'ring-2 ring-brand-500 ring-offset-2' : ''}`}
-          title="미니멀 실버"
-        />
-        <button 
-          onClick={() => setMapTheme('theme-navy')}
-          className={`w-8 h-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 shadow-inner transition-transform hover:scale-110 ${mapTheme === 'theme-navy' ? 'ring-2 ring-brand-500 ring-offset-2' : ''}`}
-          title="미드나잇 네이비"
-        />
-        <button 
-          onClick={() => setMapTheme('theme-sand')}
-          className={`w-8 h-8 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 shadow-inner transition-transform hover:scale-110 ${mapTheme === 'theme-sand' ? 'ring-2 ring-brand-500 ring-offset-2' : ''}`}
-          title="웜 샌드"
-        />
-        <button 
-          onClick={() => setMapTheme('')}
-          className={`w-8 h-8 rounded-full bg-white border border-gray-200 shadow-inner flex items-center justify-center transition-transform hover:scale-110 ${mapTheme === '' ? 'ring-2 ring-brand-500 ring-offset-2' : ''}`}
-          title="기본 스킨"
-        >
-          <span className="text-[10px] font-bold text-gray-400">기본</span>
-        </button>
-      </div>
+
 
       {/* 데스크탑 좌측 스마트 사이드바 (Practical, Info-First) */}
       <AnimatePresence>
@@ -1108,13 +1140,18 @@ export default function MapContainer({
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -400, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="hidden md:flex absolute top-6 left-6 bottom-6 w-[420px] z-20 flex-col bg-zinc-950/85 backdrop-blur-2xl rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10"
+            className="hidden md:flex absolute top-6 left-6 bottom-6 w-[420px] z-20 flex-col bg-zinc-950/70 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10"
           >
             {/* Sidebar Header & Filters */}
-            <div className="pt-7 pb-4 px-7 shrink-0 bg-white/[0.02] border-b border-white/5 backdrop-blur-md z-10 rounded-t-[28px]">
+            <div 
+              onClick={() => { setIsSortOpen(false); setIsCategoryOpen(false); setIsVideoTypeOpen(false); }}
+              className={`w-full pt-7 pb-4 px-7 shrink-0 bg-white/[0.02] border-b border-white/5 backdrop-blur-md z-10 rounded-t-[28px] flex flex-col justify-between ${
+                desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) ? 'aspect-video' : 'gap-5'
+              }`}
+            >
               {desktopView === 'list' ? (
                 <>
-                  <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
                       <img 
                         src="/favicon_perfect_gradient.png" 
@@ -1145,37 +1182,124 @@ export default function MapContainer({
                     </div>
                   </div>
                   
-                  {/* Filter Chips */}
-                  <div ref={filterScrollRef} {...getDragHandlers(filterDrag)} className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pb-1 select-none cursor-grab">
-                    {['전체', '한식', '일식', '중식', '양식', '아시안'].map((category) => {
-                      const isActive = activeCategory === category;
-                      return (
-                        <button
-                          key={category}
-                          onClick={() => {
-                            setActiveCategory(category);
-                            setSelectedCluster(null);
-                          }}
-                          className={`whitespace-nowrap px-4 py-2 text-[13px] font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${
-                            isActive
-                              ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-lg shadow-red-500/30 ring-1 ring-white/10'
-                              : 'bg-white/5 text-zinc-300 border border-white/5 hover:text-white hover:bg-white/10 hover:border-white/10 shadow-sm'
-                          }`}
-                        >
-                          {category}
-                        </button>
-                      );
-                    })}
+                  {/* Filter Comboboxes */}
+                  <div className="flex gap-2 shrink-0 pb-1 mt-auto relative z-[50]">
+                    {/* 정렬 드롭다운 */}
+                    <div className="relative flex-1 min-w-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setIsSortOpen(!isSortOpen); setIsCategoryOpen(false); setIsVideoTypeOpen(false); }}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-zinc-900/80 border border-white/10 hover:border-white/20 rounded-xl text-[13px] font-bold text-zinc-200 transition-all shadow-sm"
+                      >
+                        <span className="truncate">{activeSort === 'latest' ? '최신순' : '조회수순'}</span>
+                        <ChevronDown size={14} className={`shrink-0 ml-1 transition-transform duration-200 ${isSortOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {isSortOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute top-full left-0 right-0 mt-2 p-1.5 bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100]"
+                          >
+                            {['latest', 'views'].map((sort) => (
+                              <button
+                                key={sort}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveSort(sort as any);
+                                  setIsSortOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-bold transition-all ${activeSort === sort ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'}`}
+                              >
+                                {sort === 'latest' ? '최신순' : '조회수순'}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* 영상 포맷 드롭다운 */}
+                    <div className="relative flex-1 min-w-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setIsVideoTypeOpen(!isVideoTypeOpen); setIsSortOpen(false); setIsCategoryOpen(false); }}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-zinc-900/80 border border-white/10 hover:border-white/20 rounded-xl text-[13px] font-bold text-zinc-200 transition-all shadow-sm"
+                      >
+                        <span className="truncate">{activeVideoType}</span>
+                        <ChevronDown size={14} className={`shrink-0 ml-1 transition-transform duration-200 ${isVideoTypeOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {isVideoTypeOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute top-full left-0 right-0 mt-2 p-1.5 bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] max-h-[200px] overflow-y-auto"
+                          >
+                            {['영상 전체', '쇼츠 리뷰', '롱폼 리뷰'].map((type) => (
+                              <button
+                                key={type}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveVideoType(type as any);
+                                  setSelectedCluster(null);
+                                  setIsVideoTypeOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-bold transition-all ${activeVideoType === type ? 'bg-gradient-to-r from-red-600/20 to-orange-500/20 text-brand-orange-light' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'}`}
+                              >
+                                {type}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* 카테고리 드롭다운 */}
+                    <div className="relative flex-1 min-w-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setIsCategoryOpen(!isCategoryOpen); setIsSortOpen(false); setIsVideoTypeOpen(false); }}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-zinc-900/80 border border-white/10 hover:border-white/20 rounded-xl text-[13px] font-bold text-zinc-200 transition-all shadow-sm"
+                      >
+                        <span className="truncate">{activeCategory}</span>
+                        <ChevronDown size={14} className={`shrink-0 ml-1 transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {isCategoryOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute top-full left-0 right-0 mt-2 p-1.5 bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] max-h-[200px] overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
+                          >
+                            {['전체', '한식', '일식', '중식', '양식', '아시안', '분식', '카페/디저트', '술집'].map((category) => (
+                              <button
+                                key={category}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveCategory(category);
+                                  setSelectedCluster(null);
+                                  setIsCategoryOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-bold transition-all ${activeCategory === category ? 'bg-gradient-to-r from-red-600/20 to-orange-500/20 text-brand-orange-light' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'}`}
+                              >
+                                {category}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
 
                   {/* Instagram Story Slider */}
                   {desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) && (
-                    <div className="mt-4 px-1 pb-3 border-b border-white/5 shrink-0 select-none">
+                    <div className="px-1 pb-1 border-b border-white/5 shrink-0 select-none">
                       <div ref={storyScrollRef} {...getDragHandlers(storyDrag)} className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-0.5 select-none cursor-grab">
                         {filteredRestaurants
                           .filter(r => r.videos && r.videos.length > 0)
                           .map(r => {
-                            const bestVid = getBestVideo(r.videos);
+                            const bestVid = getBestVideo(r.videos, activeVideoType);
                             if (!bestVid) return null;
                             const isActive = selectedRestaurant?.id === r.id;
                             return (
@@ -1242,7 +1366,7 @@ export default function MapContainer({
               <div className="p-4 space-y-4">
                 {desktopView === 'list' ? (
                   (selectedCluster || filteredRestaurants).map(r => {
-                    const bestVid = getBestVideo(r.videos);
+                    const bestVid = getBestVideo(r.videos, activeVideoType);
                     return (
                       <div 
                         key={r.id}
@@ -1322,7 +1446,7 @@ export default function MapContainer({
 
                           {/* Shorts badge */}
                           {bestVid?.is_short && (
-                            <div className="absolute bottom-3 right-3 bg-red-600/90 backdrop-blur-md text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 border border-red-500/30 shadow-[0_2px_8px_rgba(220,38,38,0.3)]">
+                            <div className="absolute bottom-3 right-3 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 shadow-md">
                               <Play size={8} fill="currentColor"/> SHORTS
                             </div>
                           )}
@@ -1449,23 +1573,9 @@ export default function MapContainer({
           onClick={() => {
             setSelectedRestaurant(null);
             setSelectedCluster(null);
-            setActivePolygons(null);
           }}
           isPanto={true}
         >
-        {/* 활성화된 행정구역 폴리곤 하이라이트 (GeoJSON 기반 실제 경계) */}
-        {activePolygons && activePolygons.map((path, idx) => (
-          <Polygon
-            key={`polygon-${idx}`}
-            path={path}
-            strokeWeight={2}
-            strokeColor="#06b6d4" // cyan-500
-            strokeOpacity={polygonOpacity}
-            strokeStyle="solid"
-            fillColor="#06b6d4"
-            fillOpacity={polygonOpacity * 0.2}
-          />
-        ))}
 
 
         {/* 3차 기획: 실시간 일정 드로잉 경로 버퍼 다각형(Polygon) 렌더링 */}
@@ -1619,137 +1729,65 @@ export default function MapContainer({
           ));
         })()}
 
-        {/* 줌 아웃 시 행정구역 기반 커스텀 오버레이 (Phase 3 & 4) */}
-        {zoomLevel > 7 && map && regionClusters.filter(cluster => {
-          const bounds = map.getBounds();
-          const p = new kakao.maps.LatLng(cluster.center_lat, cluster.center_lng);
-          return bounds.contain(p);
-        }).map((cluster, idx) => {
-          // GeoJSON 캐시를 전역 또는 컴포넌트 변수로 설정하여 중복 다운로드 차단
-          const loadPolygonForCluster = async () => {
-            try {
-              let depthLevel = zoomLevel >= 8 ? 1 : 2;
-              let url = '';
-              if (depthLevel === 1) url = 'https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea_provinces_geo_simple.json';
-              else url = 'https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2013/json/skorea_municipalities_geo_simple.json';
-              
-              // window 객체에 GeoJSON 인메모리 캐시 보관
-              const cacheKey = `geojson_depth_${depthLevel}`;
-              let geojson;
-              if (typeof window !== 'undefined' && (window as any)[cacheKey]) {
-                geojson = (window as any)[cacheKey];
-              } else {
-                const res = await fetch(url);
-                geojson = await res.json();
-                if (typeof window !== 'undefined') {
-                  (window as any)[cacheKey] = geojson;
-                }
-              }
-              
-              let targetName = cluster.region_name;
-              if (depthLevel === 1) {
-                const nameMap: Record<string, string> = {
-                  '서울': '서울특별시', '부산': '부산광역시', '대구': '대구광역시', '인천': '인천광역시',
-                  '광주': '광주광역시', '대전': '대전광역시', '울산': '울산광역시', '세종특별자치시': '세종특별자치시',
-                  '경기': '경기도', '강원특별자치도': '강원도', '강원': '강원도', '충북': '충청북도', '충남': '충청남도',
-                  '전북특별자치도': '전라북도', '전북': '전라북도', '전남': '전라남도', '경북': '경상북도', '경남': '경상남도',
-                  '제주특별자치도': '제주특별자치도', '제주': '제주특별자치도'
-                };
-                targetName = nameMap[targetName] || targetName;
-              } else if (depthLevel === 2) {
-                // '서울 중구', '대구 중구', '경기 수원시' 등에서 축약 접두사를 떼어내고 '중구', '수원시'로 targetName 복원
-                const parts = targetName.split(' ');
-                if (parts.length > 1) {
-                  targetName = parts.slice(1).join(' ');
-                }
-              }
-
-              // 명칭 매핑 결함 방어: exact match 외에 targetName이 포함되는지 부분 일치도 체크
-              // 2depth 레벨인 경우, 서울 중구 / 대구 중구 등을 고유 식별하기 위해 행정구역 코드 앞 2자리 비교
-              const codeMap: Record<string, string> = {
-                '서울': '11', '부산': '21', '대구': '22', '인천': '23', '광주': '24', '대전': '25', '울산': '26', '세종': '29', '경기': '31', '강원': '32', '충북': '33', '충남': '34', '전북': '35', '전남': '36', '경북': '37', '경남': '38', '제주': '39'
-              };
-              const parts = cluster.region_name.split(' ');
-              const regionPrefix = parts[0]; // '서울', '대구', '경기' 등
-              const targetCodePrefix = codeMap[regionPrefix] || '';
-
-              const feature = geojson.features.find((f: any) => {
-                const fName = f.properties.name || '';
-                const fCode = f.properties.code || '';
-                const nameMatches = fName === targetName || fName.includes(targetName) || targetName.includes(fName);
-                if (depthLevel === 2 && targetCodePrefix) {
-                  return nameMatches && fCode.startsWith(targetCodePrefix);
-                }
-                return nameMatches;
+        {/* 맛집 핀/마커 클러스터링 적용 */}
+        <MarkerClusterer 
+          averageCenter={true} 
+          minLevel={8}
+          disableClickZoom={true}
+          onClusterclick={(_target, cluster) => {
+            if (map) {
+              const currentLevel = map.getLevel();
+              map.setLevel(currentLevel - 2, { 
+                anchor: cluster.getCenter(),
+                animate: { duration: 500 } 
               });
-              
-              if (feature) {
-                const geometry = feature.geometry;
-                let paths: {lat: number, lng: number}[][] = [];
-                if (geometry.type === 'Polygon') {
-                  paths.push(geometry.coordinates[0].map((c: any) => ({ lat: c[1], lng: c[0] })));
-                } else if (geometry.type === 'MultiPolygon') {
-                  geometry.coordinates.forEach((poly: any) => {
-                    paths.push(poly[0].map((c: any) => ({ lat: c[1], lng: c[0] })));
-                  });
-                }
-                setActivePolygons(paths);
-                setPolygonOpacity(0.45);
-              }
-            } catch (e) {
-              console.error("Polygon fetch error", e);
             }
-          };
-
-          return (
-            <CustomOverlayMap
-              key={`region-${idx}`}
-              position={{ lat: cluster.center_lat, lng: cluster.center_lng }}
-            >
-              <div 
-                onClick={() => {
-                  if (map) {
-                    const targetLat = cluster.center_lat;
-                    const targetLng = cluster.center_lng;
-                    // 광역 지자체(9레벨 이상)에서 클릭 시 8레벨(시군구)로 자연스럽게 이동,
-                    // 시군구 지자체(8레벨)에서 클릭 시 7레벨(개별 맛집 마커 노출 레벨)로 자연스럽게 이동
-                    const nextLevel = zoomLevel >= 9 ? 8 : 7;
-                    
-                    // 1단계: 클릭 지점으로 중심점 이동 (부드러운 스크롤링)
-                    map.panTo(new kakao.maps.LatLng(targetLat, targetLng));
-                    
-                    // 2단계: 250ms 딜레이 후 줌인하여 뷰 포커싱
-                    setTimeout(() => {
-                      map.setLevel(nextLevel, { animate: true });
-                    }, 250);
-                  }
-                }}
-                onMouseEnter={() => {
-                  setHoveredClusterIdx(idx);
-                  loadPolygonForCluster();
-                }}
-                onMouseLeave={() => {
-                  setHoveredClusterIdx(null);
-                  setActivePolygons(null);
-                }}
-                className="px-4.5 py-2.5 backdrop-blur-lg text-white rounded-full font-black cursor-pointer active:scale-95 flex items-center gap-2.5 z-20 transition-all duration-300 select-none"
-                style={{
-                  background: hoveredClusterIdx === idx ? 'rgba(30, 58, 138, 0.75)' : 'rgba(9, 9, 11, 0.4)',
-                  border: hoveredClusterIdx === idx ? '1px solid rgba(96, 165, 250, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)',
-                  boxShadow: hoveredClusterIdx === idx
-                    ? '0 12px 35px rgba(59, 130, 246, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15)'
-                    : '0 8px 25px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15)',
-                }}
-              >
-                <span className="text-[13.5px] tracking-tight whitespace-nowrap font-extrabold">{cluster.region_name}</span>
-                <span className="text-blue-400 text-[12px] bg-blue-950/60 px-2.5 py-0.5 rounded-full font-black border border-blue-400/40">{cluster.count}</span>
-              </div>
-            </CustomOverlayMap>
-          );
-        })}
-
-        {/* 맛집 핀/마커 렌더링 (줌 레벨 7 이하에서만 개별 노출) */}
-        {zoomLevel <= 7 && filteredRestaurants.map((restaurant) => (
+          }}
+          calculator={[10, 50, 100]}
+          styles={[
+            { // < 10
+              width: '40px', height: '40px',
+              background: 'linear-gradient(135deg, rgba(255, 165, 0, 0.7), rgba(255, 99, 71, 0.7))',
+              borderRadius: '20px',
+              color: '#fff',
+              textAlign: 'center',
+              fontWeight: '900',
+              lineHeight: '40px',
+              boxShadow: '0 4px 10px rgba(255, 69, 0, 0.3)'
+            },
+            { // 10 ~ 49
+              width: '50px', height: '50px',
+              background: 'linear-gradient(135deg, rgba(255, 140, 0, 0.8), rgba(255, 69, 0, 0.8))',
+              borderRadius: '25px',
+              color: '#fff',
+              textAlign: 'center',
+              fontWeight: '900',
+              lineHeight: '50px',
+              boxShadow: '0 6px 15px rgba(255, 69, 0, 0.4)'
+            },
+            { // 50 ~ 99
+              width: '60px', height: '60px',
+              background: 'linear-gradient(135deg, rgba(255, 100, 0, 0.9), rgba(220, 20, 60, 0.9))',
+              borderRadius: '30px',
+              color: '#fff',
+              textAlign: 'center',
+              fontWeight: '900',
+              lineHeight: '60px',
+              boxShadow: '0 8px 20px rgba(255, 0, 0, 0.5)'
+            },
+            { // >= 100
+              width: '70px', height: '70px',
+              background: 'linear-gradient(135deg, rgba(255, 69, 0, 1), rgba(178, 34, 34, 1))',
+              borderRadius: '35px',
+              color: '#fff',
+              textAlign: 'center',
+              fontWeight: '900',
+              lineHeight: '70px',
+              boxShadow: '0 10px 25px rgba(255, 0, 0, 0.6)'
+            }
+          ]}
+        >
+          {filteredRestaurants.map((restaurant) => (
           <CustomOverlayMap
             key={restaurant.id}
             position={{ lat: restaurant.lat, lng: restaurant.lng }}
@@ -1856,9 +1894,15 @@ export default function MapContainer({
                       </div>
                     )}
 
-                    {/* Thumbnail - 16:9 ratio */}
+                    {/* Thumbnail & Autoplay Video - 16:9 ratio */}
                     <div className="relative w-full aspect-video shrink-0 overflow-hidden bg-zinc-950 ring-1 ring-white/5">
-                      {bestVid?.thumbnail ? (
+                      {bestVid?.youtube_video_id ? (
+                        <iframe 
+                          src={`https://www.youtube.com/embed/${bestVid.youtube_video_id}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${bestVid.youtube_video_id}`}
+                          className="w-full h-[150%] -translate-y-[16.6%] border-0 pointer-events-none"
+                          allow="autoplay"
+                        />
+                      ) : bestVid?.thumbnail ? (
                         <img 
                           src={bestVid.thumbnail} 
                           className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" 
@@ -1891,7 +1935,6 @@ export default function MapContainer({
                             </svg>
                           </div>
                           <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{restaurant.name}</h4>
-                          <span className="text-[11px] font-semibold text-zinc-400 shrink-0">| {restaurant.category}</span>
                         </div>
                         {bestVid?.view_count !== undefined ? (
                           <span className="text-[11px] font-extrabold bg-red-950/20 px-2 py-0.5 rounded-md shrink-0 border border-red-500/10">
@@ -1917,15 +1960,10 @@ export default function MapContainer({
                 );
               })()}
               
-              {/* 클릭(선택) 시에만 표시되는 마커 밀착형 식당명 라벨 */}
-              {selectedRestaurant?.id === restaurant.id && (
-                <div className="absolute top-full -mt-0.5 left-1/2 -translate-x-1/2 bg-zinc-950/95 text-white text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg shadow-[0_4px_15px_rgba(0,0,0,0.35)] border border-orange-500/50 whitespace-nowrap z-50">
-                  {restaurant.name}
-                </div>
-              )}
             </div>
           </CustomOverlayMap>
         ))}
+        </MarkerClusterer>
       </Map>
       </div>
 
@@ -2070,6 +2108,10 @@ export default function MapContainer({
         restaurant={selectedRestaurant} 
         onClose={() => handleSelectRestaurant(null)} 
         isSidebarCollapsed={isSidebarCollapsed || hideDefaultSidebar}
+        onRequestVideoSubmit={(restaurant) => {
+          setSubmissionTarget({ id: restaurant.id, name: restaurant.name });
+          setIsSubmissionOpen(true);
+        }}
         favorites={favorites}
         toggleFavorite={(id) => {
           const isFav = favorites.includes(id);
@@ -2235,7 +2277,14 @@ export default function MapContainer({
 
 
       {/* 나만의 핫플 제보하기 바텀시트 */}
-      <RestaurantSubmissionBottomSheet isOpen={isSubmissionOpen} onClose={() => setIsSubmissionOpen(false)} />
+      <RestaurantSubmissionBottomSheet 
+        isOpen={isSubmissionOpen} 
+        onClose={() => {
+          setIsSubmissionOpen(false);
+          setSubmissionTarget(null);
+        }} 
+        initialRestaurant={submissionTarget}
+      />
 
       {/* SNS 로그인 유도 모달 */}
       <LoginModal 

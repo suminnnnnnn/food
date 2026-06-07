@@ -12,6 +12,7 @@ export function useRestaurants(bounds: MapBounds | null) {
     if (!bounds) return;
 
     let isMounted = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
 
     const fetchRestaurants = async () => {

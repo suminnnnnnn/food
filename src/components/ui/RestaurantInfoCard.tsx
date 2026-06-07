@@ -1,6 +1,6 @@
 import { Restaurant } from '@/types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronRight, Eye, CreditCard, Layers, Share2, Copy, Star, Plus } from 'lucide-react';
+import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronRight, Eye, CreditCard, Layers, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { MichelinIcon, BlueRibbonIcon } from '@/components/icons/CustomIcons';
 import { openExternal } from '@/lib/external-link';
@@ -79,148 +79,21 @@ const getYouTubeId = (urlOrId: string): string => {
   return (match && match[2].length === 11) ? match[2] : urlOrId;
 };
 
-// 맛집 고유의 AI 기반 실감형 대표 메뉴 및 가격, 타임라인 생성 헬퍼
-const getGourmetMenuAndCuration = (restaurantName: string, category: string, activeVideo: any, allVideos: any[] = []) => {
-  const getHash = (str: string) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return Math.abs(hash);
-  };
+// DB의 menu_info 필드를 파싱하여 배열로 반환하는 헬퍼
+const parseMenuInfo = (menuInfo?: string | null) => {
+  if (!menuInfo) return [];
+  // 공공데이터에서 넘어오는 각종 구분자(<br>, <br/>, 쉼표 등) 처리
+  const cleaned = menuInfo.replace(/<br\s*\/?>/gi, '\n');
+  return cleaned
+    .split('\n')
+    .flatMap(line => line.split(','))
+    .map(item => item.trim())
+    .filter(item => item.length > 0 && item !== '없음');
+};
 
-  const cat = category || '';
-
-  const getMenuForVideo = (vid: any) => {
-    const videoSeed = getHash(restaurantName + (vid?.youtube_id || ''));
-    const youtuberName = vid?.youtuber?.name || '미식가';
-    
-    if (cat.includes('삼겹살') || cat.includes('고기') || cat.includes('갈비') || cat.includes('육류')) {
-      const menuOpts = [
-        { name: '숙성 뼈탄삼겹살 (180g)', price: 19000, description: '장인의 손길로 숙성한 쫀득한 육즙' },
-        { name: '짚불 우대갈비 (280g)', price: 32000, description: '짚불 향을 입힌 부드러운 소갈비' },
-        { name: '매콤 항정살 (150g)', price: 21000, description: '쫄깃한 식감에 특제 비법 양념을 가미한 특수부위' },
-        { name: '벌집 껍데기 (150g)', price: 11000, description: '바삭하게 구워 콩가루에 찍어 먹는 쫀득 고소 벌집껍데기' },
-        { name: '한우 차돌박이 (150g)', price: 28000, description: '야들야들하고 고소한 풍미가 진동하는 최고급 한우 차돌' },
-        { name: '꽃게 된장찌개', price: 8000, description: '신선한 꽃게와 전통 시골된장을 풀어 끓여낸 찌개' }
-      ];
-      const startIdx = videoSeed % (menuOpts.length - 2);
-      return menuOpts.slice(startIdx, startIdx + 3).map(menu => ({
-        ...menu,
-        description: `[${youtuberName} 추천] ${menu.description}`
-      }));
-    } else if (cat.includes('곱창') || cat.includes('전골') || cat.includes('찌개') || cat.includes('탕') || cat.includes('국물')) {
-      const menuOpts = [
-        { name: '소곱창 전골 (중)', price: 38000, description: '화끈하고 녹진한 특제 비법 육수의 전골' },
-        { name: '한우 소곱창구이 (200g)', price: 26000, description: '속이 꽉 찬 곱과 고소한 맛의 한우 곱창' },
-        { name: '특상 대창구이 (200g)', price: 25000, description: '입안 가득 퍼지는 고소한 풍미와 부드러운 대창' },
-        { name: '특 대창떡볶이', price: 18000, description: '대창의 고소함과 떡볶이의 매콤함이 어우러진 시그니처 퓨전 메뉴' },
-        { name: '곱창 라면', price: 6000, description: '곱창 육수를 섞어 끓여 낸 얼큰하고 녹진한 라면' },
-        { name: '눈꽃치즈 곱창볶음밥', price: 5000, description: '톡톡 튀는 날치알과 아낌없이 뿌린 모짜렐라 치즈' }
-      ];
-      const startIdx = videoSeed % (menuOpts.length - 2);
-      return menuOpts.slice(startIdx, startIdx + 3).map(menu => ({
-        ...menu,
-        description: `[${youtuberName} 추천] ${menu.description}`
-      }));
-    } else if (cat.includes('일식') || cat.includes('라멘') || cat.includes('면') || cat.includes('스시') || cat.includes('초밥')) {
-      const menuOpts = [
-        { name: '특상 카이센동', price: 29000, description: '수산시장에서 엄선 공수한 최고 등급 모듬 사시미 덮밥' },
-        { name: '돈코츠 쇼유라멘', price: 11000, description: '24시간 끓인 진하고 묵직한 돈골 베이스의 정통 라멘' },
-        { name: '매운 츠케멘', price: 12000, description: '쫄깃한 극태면을 진한 어패류 스프에 찍어먹는 별미' },
-        { name: '지라시 스시', price: 18000, description: '알록달록 흩뿌려진 각종 사시미와 밥의 고소함' },
-        { name: '수제 안심 카츠 (4pc)', price: 9500, description: '촉촉한 핑크빛 육즙을 머금은 부드러운 안심 카츠' },
-        { name: '토쿠조 오마카세 초밥 (12pc)', price: 35000, description: '그날 가장 좋은 생선만을 엄선해 쥐어주는 프리미엄 초밥' }
-      ];
-      const startIdx = videoSeed % (menuOpts.length - 2);
-      return menuOpts.slice(startIdx, startIdx + 3).map(menu => ({
-        ...menu,
-        description: `[${youtuberName} 추천] ${menu.description}`
-      }));
-    } else if (cat.includes('파스타') || cat.includes('양식') || cat.includes('이탈리안') || cat.includes('피자') || cat.includes('브런치')) {
-      const menuOpts = [
-        { name: '트러플 크림 뇨끼', price: 21000, description: '고소한 트러플 페이스트와 감자로 빚은 이탈리아식 수제 수제 뇨끼' },
-        { name: '쉬림프 바질 파스타', price: 18000, description: '생바질을 듬뿍 갈아 넣은 특제 페스토 소스 파스타' },
-        { name: '라자냐 볼로네제', price: 22000, description: '시간 들여 끓여낸 미트소스와 치즈를 겹겹이 쌓아 올린 정통 오븐 오븐 파스타' },
-        { name: '콰트로 포르마지 피자', price: 21000, description: '네 가지 프리미엄 고급 치즈가 들어가 꿀에 찍어먹는 피자' },
-        { name: '클래식 시저 샐러드', price: 13000, description: '로메인에 크루통과 특제 시저 드레싱을 얹은 싱그러운 샐러드' },
-        { name: '참나무 화덕 마르게리타 피자', price: 19500, description: '화덕에서 갓 구워낸 쫄깃쫄깃하고 신선한 마르게리타' }
-      ];
-      const startIdx = videoSeed % (menuOpts.length - 2);
-      return menuOpts.slice(startIdx, startIdx + 3).map(menu => ({
-        ...menu,
-        description: `[${youtuberName} 추천] ${menu.description}`
-      }));
-    } else if (cat.includes('카페') || cat.includes('디저트') || cat.includes('빵') || cat.includes('베이커리')) {
-      const menuOpts = [
-        { name: '시그니처 아인슈페너', price: 6500, description: '부드러운 솔티크림을 올려 에스프레소의 깊은 맛과 조화' },
-        { name: '벨기에 수플레 팬케이크', price: 14000, description: '오븐에서 즉석으로 구워낸 부드러운 정통 수플레' },
-        { name: '수제 말차 스콘', price: 4800, description: '유기농 말차 가루로 구워 팥 앙금과 버터를 더한 스콘' },
-        { name: '딸기 생크림 가득 케이크', price: 8500, description: '생딸기가 빼곡하게 박힌 동물성 100% 생크림 케이크' },
-        { name: '수제 밀크티', price: 6500, description: '최고급 찻잎을 우유에 하루 동안 냉침하여 진하고 향긋한 티' },
-        { name: '콜드브루 디카페인', price: 6000, description: '저온 추출하여 깔끔한 풍미' }
-      ];
-      const startIdx = videoSeed % (menuOpts.length - 2);
-      return menuOpts.slice(startIdx, startIdx + 3).map(menu => ({
-        ...menu,
-        description: `[${youtuberName} 추천] ${menu.description}`
-      }));
-    } else {
-      const menuOpts = [
-        { name: '전통 비법 칼국수', price: 11000, description: '매일 아침 밀어낸 쫄깃한 면발과 담백한 고기 육수의 칼국수' },
-        { name: '평양식 수제 만두 (6pc)', price: 12000, description: '얇은 만두피 안에 만두 소의 꽉 찬 육즙이 넘치는 평양식 수제만두' },
-        { name: '해물 파전', price: 18000, description: '오징어, 조개, 쪽파를 듬뿍 올려 바삭바삭하게 지져낸 해물파전' },
-        { name: '매콤 낙지볶음', price: 25000, description: '오동통한 낙지와 불향 나는 특제 소스의 매운맛 볶음' },
-        { name: '한우 소고기 수육 (소)', price: 30000, description: '입에서 사르르 녹는 한우 아롱사태와 차돌양지 수육' },
-        { name: '매콤 비빔국수', price: 10000, description: '아삭한 오이 고명과 새콤달콤한 비법 소스' }
-      ];
-      const startIdx = videoSeed % (menuOpts.length - 2);
-      return menuOpts.slice(startIdx, startIdx + 3).map(menu => ({
-        ...menu,
-        description: `[${youtuberName} 추천] ${menu.description}`
-      }));
-    }
-  };
-
-  const allMergedMenuList: { name: string; price: number; description: string }[] = [];
-  const menuNamesSet = new Set<string>();
-
-  const targetVideos = allVideos && allVideos.length > 0 ? allVideos : (activeVideo ? [activeVideo] : []);
-  targetVideos.forEach((vid) => {
-    const menus = getMenuForVideo(vid);
-    menus.forEach((m) => {
-      if (!menuNamesSet.has(m.name)) {
-        menuNamesSet.add(m.name);
-        allMergedMenuList.push(m);
-      }
-    });
-  });
-
-  const creatorName = activeVideo?.youtuber?.name || '크리에이터';
-  const quoteSeed = getHash(restaurantName + (activeVideo?.youtube_id || ''));
-  
-  const commentTemplates = [
-    `"${activeVideo?.quote || '이곳은 정말 인생 맛집입니다. 육즙과 양념의 조화가 환상적이네요!'}"`,
-    `"${activeVideo?.quote || '한 입 먹자마자 재방문을 결심한 곳입니다. 이 식감은 여기서만 느낄 수 있어요.'}"`,
-    `"${activeVideo?.quote || '비법 소스가 면발과 고기에 착 감겨서 마지막까지 젓가락을 놓을 수 없었습니다.'}"`,
-    `"${activeVideo?.quote || '정성이 가득 깃든 육수의 깊은 감칠맛이 추억을 소환하는 압권의 한 그릇입니다.'}"`
-  ];
-  const pickComment = commentTemplates[quoteSeed % commentTemplates.length];
-  const pickTitle = `${creatorName} Pick`;
-
-  const timecodes = [
-    { time: "01:15", label: "경이로운 첫 입 비주얼 & 리얼 감탄" },
-    { time: "03:30", label: "이 맛집만의 비법 조리/육수의 진수" },
-    { time: "05:42", label: "유튜버 강력 추천 소스 꿀조합" },
-    { time: "07:15", label: "총평 및 재방문 욕구 리액션" }
-  ];
-
-  return {
-    menuList: allMergedMenuList.slice(0, 8),
-    pickTitle,
-    pickComment,
-    timecodes
-  };
+const parseBusinessHours = (hours?: string | null) => {
+  if (!hours) return null;
+  return hours.replace(/<br\s*\/?>/gi, '\n').trim();
 };
 
 const parseTimeToSeconds = (timeStr: string): number => {
@@ -244,6 +117,7 @@ interface RestaurantInfoCardProps {
   isRecommendedRouteItem?: boolean;
   onAddToPlanning?: (restaurant: Restaurant) => void;
   onInsertToPlanningRoute?: (restaurant: Restaurant) => void;
+  onRequestVideoSubmit?: (restaurant: Restaurant) => void;
 }
 
 
@@ -256,7 +130,8 @@ export default function RestaurantInfoCard({
   isPlanningMode = false,
   isRecommendedRouteItem = false,
   onAddToPlanning,
-  onInsertToPlanningRoute
+  onInsertToPlanningRoute,
+  onRequestVideoSubmit
 }: RestaurantInfoCardProps) {
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const activeVideo = restaurant?.videos?.[activeVideoIndex];
@@ -265,6 +140,21 @@ export default function RestaurantInfoCard({
   const [isBookmarkHovered, setIsBookmarkHovered] = useState(false);
   const [isPinHovered, setIsPinHovered] = useState(false);
   const [isShareHovered, setIsShareHovered] = useState(false);
+
+  // 복사 피드백 애니메이션 상태
+  const [copiedAddress, setCopiedAddress] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
+
+  const handleCopy = (text: string, type: 'address' | 'phone') => {
+    navigator.clipboard.writeText(text);
+    if (type === 'address') {
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    } else {
+      setCopiedPhone(true);
+      setTimeout(() => setCopiedPhone(false), 2000);
+    }
+  };
 
   // 유튜브 ID 정제 및 썸네일 Fallback
   const cleanYoutubeId = activeVideo ? getYouTubeId(activeVideo.youtube_id) : '';
@@ -364,13 +254,13 @@ export default function RestaurantInfoCard({
     };
   }, [isPlayingVideo, cleanYoutubeId]);
 
-  // AI 큐레이션 데이터 연동
-  const gourmetData = getGourmetMenuAndCuration(
-    restaurant?.name || '',
-    restaurant?.category || '',
-    activeVideo,
-    restaurant?.videos || []
-  );
+  // DB 연동 데이터 파싱
+  const menuList = parseMenuInfo(restaurant?.menu_info);
+  const businessHours = parseBusinessHours(restaurant?.business_hours);
+  const hasPhone = !!restaurant?.phone;
+  const hasParking = !!restaurant?.parking && restaurant.parking !== '주차 불가';
+  const hasReservation = !!restaurant?.reservation && restaurant.reservation !== '예약 불가';
+  const hasPackaging = !!restaurant?.packaging && restaurant.packaging !== '포장 불가';
 
   const getTagStyle = (source: string) => {
     switch (source) {
@@ -477,18 +367,19 @@ export default function RestaurantInfoCard({
           )}
 
           {(!restaurant.videos || restaurant.videos.length === 0) && (
-            <div className="relative w-full aspect-[21/9] bg-gradient-to-br from-brand-charcoal to-[#1e1e21] border-b border-white/10 p-6 flex flex-col justify-center items-center text-center overflow-hidden shrink-0">
-              <div className="relative z-10 space-y-2 flex flex-col items-center">
-                <div className="w-9 h-9 bg-brand-orange/10 border border-brand-orange/30 text-brand-orange rounded-full flex items-center justify-center shadow-md animate-pulse">
-                  <Sparkles size={14} className="fill-current" />
-                </div>
-                <div className="space-y-0.5">
-                  <h3 className="text-white text-xs font-black tracking-tight">공식 미식 가이드 인증 지점</h3>
-                  <p className="text-white/40 text-[9px] font-bold max-w-[280px]">
-                    검증된 국내외 대표 미식 평가단이 보증한 핫플입니다.
-                  </p>
-                </div>
+            <div className="relative w-full py-12 bg-[#121214] border-b border-white/5 flex flex-col justify-center items-center text-center shrink-0 px-6">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500/10 to-orange-500/10 border border-orange-500/20 flex items-center justify-center mb-3 shadow-inner">
+                <PlaySquare size={22} className="text-orange-400" />
               </div>
+              <p className="text-zinc-400 text-[12px] font-bold mb-4">앗, 등록된 영상 리뷰가 없어요!</p>
+              
+              <button
+                onClick={() => onRequestVideoSubmit && onRequestVideoSubmit(restaurant)}
+                className="group flex items-center gap-2 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-white/10 hover:border-orange-500/30 rounded-full transition-all active:scale-95 cursor-pointer shadow-lg"
+              >
+                <Plus size={14} className="text-orange-500 group-hover:rotate-90 transition-transform duration-300" />
+                <span className="text-[12px] font-black text-white/90 group-hover:text-white">이 식당의 영상 제보하기</span>
+              </button>
             </div>
           )}
 
@@ -596,21 +487,7 @@ export default function RestaurantInfoCard({
                 </span>
               </div>
 
-              {/* 주소 정보 영역 (텍스트와 복사 아이콘으로만 구성, 카테고리 하단 배치) */}
-              <div className="flex items-center text-xs font-bold text-zinc-400 pt-1">
-                <MapPin size={13} stroke="url(#red-orange-grad)" className="mr-1.5 shrink-0" />
-                <span>{restaurant.address}</span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(restaurant.address);
-                    alert('주소가 클립보드에 복사되었습니다!');
-                  }}
-                  className="ml-1.5 p-1 text-zinc-500 hover:text-white transition-colors cursor-pointer flex items-center"
-                  title="주소 복사"
-                >
-                  <Copy size={12} />
-                </button>
-              </div>
+              {/* 주소 정보 영역은 하단 기본정보 섹션으로 이동됨 */}
               
               {isPlanningMode && isRecommendedRouteItem && (
                 <button
@@ -629,8 +506,18 @@ export default function RestaurantInfoCard({
 
             {/* [음식 카테고리 하단] 크리에이터 스토리 가로 아바타 슬라이더 배치 */}
             {restaurant.videos && restaurant.videos.length > 0 && (
-              <div className="bg-white/5 border border-white/5 rounded-2xl p-4.5 space-y-1 shadow-md relative overflow-hidden">
-                <div className="flex gap-4.5 overflow-x-auto hide-scrollbar pb-1 z-10 relative">
+              <div className="bg-white/5 border border-white/5 rounded-2xl p-4.5 pt-6 shadow-md relative overflow-hidden group/story">
+                {/* 상단 뱃지형 제보 버튼 */}
+                <button
+                  onClick={() => onRequestVideoSubmit && onRequestVideoSubmit(restaurant)}
+                  className="absolute top-2 right-2 flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full cursor-pointer transition-colors z-20"
+                >
+                  <Plus size={10} className="text-brand-orange" />
+                  <span className="text-[10px] font-bold text-white/90">영상 제보</span>
+                </button>
+
+                {/* 스크롤 컨테이너 내부 여백(p-2)과 음수 마진(-m-2)을 주어 scale-105 효과 시 상/좌/우측이 잘리지 않도록 공간 확보 */}
+                <div className="flex gap-4.5 overflow-x-auto hide-scrollbar p-2 -m-2 mb-0 z-10 relative items-start">
                   {restaurant.videos.map((vid, idx) => {
                     const isActive = activeVideoIndex === idx;
                     return (
@@ -643,12 +530,12 @@ export default function RestaurantInfoCard({
                         }}
                         className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group select-none"
                       >
-                        {/* 프로필 서클: 빨간색과 주황색의 그라데이션 브랜드 아이덴티티 색상 적용 */}
-                        <div className={`p-[2px] rounded-full ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_12px_rgba(255,75,0,0.45)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
-                          <div className="p-0.5 bg-brand-charcoal rounded-full">
+                        {/* 프로필 서클: 고정 크기(w,h) 명시로 어떤 브라우저에서도 찌그러지지 않도록 완벽한 원형 유지 */}
+                        <div className={`w-[48px] h-[48px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_12px_rgba(255,75,0,0.45)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
+                          <div className="w-[44px] h-[44px] bg-[#121214] rounded-full flex items-center justify-center shrink-0">
                             <img 
                               src={vid.youtuber.profile_image} 
-                              className="w-10 h-10 rounded-full object-cover border border-white/5 shadow-inner" 
+                              className="w-[40px] h-[40px] rounded-full object-cover shrink-0 shadow-inner" 
                               alt={vid.youtuber.name}
                               onError={(e) => {
                                 (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(vid.youtuber.name)}&background=random&color=fff&size=128`;
@@ -666,56 +553,122 @@ export default function RestaurantInfoCard({
               </div>
             )}
 
-            {/* 중단: 크리에이터 미식 솔직 노트 */}
-            {restaurant.videos && restaurant.videos.length > 0 && (
-              <div className="bg-[#1b1b1e] border border-white/5 rounded-2xl p-4.5 space-y-3.5 shadow-sm relative overflow-hidden">
-                <div className="flex gap-2.5 items-start">
-                  <div className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                    <Flame size={12} stroke="url(#red-orange-grad)" fill="url(#red-orange-grad)" />
+            {/* 기본정보 (주소, 영업시간, 전화번호 등) - 네이버지도 스타일 */}
+            <div className="space-y-4 py-2 border-t border-white/5 mt-4">
+              
+              {/* 주소 */}
+              <div className="flex items-start gap-3">
+                <div className="pt-0.5">
+                  <MapPin size={16} className="text-zinc-400 shrink-0" />
+                </div>
+                <div className="flex flex-col gap-1 w-full">
+                  <div className="flex items-center flex-wrap gap-1.5">
+                    <span className="text-[13.5px] font-medium text-white/90">{restaurant.address}</span>
+                    <button
+                      onClick={() => handleCopy(restaurant.address, 'address')}
+                      className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer ml-1"
+                      title="주소 복사"
+                    >
+                      {copiedAddress ? <Check size={13} className="text-brand-orange" /> : <Copy size={13} />}
+                    </button>
                   </div>
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-black block">
-                      <span className="bg-gradient-to-r from-red-500 to-brand-orange bg-clip-text text-transparent">
-                        {gourmetData.pickTitle}
-                      </span>
+                  {restaurant.road_address && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-1.5 py-[1px] border border-white/10 rounded text-[9px] text-zinc-400">지번</span>
+                      <span className="text-[11px] text-zinc-400">{restaurant.road_address}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 영업시간 */}
+              {businessHours && (
+                <div className="flex items-start gap-3">
+                  <div className="pt-0.5">
+                    <Clock size={16} className="text-zinc-400 shrink-0" />
+                  </div>
+                  <div className="flex flex-col gap-1 w-full">
+                    <span className="text-[13.5px] font-medium text-white/90 whitespace-pre-line leading-relaxed">
+                      {businessHours}
                     </span>
-                    <p className="text-xs font-extrabold leading-snug text-white/90">
-                      {gourmetData.pickComment}
-                    </p>
+                    <a href="#" className="text-[11px] text-blue-400 hover:text-blue-300 mt-1 inline-block">
+                      영업시간 수정 제안하기
+                    </a>
                   </div>
+                </div>
+              )}
+
+              {/* 전화번호 */}
+              {hasPhone && (
+                <div className="flex items-center gap-3">
+                  <Phone size={16} className="text-zinc-400 shrink-0" />
+                  <div className="flex items-center gap-2">
+                    <a href={`tel:${restaurant.phone}`} className="text-[13.5px] font-medium text-white/90 hover:text-blue-400 transition-colors">
+                      {restaurant.phone}
+                    </a>
+                    <button
+                      onClick={() => handleCopy(restaurant.phone, 'phone')}
+                      className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer flex items-center ml-1"
+                      title="전화번호 복사"
+                    >
+                      {copiedPhone ? <Check size={13} className="text-brand-orange" /> : <Copy size={13} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 부가 정보 (주차, 포장, 예약) */}
+              {(hasParking || hasPackaging || hasReservation) && (
+                <div className="flex items-start gap-3 pt-1">
+                  <div className="pt-0.5">
+                    <Info size={16} className="text-zinc-400 shrink-0" />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {hasParking && (
+                      <span className="text-[13.5px] font-medium text-white/90">
+                        주차 가능
+                      </span>
+                    )}
+                    {(hasParking && hasPackaging) && <span className="text-zinc-600 text-[13.5px]">·</span>}
+                    {hasPackaging && (
+                      <span className="text-[13.5px] font-medium text-white/90">
+                        포장 가능
+                      </span>
+                    )}
+                    {((hasParking || hasPackaging) && hasReservation) && <span className="text-zinc-600 text-[13.5px]">·</span>}
+                    {hasReservation && (
+                      <span className="text-[13.5px] font-medium text-white/90">
+                        예약 가능
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 대표 메뉴 정보 */}
+            {menuList.length > 0 && (
+              <div className="bg-[#1b1b1e] border border-white/5 rounded-2xl p-4.5 space-y-3 shadow-md relative overflow-hidden">
+                <div className="flex items-center gap-1.5 mb-2 shrink-0">
+                  <Utensils size={14} stroke="url(#red-orange-grad)" />
+                  <span className="text-[12px] font-black text-white/90 uppercase tracking-wider">메뉴 안내</span>
+                </div>
+                <div className="flex flex-wrap gap-2 relative z-10">
+                  {menuList.map((menu, index) => (
+                    <span 
+                      key={index}
+                      className="px-3 py-1.5 bg-gradient-to-r from-red-500/10 to-brand-orange/10 border border-red-500/20 rounded-full text-xs font-black text-white/90 shadow-sm hover:from-red-500/20 hover:to-brand-orange/20 transition-colors"
+                    >
+                      {menu}
+                    </span>
+                  ))}
+                </div>
+                <div className="pt-2 flex items-center gap-1 border-t border-white/5 mt-2">
+                  <Info size={10} className="text-zinc-500" />
+                  <p className="text-[9px] text-zinc-500 font-bold">공공데이터 기준으로 실제 정보와 다를 수 있습니다.</p>
                 </div>
               </div>
             )}
-
-            {/* 대표 메뉴 및 실물 가격표 */}
-            <div className="bg-[#1b1b1e] border border-white/5 rounded-2xl p-4.5 space-y-3 shadow-md">
-              <div className="flex items-center gap-1.5 mb-1 shrink-0">
-                <CreditCard size={12} stroke="url(#red-orange-grad)" />
-                <span className="text-[11px] font-black text-white/90 uppercase tracking-wider">대표 메뉴 및 실물 가격표</span>
-              </div>
-              <div className="space-y-2.5">
-                {gourmetData.menuList.map((menu, index) => (
-                  <div 
-                    key={index}
-                    className="flex flex-col gap-0.5 pb-2.5 border-b border-white/5 last:border-b-0 last:pb-0"
-                  >
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-xs font-black text-white/95">{menu.name}</span>
-                      <span className="text-xs font-extrabold tracking-tight">
-                        <span className="bg-gradient-to-r from-red-500 to-brand-orange bg-clip-text text-transparent">
-                          {menu.price.toLocaleString()}원
-                        </span>
-                      </span>
-                    </div>
-                    <span className="text-[9px] font-bold text-white/40 leading-tight">
-                      {menu.description}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 기존 하단 주소 영역 제거됨 */}
           </div>
         </div>
       </>

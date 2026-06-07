@@ -1,0 +1,6 @@
+aiohttp
+pyproj
+supabase
+google-generativeai
+tenacity
+python-dotenv

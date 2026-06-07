@@ -23,8 +23,10 @@ export default function BalanceGameModal({ onClose, onWinner }: BalanceGameModal
     if (step === 'playing') {
       const remainingCount = candidates.length;
       if (remainingCount === 2) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentRoundName('결승전');
       } else {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentRoundName(`${remainingCount}강전 (${Math.floor(currentIndex / 2) + 1}/${Math.floor(remainingCount / 2)})`);
       }
     }

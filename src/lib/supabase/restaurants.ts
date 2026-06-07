@@ -5,9 +5,10 @@ export async function getRestaurantsInBounds(
   swLat: number,
   swLng: number,
   neLat: number,
-  neLng: number
+  neLng: number,
+  includeNonRestaurants: boolean = false
 ): Promise<Restaurant[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('restaurants')
     .select(`
       id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info,
@@ -28,6 +29,12 @@ export async function getRestaurantsInBounds(
     .lte('lat', neLat)
     .gte('lng', swLng)
     .lte('lng', neLng);
+
+  if (!includeNonRestaurants) {
+    query = query.neq('category', '기타');
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching restaurants:', error);
