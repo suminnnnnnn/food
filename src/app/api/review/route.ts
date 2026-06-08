@@ -247,7 +247,12 @@ ${matchedCandidates.length > 0
    - 매칭되는 기존 식당이 전혀 없다면, "new_restaurant"으로 분류하고 'matched_restaurant_id'를 null로 설정하세요.
 3. 영상이 최종 승인(is_valid: true)될 수 있으려면 신뢰도가 70점 이상이어야 합니다.
 4. 승인 시, 영상과 식당의 특징을 담은 강렬하고 힙한 매력 키워드 3개(이모지 포함)를 'keywords'에 창작해 주세요.
-5. 영상 내 정보(제목/설명)를 분석하여 대표 메뉴(가격 포함) 및 주차 정보가 있다면 추출하고 없으면 "정보 없음"으로 기록하세요.
+5. 영상 내 정보(제목/설명)를 분석하여 다음 5가지 방문 꿀팁 정보가 있다면 추출하고 없으면 "정보 없음"으로 기록하세요:
+   - 대표 메뉴 및 가격 (예: 짚불구이 28,000원)
+   - 주차 가능 여부 및 방법 (예: 발렛 가능, 건물 지하 주차 2시간 지원)
+   - 예약 가능 여부 및 플랫폼 (예: 캐치테이블 예약 필수, 네이버 예약 가능)
+   - 포장(테이크아웃) 가능 여부 (예: 전 메뉴 포장 가능)
+   - 영업시간 및 휴무일 (예: 매일 11:30 - 22:00, 월요일 휴무)
 
 반드시 아래 JSON 형식으로만 응답해야 하며, 마크다운 백틱(\`\`\`) 등 불필요한 텍스트를 절대 섞지 마십시오.
 {
@@ -256,8 +261,11 @@ ${matchedCandidates.length > 0
   "youtuber_name": "채널명",
   "reason": "최종 검수 판정 사유 및 중복 대조 근거에 대한 짧은 요약",
   "keywords": ["🔥 키워드1", "💸 키워드2", "🥩 키워드3"],
-  "extracted_menu": "추출 대표 메뉴 정보 (예: 짚불구이 28,000원) 또는 '정보 없음'",
-  "parking_info": "추출 주차 정보 (예: 발렛 가능, 건물 지하 주차 2시간 지원) 또는 '정보 없음'",
+  "extracted_menu": "추출 대표 메뉴 정보 또는 '정보 없음'",
+  "parking_info": "추출 주차 정보 또는 '정보 없음'",
+  "reservation_info": "추출 예약 정보 또는 '정보 없음'",
+  "packaging_info": "추출 포장 정보 또는 '정보 없음'",
+  "business_hours_info": "추출 영업시간 정보 또는 '정보 없음'",
   "resolve_type": "existing_video_mapping" 또는 "new_restaurant",
   "matched_restaurant_id": "매칭된 기존 식당의 UUID 문자열 (해당 없을 시 null)"
 }
@@ -333,9 +341,9 @@ ${matchedCandidates.length > 0
           is_published: true,
           phone: '정보 없음',
           parking: aiResult.parking_info || '정보 없음',
-          packaging: '정보 없음',
-          reservation: '정보 없음',
-          business_hours: '정보 없음',
+          packaging: aiResult.packaging_info || '정보 없음',
+          reservation: aiResult.reservation_info || '정보 없음',
+          business_hours: aiResult.business_hours_info || '정보 없음',
           menu_info: aiResult.extracted_menu || '정보 없음'
         }).select('id').single();
 

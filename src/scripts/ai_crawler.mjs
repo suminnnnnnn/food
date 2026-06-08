@@ -89,10 +89,19 @@ async function extractRestaurantInfoWithAI(videoTitle, videoDescription) {
     다음은 유튜브 맛집 리뷰 영상의 제목과 설명(더보기란) 텍스트입니다. 
     여기서 리뷰하고 있는 "식당 상호명"과 유저들을 사로잡을 만한 "한줄평(시그니처 메뉴 등)"을 추출하세요.
     또한 카카오맵 API 검색을 위해 지역명과 상호명이 결합된 "검색어(searchQuery)"를 만들어주세요 (예: '명동 명동교자 본점').
-    
+    추가로 영상에 안내된 5가지 방문 꿀팁(대표 메뉴 및 가격, 주차 정보, 예약 정보, 포장 정보, 영업시간)이 있다면 추출하고, 없으면 "정보 없음"으로 기록하세요.
+
     결과는 반드시 아래 JSON 형식으로만 반환하세요. 없으면 null로 반환.
-    { "restaurantName": "상호명", "searchQuery": "카카오맵 최적화 검색어", "quote": "한줄평 요약" }
-    
+    { 
+      "restaurantName": "상호명", 
+      "searchQuery": "카카오맵 최적화 검색어", 
+      "quote": "한줄평 요약",
+      "extracted_menu": "추출 대표 메뉴 정보 또는 '정보 없음'",
+      "parking_info": "추출 주차 정보 또는 '정보 없음'",
+      "reservation_info": "추출 예약 정보 또는 '정보 없음'",
+      "packaging_info": "추출 포장 정보 또는 '정보 없음'",
+      "business_hours_info": "추출 영업시간 정보 또는 '정보 없음'"
+    }
     [영상 제목]: ${videoTitle}
     [영상 설명]: ${videoDescription}
   `;
@@ -238,7 +247,12 @@ async function runTop50Pipeline() {
           address: location.address,
           road_address: location.road_address || null,
           lat: location.lat,
-          lng: location.lng
+          lng: location.lng,
+          parking: extracted.parking_info || '정보 없음',
+          packaging: extracted.packaging_info || '정보 없음',
+          reservation: extracted.reservation_info || '정보 없음',
+          business_hours: extracted.business_hours_info || '정보 없음',
+          menu_info: extracted.extracted_menu || '정보 없음'
         }, { onConflict: 'kakao_place_id' })
         .select().single();
 

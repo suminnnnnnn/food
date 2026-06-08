@@ -553,6 +553,51 @@ export default function RestaurantInfoCard({
               </div>
             )}
 
+            {/* ✨ AI 방문 꿀팁 섹션 */}
+            {(restaurant.menu_info && restaurant.menu_info !== '정보 없음' || 
+              restaurant.parking && restaurant.parking !== '정보 없음' || 
+              restaurant.business_hours && restaurant.business_hours !== '정보 없음' || 
+              restaurant.reservation && restaurant.reservation !== '정보 없음' || 
+              restaurant.packaging && restaurant.packaging !== '정보 없음') && (
+              <div className="mt-5 p-4 rounded-2xl bg-zinc-900/60 border border-brand-orange/20 shadow-inner">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm font-black text-brand-orange-light tracking-tight">✨ AI 방문 꿀팁</span>
+                </div>
+                <div className="space-y-2.5 flex flex-col">
+                  {restaurant.menu_info && restaurant.menu_info !== '정보 없음' && (
+                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
+                      <span className="shrink-0 text-amber-500 mt-0.5">🍽️</span>
+                      <span className="leading-snug">{restaurant.menu_info}</span>
+                    </div>
+                  )}
+                  {restaurant.parking && restaurant.parking !== '정보 없음' && (
+                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
+                      <span className="shrink-0 text-blue-400 mt-0.5">🚗</span>
+                      <span className="leading-snug">{restaurant.parking}</span>
+                    </div>
+                  )}
+                  {restaurant.business_hours && restaurant.business_hours !== '정보 없음' && (
+                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
+                      <span className="shrink-0 text-emerald-400 mt-0.5">⏰</span>
+                      <span className="leading-snug">{restaurant.business_hours}</span>
+                    </div>
+                  )}
+                  {restaurant.reservation && restaurant.reservation !== '정보 없음' && (
+                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
+                      <span className="shrink-0 text-purple-400 mt-0.5">📅</span>
+                      <span className="leading-snug">{restaurant.reservation}</span>
+                    </div>
+                  )}
+                  {restaurant.packaging && restaurant.packaging !== '정보 없음' && (
+                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
+                      <span className="shrink-0 text-orange-400 mt-0.5">🥡</span>
+                      <span className="leading-snug">{restaurant.packaging}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* 기본정보 (주소, 영업시간, 전화번호 등) - 네이버지도 스타일 */}
             <div className="space-y-4 py-2 border-t border-white/5 mt-4">
               
@@ -607,7 +652,7 @@ export default function RestaurantInfoCard({
                       {restaurant.phone}
                     </a>
                     <button
-                      onClick={() => handleCopy(restaurant.phone, 'phone')}
+                      onClick={() => handleCopy(restaurant.phone || '', 'phone')}
                       className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer flex items-center ml-1"
                       title="전화번호 복사"
                     >

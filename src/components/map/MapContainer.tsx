@@ -1182,16 +1182,58 @@ export default function MapContainer({
                     </div>
                   </div>
                   
-                  {/* Filter Comboboxes */}
-                  <div className="flex gap-2 shrink-0 pb-1 mt-auto relative z-[50]">
+                  {/* Instagram Story Slider (Moved above filters) */}
+                  {desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) && (
+                    <div className="pt-3 px-1 pb-2 shrink-0 select-none">
+                      <div ref={storyScrollRef} {...getDragHandlers(storyDrag)} className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-1 select-none cursor-grab px-1 -mx-1">
+                        {filteredRestaurants
+                          .filter(r => r.videos && r.videos.length > 0)
+                          .map(r => {
+                            const bestVid = getBestVideo(r.videos, activeVideoType);
+                            if (!bestVid) return null;
+                            const isActive = selectedRestaurant?.id === r.id;
+                            return (
+                              <div
+                                key={`story-${r.id}`}
+                                onClick={() => {
+                                  handleSelectRestaurant(r);
+                                  map?.setLevel(4, { animate: true });
+                                  map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
+                                }}
+                                className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
+                              >
+                                <div className={`p-[2px] flex items-center justify-center rounded-full bg-gradient-to-tr ${isActive ? 'from-red-600 to-brand-orange scale-105 shadow-[0_0_15px_rgba(239,68,68,0.45)]' : 'from-red-500/80 to-orange-500/80'} hover:scale-105 transition-all duration-300`}>
+                                  <div className="p-0.5 flex items-center justify-center bg-zinc-950 rounded-full">
+                                    <img
+                                      src={bestVid.youtuber.profile_image}
+                                      className="w-10 h-10 rounded-full object-cover shadow-inner"
+                                      alt={bestVid.youtuber.name}
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(bestVid.youtuber.name)}&background=random&color=fff&size=128`;
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <span className={`text-[10px] max-w-[58px] truncate text-center ${isActive ? 'font-black text-brand-orange-light' : 'font-bold text-zinc-400 group-hover:text-zinc-200'}`}>
+                                  {bestVid.youtuber.name}
+                                </span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Filter Pills (Moved below stories, redesigned as pills) */}
+                  <div className="flex items-center flex-wrap gap-2 shrink-0 pb-3 border-b border-white/5 relative z-[50] px-1">
                     {/* 정렬 드롭다운 */}
-                    <div className="relative flex-1 min-w-0">
+                    <div className="relative shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); setIsSortOpen(!isSortOpen); setIsCategoryOpen(false); setIsVideoTypeOpen(false); }}
-                        className="w-full flex items-center justify-between px-3 py-2 bg-zinc-900/80 border border-white/10 hover:border-white/20 rounded-xl text-[13px] font-bold text-zinc-200 transition-all shadow-sm"
+                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-full text-[12px] font-bold text-zinc-300 transition-all shadow-sm whitespace-nowrap"
                       >
-                        <span className="truncate">{activeSort === 'latest' ? '최신순' : '조회수순'}</span>
-                        <ChevronDown size={14} className={`shrink-0 ml-1 transition-transform duration-200 ${isSortOpen ? 'rotate-180' : ''}`} />
+                        {activeSort === 'latest' ? '최신순' : '조회수순'}
+                        <ChevronDown size={13} className={`transition-transform duration-200 ${isSortOpen ? 'rotate-180' : ''}`} />
                       </button>
                       <AnimatePresence>
                         {isSortOpen && (
@@ -1199,7 +1241,7 @@ export default function MapContainer({
                             initial={{ opacity: 0, y: -5 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -5 }}
-                            className="absolute top-full left-0 right-0 mt-2 p-1.5 bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100]"
+                            className="absolute top-full left-0 mt-2 p-1.5 min-w-[120px] bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100]"
                           >
                             {['latest', 'views'].map((sort) => (
                               <button
@@ -1220,13 +1262,13 @@ export default function MapContainer({
                     </div>
 
                     {/* 영상 포맷 드롭다운 */}
-                    <div className="relative flex-1 min-w-0">
+                    <div className="relative shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); setIsVideoTypeOpen(!isVideoTypeOpen); setIsSortOpen(false); setIsCategoryOpen(false); }}
-                        className="w-full flex items-center justify-between px-3 py-2 bg-zinc-900/80 border border-white/10 hover:border-white/20 rounded-xl text-[13px] font-bold text-zinc-200 transition-all shadow-sm"
+                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all shadow-sm whitespace-nowrap ${activeVideoType !== '영상 전체' ? 'bg-brand-orange/20 text-brand-orange border border-brand-orange/30' : 'bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 text-zinc-300'}`}
                       >
-                        <span className="truncate">{activeVideoType}</span>
-                        <ChevronDown size={14} className={`shrink-0 ml-1 transition-transform duration-200 ${isVideoTypeOpen ? 'rotate-180' : ''}`} />
+                        {activeVideoType}
+                        <ChevronDown size={13} className={`transition-transform duration-200 ${isVideoTypeOpen ? 'rotate-180' : ''}`} />
                       </button>
                       <AnimatePresence>
                         {isVideoTypeOpen && (
@@ -1234,7 +1276,7 @@ export default function MapContainer({
                             initial={{ opacity: 0, y: -5 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -5 }}
-                            className="absolute top-full left-0 right-0 mt-2 p-1.5 bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] max-h-[200px] overflow-y-auto"
+                            className="absolute top-full left-0 mt-2 p-1.5 min-w-[120px] bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] max-h-[200px] overflow-y-auto"
                           >
                             {['영상 전체', '쇼츠 리뷰', '롱폼 리뷰'].map((type) => (
                               <button
@@ -1256,13 +1298,13 @@ export default function MapContainer({
                     </div>
 
                     {/* 카테고리 드롭다운 */}
-                    <div className="relative flex-1 min-w-0">
+                    <div className="relative shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); setIsCategoryOpen(!isCategoryOpen); setIsSortOpen(false); setIsVideoTypeOpen(false); }}
-                        className="w-full flex items-center justify-between px-3 py-2 bg-zinc-900/80 border border-white/10 hover:border-white/20 rounded-xl text-[13px] font-bold text-zinc-200 transition-all shadow-sm"
+                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all shadow-sm whitespace-nowrap ${activeCategory !== '전체' ? 'bg-brand-orange/20 text-brand-orange border border-brand-orange/30' : 'bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 text-zinc-300'}`}
                       >
-                        <span className="truncate">{activeCategory}</span>
-                        <ChevronDown size={14} className={`shrink-0 ml-1 transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`} />
+                        {activeCategory}
+                        <ChevronDown size={13} className={`transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`} />
                       </button>
                       <AnimatePresence>
                         {isCategoryOpen && (
@@ -1270,7 +1312,7 @@ export default function MapContainer({
                             initial={{ opacity: 0, y: -5 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -5 }}
-                            className="absolute top-full left-0 right-0 mt-2 p-1.5 bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] max-h-[200px] overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
+                            className="absolute top-full left-0 mt-2 p-1.5 min-w-[120px] bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] max-h-[200px] overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
                           >
                             {['전체', '한식', '일식', '중식', '양식', '아시안', '분식', '카페/디저트', '술집'].map((category) => (
                               <button
@@ -1291,49 +1333,6 @@ export default function MapContainer({
                       </AnimatePresence>
                     </div>
                   </div>
-
-                  {/* Instagram Story Slider */}
-                  {desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) && (
-                    <div className="px-1 pb-1 border-b border-white/5 shrink-0 select-none">
-                      <div ref={storyScrollRef} {...getDragHandlers(storyDrag)} className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-0.5 select-none cursor-grab">
-                        {filteredRestaurants
-                          .filter(r => r.videos && r.videos.length > 0)
-                          .map(r => {
-                            const bestVid = getBestVideo(r.videos, activeVideoType);
-                            if (!bestVid) return null;
-                            const isActive = selectedRestaurant?.id === r.id;
-                            return (
-                              <div
-                                key={`story-${r.id}`}
-                                onClick={() => {
-                                  handleSelectRestaurant(r);
-                                  map?.setLevel(4, { animate: true });
-                                  map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
-                                }}
-                                className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
-                              >
-                                <div className={`p-[2.5px] rounded-full bg-gradient-to-tr ${isActive ? 'from-red-600 via-orange-500 to-amber-400 scale-105 shadow-[0_0_15px_rgba(239,68,68,0.45)]' : 'from-pink-500 via-red-500 to-yellow-500'} hover:scale-105 transition-all duration-300`}>
-                                  <div className="p-0.5 bg-zinc-950 rounded-full">
-                                    <img
-                                      src={bestVid.youtuber.profile_image}
-                                      className="w-9 h-9 rounded-full object-cover border border-white/5 shadow-inner animate-[spin_10s_linear_infinite]"
-                                      style={{ animationPlayState: isActive ? 'running' : 'paused' }}
-                                      alt={bestVid.youtuber.name}
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(bestVid.youtuber.name)}&background=random&color=fff&size=128`;
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                                <span className={`text-[10px] max-w-[58px] truncate text-center ${isActive ? 'font-black text-brand-orange-light' : 'font-bold text-zinc-400 group-hover:text-zinc-200'}`}>
-                                  {bestVid.youtuber.name}
-                                </span>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
 
                   {selectedCluster && (
                     <button 
@@ -1484,6 +1483,51 @@ export default function MapContainer({
                             <p className="text-sm font-semibold text-zinc-300 line-clamp-2 leading-relaxed mt-1">
                               {bestVid.title}
                             </p>
+                          )}
+
+                          {/* AI Visit Tips */}
+                          {(r.menu_info && r.menu_info !== '정보 없음' || 
+                            r.parking && r.parking !== '정보 없음' || 
+                            r.business_hours && r.business_hours !== '정보 없음' || 
+                            r.reservation && r.reservation !== '정보 없음' || 
+                            r.packaging && r.packaging !== '정보 없음') && (
+                            <div className="mt-3 p-3 rounded-xl bg-zinc-900/50 border border-brand-orange/20 shadow-inner">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <span className="text-[12px] font-black text-brand-orange-light">✨ AI 방문 꿀팁</span>
+                              </div>
+                              <div className="space-y-1.5 flex flex-col">
+                                {r.menu_info && r.menu_info !== '정보 없음' && (
+                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
+                                    <span className="shrink-0 text-amber-500">🍽️</span>
+                                    <span className="leading-snug">{r.menu_info}</span>
+                                  </div>
+                                )}
+                                {r.parking && r.parking !== '정보 없음' && (
+                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
+                                    <span className="shrink-0 text-blue-400">🚗</span>
+                                    <span className="leading-snug">{r.parking}</span>
+                                  </div>
+                                )}
+                                {r.business_hours && r.business_hours !== '정보 없음' && (
+                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
+                                    <span className="shrink-0 text-emerald-400">⏰</span>
+                                    <span className="leading-snug">{r.business_hours}</span>
+                                  </div>
+                                )}
+                                {r.reservation && r.reservation !== '정보 없음' && (
+                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
+                                    <span className="shrink-0 text-purple-400">📅</span>
+                                    <span className="leading-snug">{r.reservation}</span>
+                                  </div>
+                                )}
+                                {r.packaging && r.packaging !== '정보 없음' && (
+                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
+                                    <span className="shrink-0 text-orange-400">🥡</span>
+                                    <span className="leading-snug">{r.packaging}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>

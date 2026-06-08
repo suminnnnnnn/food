@@ -31,6 +31,7 @@ export interface Restaurant {
   name: string;
   category: string;
   address: string;
+  road_address?: string;
   lat: number;
   lng: number;
   videos: Video[];
