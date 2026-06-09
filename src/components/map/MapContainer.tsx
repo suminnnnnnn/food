@@ -29,10 +29,15 @@ import { getRouteBufferPolygon, isPointInPolygon, getDistance } from '@/lib/geoU
 
 
 
-const getSubCategory = (categoryStr?: string | null) => {
+const getFormattedCategory = (categoryStr?: string | null) => {
   if (!categoryStr) return '';
   const parts = categoryStr.split('>');
-  return parts[parts.length - 1].trim();
+  if (parts.length >= 2) {
+    const main = parts[0].trim();
+    const sub = parts[parts.length - 1].trim();
+    return `${main} › ${sub}`;
+  }
+  return categoryStr.trim();
 };
 
 const formatViewCount = (count: number) => {
@@ -1466,11 +1471,11 @@ export default function MapContainer({
                                       {r.name}
                                     </h4>
                                     {r.category && (() => {
-                                      const subCategory = getSubCategory(r.category);
-                                      if (!subCategory) return null;
+                                      const formattedCategory = getFormattedCategory(r.category);
+                                      if (!formattedCategory) return null;
                                       return (
                                         <span className="inline-flex items-center bg-white/[0.04] border border-white/10 px-1.5 py-0.5 rounded text-[10px] font-bold text-zinc-400 shrink-0">
-                                          {subCategory}
+                                          {formattedCategory}
                                         </span>
                                       );
                                     })()}

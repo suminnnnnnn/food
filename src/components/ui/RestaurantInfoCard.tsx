@@ -79,10 +79,15 @@ const getYouTubeId = (urlOrId: string): string => {
   return (match && match[2].length === 11) ? match[2] : urlOrId;
 };
 
-const getSubCategory = (categoryStr?: string | null) => {
+const getFormattedCategory = (categoryStr?: string | null) => {
   if (!categoryStr) return '';
   const parts = categoryStr.split('>');
-  return parts[parts.length - 1].trim();
+  if (parts.length >= 2) {
+    const main = parts[0].trim();
+    const sub = parts[parts.length - 1].trim();
+    return `${main} › ${sub}`;
+  }
+  return categoryStr.trim();
 };
 
 // DB의 menu_info 필드를 파싱하여 배열로 반환하는 헬퍼
@@ -486,12 +491,12 @@ export default function RestaurantInfoCard({
 
               {/* 카테고리 정보는 타이틀 아래로 독립 분리 */}
               {restaurant.category && (() => {
-                const subCategory = getSubCategory(restaurant.category);
-                if (!subCategory) return null;
+                const formattedCategory = getFormattedCategory(restaurant.category);
+                if (!formattedCategory) return null;
                 return (
                   <div className="flex items-center pt-1">
                     <span className="inline-flex items-center bg-white/[0.04] border border-white/10 px-2.5 py-0.5 rounded-md text-[11px] font-bold text-zinc-300 tracking-wide">
-                      {subCategory}
+                      {formattedCategory}
                     </span>
                   </div>
                 );
