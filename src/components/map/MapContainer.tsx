@@ -1538,12 +1538,12 @@ export default function MapContainer({
                                   </h4>
                                   <div className="flex items-center gap-2 mt-0.5">
                                     {vid?.youtuber && (
-                                      <span className="text-[11px] text-zinc-500 truncate">
+                                      <span className="text-[11px] text-zinc-400 font-medium truncate">
                                         {vid.youtuber.name}
                                       </span>
                                     )}
                                     {vid?.view_count !== undefined && vid.view_count > 0 && (
-                                      <span className="text-[11px] text-zinc-600">
+                                      <span className="text-[11px] text-zinc-400 font-medium">
                                         · {formatViewCount(vid.view_count)}회
                                       </span>
                                     )}
