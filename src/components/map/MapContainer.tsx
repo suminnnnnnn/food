@@ -1376,56 +1376,53 @@ export default function MapContainer({
                         }}
                         onMouseEnter={() => setHoveredRestaurantId(r.id)}
                         onMouseLeave={() => setHoveredRestaurantId(null)}
-                        className="group relative bg-white/[0.03] backdrop-blur-md rounded-3xl cursor-pointer border border-white/10 hover-acrylic-glow flex flex-col overflow-hidden"
+                        className="group relative bg-white/[0.03] backdrop-blur-md rounded-2xl cursor-pointer border border-white/10 hover:bg-white/[0.06] transition-colors flex flex-row overflow-hidden h-[180px]"
                       >
-                        {/* Thumbnail & Autoplay Video - 16:9 ratio */}
-                        <div className="relative w-full aspect-video shrink-0 bg-zinc-950 overflow-hidden">
-                          {bestVid?.youtube_video_id ? (
-                            <iframe 
-                              src={`https://www.youtube.com/embed/${bestVid.youtube_video_id}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${bestVid.youtube_video_id}`}
-                              className="w-full h-[150%] -translate-y-[16.6%] border-0 pointer-events-none"
-                              allow="autoplay"
-                            />
-                          ) : bestVid?.thumbnail ? (
+                        {/* Left: Thumbnail (Square & Large) */}
+                        <div className="relative w-[180px] shrink-0 bg-zinc-950 overflow-hidden">
+                          {bestVid?.thumbnail ? (
                             <img 
                               src={bestVid.thumbnail} 
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                               alt={r.name}
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
-                              <Utensils size={36} />
+                            <div className="absolute inset-0 w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
+                              <Utensils size={32} />
                             </div>
                           )}
 
-                          {/* Info Section Overlay (Option 1) */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/95 via-zinc-950/20 to-transparent pointer-events-none z-10" />
-                          
-                          <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-20 pointer-events-none">
-                            {/* Youtuber Info inside Overlay (Top Left) */}
-                            {bestVid?.youtuber ? (
-                              <div className="flex items-center gap-2 min-w-0 bg-black/40 backdrop-blur-md pl-1 pr-3 py-1 rounded-full border border-white/10 shadow-lg">
-                                {bestVid.youtuber.profile_image ? (
+                          {/* Shorts badge */}
+                          {bestVid?.is_short && (
+                            <div className="absolute bottom-2 right-2 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-md border border-white/20">
+                              <Play size={8} fill="currentColor"/> SHORTS
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right: Info Section */}
+                        <div className="flex flex-col flex-1 min-w-0 p-4 justify-between">
+                          <div className="flex flex-col gap-2">
+                            {/* Youtuber Header & Heart */}
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {bestVid?.youtuber?.profile_image ? (
                                   <img 
                                     src={bestVid.youtuber.profile_image} 
-                                    className="w-6 h-6 rounded-full object-cover border border-zinc-700 shrink-0"
+                                    className="w-5 h-5 rounded-full object-cover border border-zinc-700 shrink-0"
                                     alt={bestVid.youtuber.name} 
                                   />
                                 ) : (
-                                  <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 border border-zinc-700 shrink-0">
-                                    {bestVid.youtuber.name[0]}
+                                  <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 border border-zinc-700 shrink-0">
+                                    {bestVid?.youtuber?.name?.[0] || '?'}
                                   </div>
                                 )}
-                                <span className="text-[12px] font-bold text-zinc-100 truncate">
-                                  {bestVid.youtuber.name}
+                                <span className="text-[12px] font-bold text-zinc-300 truncate">
+                                  {bestVid?.youtuber?.name}
                                 </span>
                               </div>
-                            ) : (
-                              <div />
-                            )}
 
-                            {/* Elastic Heart Toggle Button (Top Right) */}
-                            <div className="pointer-events-auto">
+                              {/* Heart Button */}
                               <motion.button
                                 whileTap={{ scale: 0.8 }}
                                 onClick={(e) => {
@@ -1437,7 +1434,7 @@ export default function MapContainer({
                                     setFavorites([...favorites, r.id]);
                                   }
                                 }}
-                                className="p-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 hover:bg-white/10 transition-colors shadow-lg"
+                                className="shrink-0 p-1.5 rounded-full hover:bg-white/10 transition-colors -mr-1.5"
                               >
                                 <Star 
                                   size={16} 
@@ -1452,88 +1449,45 @@ export default function MapContainer({
                                 />
                               </motion.button>
                             </div>
-                          </div>
 
-                          <div className="absolute bottom-0 left-0 right-0 p-3.5 flex items-end justify-between gap-3 z-20 pointer-events-none">
-                            {/* Left Side: Name and Title */}
-                            <div className="flex flex-col flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <div className="p-1 bg-black/40 backdrop-blur-md border border-white/10 rounded-lg shrink-0 flex items-center justify-center shadow-lg">
-                                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="url(#red-orange-grad)">
-                                    <path d="M7 2C4.8 2 3 3.8 3 6c0 1.8 1.2 3.3 2.8 3.8l.7 10.7c.1.8.8 1.5 1.5 1.5s1.4-.7 1.5-1.5l.7-10.7C11.8 9.3 13 7.8 13 6c0-2.2-1.8-4-4-4H7z" />
-                                    <rect x="15" y="2" width="2.2" height="20" rx="1.1" />
-                                    <rect x="18.8" y="2" width="2.2" height="20" rx="1.1" />
-                                  </svg>
-                                </div>
-                                <h4 className="font-extrabold text-[16px] text-white truncate tracking-tight drop-shadow-md">{r.name}</h4>
-                              </div>
-                              {bestVid?.title && (
-                                <p className="text-[12.5px] font-medium text-zinc-200 line-clamp-2 leading-snug drop-shadow-md pr-2">
-                                  {bestVid.title}
-                                </p>
-                              )}
+                            {/* Restaurant Name */}
+                            <div className="flex items-center gap-1 min-w-0 mt-0.5">
+                              <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{r.name}</h4>
                             </div>
 
-                            {/* Right Side: View Count & Shorts Badge */}
-                            <div className="flex flex-col items-end gap-1.5 shrink-0 mb-0.5">
-                              {bestVid?.view_count !== undefined && bestVid.view_count > 0 && (
-                                <span className="text-[11px] font-extrabold bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/10 text-zinc-300 shadow-lg">
+                            {/* Video Title */}
+                            {bestVid?.title && (
+                              <p className="text-[12px] font-medium text-zinc-400 line-clamp-2 leading-snug">
+                                {bestVid.title}
+                              </p>
+                            )}
+
+                            {/* Tiny AI Visit Tip Preview */}
+                            {(r.menu_info && r.menu_info !== '정보 없음' || r.business_hours && r.business_hours !== '정보 없음') && (
+                              <div className="mt-1 flex items-start gap-1.5 text-[11px] font-medium text-zinc-400 bg-zinc-900/50 p-2 rounded-lg border border-white/5">
+                                <span className="shrink-0">✨</span>
+                                <span className="line-clamp-2 leading-snug">
+                                  {r.menu_info && r.menu_info !== '정보 없음' ? r.menu_info : r.business_hours}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* View Count at bottom right */}
+                          <div className="flex items-center justify-end mt-2">
+                            {bestVid?.view_count !== undefined && bestVid.view_count > 0 ? (
+                              <span className="text-[10px] font-extrabold bg-red-950/20 px-1.5 py-0.5 rounded border border-red-500/10">
+                                <span className="bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text text-transparent">
                                   조회수 {formatViewCount(bestVid.view_count)}회
                                 </span>
-                              )}
-                              {bestVid?.is_short && (
-                                <div className="bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 border border-white/20 shadow-[0_2px_8px_rgba(220,38,38,0.4)]">
-                                  <Play size={8} fill="currentColor"/> SHORTS
-                                </div>
-                              )}
-                            </div>
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-zinc-600 bg-zinc-800/50 px-1.5 py-0.5 rounded">
+                                조회수 0회
+                              </span>
+                            )}
                           </div>
                         </div>
-
-                          {/* AI Visit Tips */}
-                          {(r.menu_info && r.menu_info !== '정보 없음' || 
-                            r.parking && r.parking !== '정보 없음' || 
-                            r.business_hours && r.business_hours !== '정보 없음' || 
-                            r.reservation && r.reservation !== '정보 없음' || 
-                            r.packaging && r.packaging !== '정보 없음') && (
-                            <div className="mt-3 p-3 rounded-xl bg-zinc-900/50 border border-brand-orange/20 shadow-inner">
-                              <div className="flex items-center gap-1.5 mb-2">
-                                <span className="text-[12px] font-black text-brand-orange-light">✨ AI 방문 꿀팁</span>
-                              </div>
-                              <div className="space-y-1.5 flex flex-col">
-                                {r.menu_info && r.menu_info !== '정보 없음' && (
-                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
-                                    <span className="shrink-0 text-amber-500">🍽️</span>
-                                    <span className="leading-snug">{r.menu_info}</span>
-                                  </div>
-                                )}
-                                {r.parking && r.parking !== '정보 없음' && (
-                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
-                                    <span className="shrink-0 text-blue-400">🚗</span>
-                                    <span className="leading-snug">{r.parking}</span>
-                                  </div>
-                                )}
-                                {r.business_hours && r.business_hours !== '정보 없음' && (
-                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
-                                    <span className="shrink-0 text-emerald-400">⏰</span>
-                                    <span className="leading-snug">{r.business_hours}</span>
-                                  </div>
-                                )}
-                                {r.reservation && r.reservation !== '정보 없음' && (
-                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
-                                    <span className="shrink-0 text-purple-400">📅</span>
-                                    <span className="leading-snug">{r.reservation}</span>
-                                  </div>
-                                )}
-                                {r.packaging && r.packaging !== '정보 없음' && (
-                                  <div className="flex gap-2 items-start text-[11.5px] font-medium text-zinc-300">
-                                    <span className="shrink-0 text-orange-400">🥡</span>
-                                    <span className="leading-snug">{r.packaging}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
                       </div>
                     );
                   })
