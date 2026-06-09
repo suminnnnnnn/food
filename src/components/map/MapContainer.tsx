@@ -1418,28 +1418,6 @@ export default function MapContainer({
                                 {/* 썸네일 그라데이션 오버레이 (텍스트 가독성용) */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
 
-                                {/* 좌상단: 유튜버 프로필 링 */}
-                                {vid?.youtuber && (
-                                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/50 backdrop-blur-xl pl-1 pr-2.5 py-0.5 rounded-full border border-white/15 shadow-md max-w-[150px] z-10">
-                                    {vid.youtuber.profile_image ? (
-                                      <div className="instagram-story-ring shrink-0">
-                                        <img 
-                                          src={vid.youtuber.profile_image}
-                                          className="w-5 h-5 rounded-full object-cover border border-zinc-900"
-                                          alt={vid.youtuber.name}
-                                        />
-                                      </div>
-                                    ) : (
-                                      <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center text-[9px] font-bold text-zinc-300 border border-zinc-900 shrink-0">
-                                        {vid.youtuber.name[0]}
-                                      </div>
-                                    )}
-                                    <span className="text-[10px] font-black text-white truncate max-w-[80px]">
-                                      {vid.youtuber.name}
-                                    </span>
-                                  </div>
-                                )}
-
                                 {/* 우상단: 즐겨찾기 버튼 */}
                                 <motion.button
                                   whileTap={{ scale: 0.8 }}
@@ -1476,7 +1454,7 @@ export default function MapContainer({
 
                               {/* 하단 정보 영역 */}
                               <div className="p-4 flex flex-col space-y-2.5">
-                                {/* 식당명 + 카테고리 + 조회수 */}
+                                {/* 식당명 + 카테고리 */}
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center gap-1.5 min-w-0">
                                     <h4 className="font-extrabold text-[16px] text-zinc-100 truncate tracking-tight group-hover:text-white transition-colors">
@@ -1488,18 +1466,6 @@ export default function MapContainer({
                                       </span>
                                     )}
                                   </div>
-
-                                  {vid?.view_count !== undefined && vid.view_count > 0 ? (
-                                    <span className="text-[10px] font-extrabold bg-red-950/20 px-2 py-0.5 rounded border border-red-500/10 shrink-0">
-                                      <span className="bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text text-transparent">
-                                        조회수 {formatViewCount(vid.view_count)}회
-                                      </span>
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] font-bold text-zinc-500 bg-zinc-800/40 px-1.5 py-0.5 rounded shrink-0">
-                                      조회수 0회
-                                    </span>
-                                  )}
                                 </div>
 
                                 {/* 영상 제목 */}
@@ -1508,6 +1474,42 @@ export default function MapContainer({
                                     {vid.title}
                                   </p>
                                 )}
+
+                                {/* 유튜버 프로필 + 채널명 · 조회수 메타데이터 한 줄 */}
+                                <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+                                  {vid?.youtuber && (
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      {vid.youtuber.profile_image ? (
+                                        <img 
+                                          src={vid.youtuber.profile_image}
+                                          className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0"
+                                          alt={vid.youtuber.name}
+                                        />
+                                      ) : (
+                                        <div className="w-4 h-4 rounded-full bg-zinc-700 flex items-center justify-center text-[8px] font-bold text-zinc-300 border border-white/10 shrink-0">
+                                          {vid.youtuber.name[0]}
+                                        </div>
+                                      )}
+                                      <span className="font-bold text-zinc-400 truncate max-w-[120px]">
+                                        {vid.youtuber.name}
+                                      </span>
+                                    </div>
+                                  )}
+                                  
+                                  {vid?.youtuber && (
+                                    <span className="text-zinc-600 shrink-0">·</span>
+                                  )}
+
+                                  {vid?.view_count !== undefined && vid.view_count > 0 ? (
+                                    <span className="font-medium text-zinc-400">
+                                      조회수 {formatViewCount(vid.view_count)}회
+                                    </span>
+                                  ) : (
+                                    <span className="font-medium text-zinc-400">
+                                      조회수 0회
+                                    </span>
+                                  )}
+                                </div>
 
                                 {/* AI 방문 꿀팁 배지 (칩) - 최대 3개 노출 */}
                                 {(() => {
