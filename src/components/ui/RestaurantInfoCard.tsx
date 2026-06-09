@@ -489,18 +489,10 @@ export default function RestaurantInfoCard({
                 const subCategory = getSubCategory(restaurant.category);
                 if (!subCategory) return null;
                 return (
-                  <div className="flex items-center pt-1.5">
-                    <div 
-                      className="shrink-0 rounded-full"
-                      style={{
-                        padding: '1px',
-                        background: 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)',
-                      }}
-                    >
-                      <div className="bg-zinc-950/90 px-3 py-0.5 rounded-full text-[10px] font-black tracking-wide text-transparent bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text">
-                        {subCategory}
-                      </div>
-                    </div>
+                  <div className="flex items-center pt-1">
+                    <span className="inline-flex items-center bg-white/[0.04] border border-white/10 px-2.5 py-0.5 rounded-md text-[11px] font-bold text-zinc-300 tracking-wide">
+                      {subCategory}
+                    </span>
                   </div>
                 );
               })()}

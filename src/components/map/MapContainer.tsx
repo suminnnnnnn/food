@@ -1469,17 +1469,9 @@ export default function MapContainer({
                                       const subCategory = getSubCategory(r.category);
                                       if (!subCategory) return null;
                                       return (
-                                        <div 
-                                          className="shrink-0 rounded-full"
-                                          style={{
-                                            padding: '1px',
-                                            background: 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)',
-                                          }}
-                                        >
-                                          <div className="bg-zinc-950/90 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide text-transparent bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text">
-                                            {subCategory}
-                                          </div>
-                                        </div>
+                                        <span className="inline-flex items-center bg-white/[0.04] border border-white/10 px-1.5 py-0.5 rounded text-[10px] font-bold text-zinc-400 shrink-0">
+                                          {subCategory}
+                                        </span>
                                       );
                                     })()}
                                   </div>
