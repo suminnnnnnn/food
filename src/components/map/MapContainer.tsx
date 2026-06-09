@@ -1362,7 +1362,7 @@ export default function MapContainer({
 
             {/* Sidebar Contents */}
             <div className="flex-1 overflow-y-auto relative z-0 bg-transparent rounded-b-[28px]" style={{ scrollbarWidth: 'none' }}>
-              <div className="p-4 space-y-4">
+              <div className="p-4 space-y-3">
                 {desktopView === 'list' ? (
                   (selectedCluster || filteredRestaurants).map(r => {
                     const bestVid = getBestVideo(r.videos, activeVideoType);
@@ -1376,70 +1376,19 @@ export default function MapContainer({
                         }}
                         onMouseEnter={() => setHoveredRestaurantId(r.id)}
                         onMouseLeave={() => setHoveredRestaurantId(null)}
-                        className="group relative bg-white/[0.03] backdrop-blur-md rounded-3xl cursor-pointer border border-white/10 hover-acrylic-glow flex flex-col overflow-hidden"
+                        className="group relative bg-white/[0.03] backdrop-blur-md rounded-2xl cursor-pointer border border-white/10 hover:bg-white/[0.06] transition-colors flex flex-row overflow-hidden h-[120px]"
                       >
-                        {/* Instagram-style Feed Header (Youtuber Info & Heart Bookmark) */}
-                        {bestVid?.youtuber && (
-                          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-transparent shrink-0 z-10">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              {bestVid.youtuber.profile_image ? (
-                                <div className="instagram-story-ring shrink-0">
-                                  <img 
-                                    src={bestVid.youtuber.profile_image} 
-                                    className="w-7 h-7 rounded-full object-cover border-2 border-zinc-900 shadow-sm"
-                                    alt={bestVid.youtuber.name} 
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400 border-2 border-zinc-900 shrink-0">
-                                  {bestVid.youtuber.name[0]}
-                                </div>
-                              )}
-                              <span className="text-[13.5px] font-extrabold text-zinc-100 truncate tracking-tight ml-1">
-                                {bestVid.youtuber.name}
-                              </span>
-                            </div>
-
-                            {/* Elastic Heart Toggle Button */}
-                            <motion.button
-                              whileTap={{ scale: 0.8 }}
-                              onClick={(e) => {
-                                e.stopPropagation(); // 카드 이동 전파 차단
-                                const isFav = favorites.includes(r.id);
-                                if (isFav) {
-                                  setFavorites(favorites.filter(id => id !== r.id));
-                                } else {
-                                  setFavorites([...favorites, r.id]);
-                                }
-                              }}
-                              className="p-1.5 rounded-full hover:bg-white/5 transition-colors shrink-0"
-                            >
-                              <Star 
-                                size={18} 
-                                stroke={favorites.includes(r.id) ? 'url(#red-orange-grad)' : 'currentColor'}
-                                fill={favorites.includes(r.id) ? 'url(#red-orange-grad)' : 'none'}
-                                strokeWidth={favorites.includes(r.id) ? 2.5 : 2}
-                                className={`transition-all duration-300 ${
-                                  favorites.includes(r.id)
-                                    ? 'drop-shadow-[0_0_6px_rgba(255,75,0,0.45)]'
-                                    : 'text-zinc-500 hover:text-red-500'
-                                }`} 
-                              />
-                            </motion.button>
-                          </div>
-                        )}
-
-                        {/* Thumbnail - 16:9 ratio */}
-                        <div className="relative w-full aspect-video shrink-0 overflow-hidden bg-zinc-950 ring-1 ring-white/5">
+                        {/* Left: Thumbnail */}
+                        <div className="relative w-[160px] h-full shrink-0 bg-zinc-950 overflow-hidden">
                           {bestVid?.thumbnail ? (
                             <img 
                               src={bestVid.thumbnail} 
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                               alt={r.name}
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
-                              <Utensils size={36} />
+                            <div className="absolute inset-0 w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
+                              <Utensils size={24} />
                             </div>
                           )}
 
