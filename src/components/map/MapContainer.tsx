@@ -1442,7 +1442,10 @@ export default function MapContainer({
 
                                 {/* 우하단: Shorts 배지 */}
                                 {vid?.is_short && (
-                                  <div className="absolute bottom-3 right-3 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-white/20 shadow-lg z-10 flex items-center gap-0.5">
+                                  <div 
+                                    className="absolute bottom-3 right-3 text-white text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border border-white/20 shadow-lg z-10 flex items-center gap-0.5"
+                                    style={{ background: 'linear-gradient(90deg, #ef4444 0%, #f97316 100%)' }}
+                                  >
                                     <Play size={8} fill="currentColor" /> SHORTS
                                   </div>
                                 )}
