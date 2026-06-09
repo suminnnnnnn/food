@@ -157,6 +157,36 @@ export default function RestaurantInfoCard({
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const activeVideo = sortedVideos[activeVideoIndex];
 
+  // 스토리 링 가로 드래그 & 휠 스크롤 제어
+  const storyScrollRef = useRef<HTMLDivElement>(null);
+  const [isStoryDragging, setIsStoryDragging] = useState(false);
+  const [storyStartX, setStoryStartX] = useState(0);
+  const [storyScrollLeft, setStoryScrollLeft] = useState(0);
+
+  const handleStoryDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!storyScrollRef.current) return;
+    setIsStoryDragging(true);
+    setStoryStartX(e.pageX - storyScrollRef.current.offsetLeft);
+    setStoryScrollLeft(storyScrollRef.current.scrollLeft);
+  };
+
+  const handleStoryDragEnd = () => {
+    setIsStoryDragging(false);
+  };
+
+  const handleStoryDragMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isStoryDragging || !storyScrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - storyScrollRef.current.offsetLeft;
+    const walk = (x - storyStartX) * 1.5;
+    storyScrollRef.current.scrollLeft = storyScrollLeft - walk;
+  };
+
+  const handleStoryWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!storyScrollRef.current) return;
+    storyScrollRef.current.scrollLeft += e.deltaY;
+  };
+
   // 액션 버튼 개별 호버 상태
   const [isBookmarkHovered, setIsBookmarkHovered] = useState(false);
   const [isPinHovered, setIsPinHovered] = useState(false);
@@ -545,7 +575,15 @@ export default function RestaurantInfoCard({
                 </div>
 
                 {/* 스크롤 컨테이너 내부 여백(py-1)을 주어 scale-105 효과 시 상/하가 잘리지 않도록 공간 확보 */}
-                <div className="flex flex-nowrap gap-4.5 overflow-x-auto hide-scrollbar w-full py-1 mb-0 z-10 relative items-start">
+                <div 
+                  ref={storyScrollRef}
+                  onMouseDown={handleStoryDragStart}
+                  onMouseMove={handleStoryDragMove}
+                  onMouseUp={handleStoryDragEnd}
+                  onMouseLeave={handleStoryDragEnd}
+                  onWheel={handleStoryWheel}
+                  className="flex flex-nowrap gap-4.5 overflow-x-auto hide-scrollbar w-full py-1 mb-0 z-10 relative items-start cursor-grab active:cursor-grabbing"
+                >
                   {sortedVideos.map((vid, idx) => {
                     const isActive = activeVideoIndex === idx;
                     return (
