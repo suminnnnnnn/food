@@ -545,7 +545,7 @@ export default function RestaurantInfoCard({
                 </div>
 
                 {/* 스크롤 컨테이너 내부 여백(p-2)과 음수 마진(-m-2)을 주어 scale-105 효과 시 상/좌/우측이 잘리지 않도록 공간 확보 */}
-                <div className="flex gap-4.5 overflow-x-auto hide-scrollbar p-2 -m-2 mb-0 z-10 relative items-start">
+                <div className="flex gap-4.5 overflow-x-auto hide-scrollbar w-full p-2 -m-2 mb-0 z-10 relative items-start">
                   {sortedVideos.map((vid, idx) => {
                     const isActive = activeVideoIndex === idx;
                     return (
