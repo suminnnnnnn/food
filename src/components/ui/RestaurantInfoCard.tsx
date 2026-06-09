@@ -338,7 +338,7 @@ export default function RestaurantInfoCard({
                     </div>
 
                     {activeVideo?.is_short && (
-                      <div className="absolute top-4 left-4 bg-gradient-to-r from-red-600 to-brand-orange text-white text-[9px] font-black px-2 py-0.5 rounded-lg tracking-wider z-20 shadow-md">
+                      <div className="absolute bottom-4 right-4 bg-gradient-to-r from-red-600 to-brand-orange text-white text-[9px] font-black px-2 py-0.5 rounded-lg tracking-wider z-20 shadow-md">
                         SHORTS
                       </div>
                     )}
