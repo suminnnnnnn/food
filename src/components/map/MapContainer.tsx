@@ -1466,9 +1466,9 @@ export default function MapContainer({
                                   />
                                 </motion.button>
 
-                                {/* 좌하단: Shorts 배지 */}
+                                {/* 우하단: Shorts 배지 */}
                                 {vid?.is_short && (
-                                  <div className="absolute bottom-3 left-3 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-white/20 shadow-lg z-10 flex items-center gap-0.5">
+                                  <div className="absolute bottom-3 right-3 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-white/20 shadow-lg z-10 flex items-center gap-0.5">
                                     <Play size={8} fill="currentColor" /> SHORTS
                                   </div>
                                 )}
