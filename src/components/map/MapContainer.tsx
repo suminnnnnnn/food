@@ -1379,13 +1379,23 @@ export default function MapContainer({
                         className="group relative bg-white/[0.03] backdrop-blur-md rounded-2xl cursor-pointer border border-white/10 hover:bg-white/[0.06] transition-colors flex flex-row overflow-hidden h-[180px]"
                       >
                         {/* Left: Thumbnail (Square & Large) */}
-                        <div className="relative w-[180px] shrink-0 bg-zinc-950 overflow-hidden">
+                        <div className="relative w-[180px] shrink-0 bg-zinc-950 overflow-hidden flex items-center justify-center">
                           {bestVid?.thumbnail ? (
-                            <img 
-                              src={bestVid.thumbnail} 
-                              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                              alt={r.name}
-                            />
+                            <>
+                              {/* Background Blurred Image for Letterboxing */}
+                              <img 
+                                src={bestVid.thumbnail} 
+                                className="absolute inset-0 w-full h-full object-cover opacity-40 blur-xl scale-110 transition-transform duration-500 group-hover:scale-125" 
+                                alt=""
+                                aria-hidden="true"
+                              />
+                              {/* Foreground Contained Image */}
+                              <img 
+                                src={bestVid.thumbnail} 
+                                className="relative z-10 w-full h-full object-contain transition-transform duration-500 group-hover:scale-105 drop-shadow-2xl" 
+                                alt={r.name}
+                              />
+                            </>
                           ) : (
                             <div className="absolute inset-0 w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
                               <Utensils size={32} />
@@ -1394,7 +1404,7 @@ export default function MapContainer({
 
                           {/* Shorts badge */}
                           {bestVid?.is_short && (
-                            <div className="absolute bottom-2 right-2 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-md border border-white/20">
+                            <div className="absolute bottom-2 right-2 z-20 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-md border border-white/20">
                               <Play size={8} fill="currentColor"/> SHORTS
                             </div>
                           )}
