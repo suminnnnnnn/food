@@ -11,7 +11,7 @@ import { Restaurant, ItineraryItem, Itinerary } from '@/types';
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange } from 'lucide-react';
+import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
@@ -212,6 +212,7 @@ export default function MapContainer({
   const [newItineraryTransport, setNewItineraryTransport] = useState<string>('대중교통/도보');
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState<number>(5); // 5 = 6월, 6 = 7월
   const [isFabMenuOpen, setIsFabMenuOpen] = useState<boolean>(false);
+  const [heroRestaurantId, setHeroRestaurantId] = useState<string | null>(null);
 
   // 캘린더 날짜 렌더링 헬퍼 함수
   const getDaysInMonth = (year: number, month: number) => {
@@ -1364,143 +1365,200 @@ export default function MapContainer({
             <div className="flex-1 overflow-y-auto relative z-0 bg-transparent rounded-b-[28px]" style={{ scrollbarWidth: 'none' }}>
               <div className="p-4 space-y-3">
                 {desktopView === 'list' ? (
-                  (selectedCluster || filteredRestaurants).map(r => {
-                    const bestVid = getBestVideo(r.videos, activeVideoType);
+                  (() => {
+                    const feedList = selectedCluster || filteredRestaurants;
+                    // Determine hero: if heroRestaurantId is set and exists in feedList, use it. Otherwise, use first item.
+                    const heroIndex = heroRestaurantId ? feedList.findIndex(r => r.id === heroRestaurantId) : 0;
+                    const heroItem = feedList[heroIndex >= 0 ? heroIndex : 0];
+                    const heroVid = heroItem ? getBestVideo(heroItem.videos, activeVideoType) : null;
+                    const miniList = feedList.filter(r => r.id !== heroItem?.id);
+
                     return (
-                      <div 
-                        key={r.id}
-                        onClick={() => {
-                          handleSelectRestaurant(r);
-                          map?.setLevel(4, { animate: true });
-                          map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
-                        }}
-                        onMouseEnter={() => setHoveredRestaurantId(r.id)}
-                        onMouseLeave={() => setHoveredRestaurantId(null)}
-                        className="group relative bg-white/[0.03] backdrop-blur-md rounded-2xl cursor-pointer border border-white/10 hover:bg-white/[0.06] transition-colors flex flex-row overflow-hidden h-[180px]"
-                      >
-                        {/* Left: Thumbnail (Square & Large) */}
-                        <div className="relative w-[180px] shrink-0 bg-zinc-950 overflow-hidden flex items-center justify-center">
-                          {bestVid?.thumbnail ? (
-                            <>
-                              {/* Background Blurred Image for Letterboxing */}
-                              <img 
-                                src={bestVid.thumbnail} 
-                                className="absolute inset-0 w-full h-full object-cover opacity-40 blur-xl scale-110 transition-transform duration-500 group-hover:scale-125" 
-                                alt=""
-                                aria-hidden="true"
-                              />
-                              {/* Foreground Contained Image */}
-                              <img 
-                                src={bestVid.thumbnail} 
-                                className="relative z-10 w-full h-full object-contain transition-transform duration-500 group-hover:scale-105 drop-shadow-2xl" 
-                                alt={r.name}
-                              />
-                            </>
-                          ) : (
-                            <div className="absolute inset-0 w-full h-full flex items-center justify-center text-zinc-500 bg-gradient-to-br from-zinc-900 to-zinc-800">
-                              <Utensils size={32} />
-                            </div>
-                          )}
-
-                          {/* Shorts badge */}
-                          {bestVid?.is_short && (
-                            <div className="absolute bottom-2 right-2 z-20 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-md border border-white/20">
-                              <Play size={8} fill="currentColor"/> SHORTS
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Right: Info Section */}
-                        <div className="flex flex-col flex-1 min-w-0 p-4 justify-between">
-                          <div className="flex flex-col gap-2">
-                            {/* Youtuber Header & Heart */}
-                            <div className="flex items-center justify-between w-full">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                {bestVid?.youtuber?.profile_image ? (
-                                  <img 
-                                    src={bestVid.youtuber.profile_image} 
-                                    className="w-5 h-5 rounded-full object-cover border border-zinc-700 shrink-0"
-                                    alt={bestVid.youtuber.name} 
-                                  />
-                                ) : (
-                                  <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 border border-zinc-700 shrink-0">
-                                    {bestVid?.youtuber?.name?.[0] || '?'}
-                                  </div>
-                                )}
-                                <span className="text-[12px] font-bold text-zinc-300 truncate">
-                                  {bestVid?.youtuber?.name}
-                                </span>
-                              </div>
-
-                              {/* Heart Button */}
-                              <motion.button
-                                whileTap={{ scale: 0.8 }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const isFav = favorites.includes(r.id);
-                                  if (isFav) {
-                                    setFavorites(favorites.filter(id => id !== r.id));
-                                  } else {
-                                    setFavorites([...favorites, r.id]);
-                                  }
-                                }}
-                                className="shrink-0 p-1.5 rounded-full hover:bg-white/10 transition-colors -mr-1.5"
-                              >
-                                <Star 
-                                  size={16} 
-                                  stroke={favorites.includes(r.id) ? 'url(#red-orange-grad)' : 'currentColor'}
-                                  fill={favorites.includes(r.id) ? 'url(#red-orange-grad)' : 'none'}
-                                  strokeWidth={favorites.includes(r.id) ? 2.5 : 2}
-                                  className={`transition-all duration-300 ${
-                                    favorites.includes(r.id)
-                                      ? 'drop-shadow-[0_0_6px_rgba(255,75,0,0.45)]'
-                                      : 'text-zinc-500 hover:text-red-500'
-                                  }`} 
+                      <>
+                        {/* ====== HERO CARD ====== */}
+                        {heroItem && (
+                          <div 
+                            className="group relative w-full rounded-2xl overflow-hidden cursor-pointer mb-1"
+                            onClick={() => {
+                              handleSelectRestaurant(heroItem);
+                              map?.setLevel(4, { animate: true });
+                              map?.panTo(new kakao.maps.LatLng(heroItem.lat, heroItem.lng));
+                            }}
+                            onMouseEnter={() => setHoveredRestaurantId(heroItem.id)}
+                            onMouseLeave={() => setHoveredRestaurantId(null)}
+                          >
+                            {/* Hero Thumbnail */}
+                            <div className="relative w-full aspect-[16/10] bg-zinc-950 overflow-hidden">
+                              {heroVid?.thumbnail ? (
+                                <img 
+                                  src={heroVid.thumbnail}
+                                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                  alt={heroItem.name}
                                 />
-                              </motion.button>
-                            </div>
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-zinc-600 bg-gradient-to-br from-zinc-900 to-zinc-800">
+                                  <Utensils size={48} />
+                                </div>
+                              )}
 
-                            {/* Restaurant Name */}
-                            <div className="flex items-center gap-1 min-w-0 mt-0.5">
-                              <h4 className="font-extrabold text-[15px] text-zinc-100 truncate tracking-tight">{r.name}</h4>
-                            </div>
+                              {/* Gradient Overlay */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent" />
 
-                            {/* Video Title */}
-                            {bestVid?.title && (
-                              <p className="text-[12px] font-medium text-zinc-400 line-clamp-2 leading-snug">
-                                {bestVid.title}
-                              </p>
-                            )}
+                              {/* Top Row: Youtuber Pill + Favorite */}
+                              <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-20">
+                                {heroVid?.youtuber ? (
+                                  <div className="flex items-center gap-2 bg-black/50 backdrop-blur-xl pl-1 pr-3 py-1 rounded-full border border-white/15 shadow-lg">
+                                    {heroVid.youtuber.profile_image ? (
+                                      <img 
+                                        src={heroVid.youtuber.profile_image}
+                                        className="w-7 h-7 rounded-full object-cover border-2 border-white/20 shrink-0"
+                                        alt={heroVid.youtuber.name}
+                                      />
+                                    ) : (
+                                      <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-[11px] font-bold text-zinc-300 border-2 border-white/20 shrink-0">
+                                        {heroVid.youtuber.name[0]}
+                                      </div>
+                                    )}
+                                    <span className="text-[13px] font-bold text-white truncate max-w-[120px]">
+                                      {heroVid.youtuber.name}
+                                    </span>
+                                  </div>
+                                ) : <div />}
 
-                            {/* Tiny AI Visit Tip Preview */}
-                            {(r.menu_info && r.menu_info !== '정보 없음' || r.business_hours && r.business_hours !== '정보 없음') && (
-                              <div className="mt-1 flex items-start gap-1.5 text-[11px] font-medium text-zinc-400 bg-zinc-900/50 p-2 rounded-lg border border-white/5">
-                                <span className="shrink-0">✨</span>
-                                <span className="line-clamp-2 leading-snug">
-                                  {r.menu_info && r.menu_info !== '정보 없음' ? r.menu_info : r.business_hours}
-                                </span>
+                                <motion.button
+                                  whileTap={{ scale: 0.8 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const isFav = favorites.includes(heroItem.id);
+                                    if (isFav) {
+                                      setFavorites(favorites.filter(id => id !== heroItem.id));
+                                    } else {
+                                      setFavorites([...favorites, heroItem.id]);
+                                    }
+                                  }}
+                                  className="p-2 bg-black/50 backdrop-blur-xl rounded-full border border-white/15 hover:bg-white/10 transition-colors shadow-lg"
+                                >
+                                  <Star 
+                                    size={18}
+                                    stroke={favorites.includes(heroItem.id) ? 'url(#red-orange-grad)' : 'currentColor'}
+                                    fill={favorites.includes(heroItem.id) ? 'url(#red-orange-grad)' : 'none'}
+                                    strokeWidth={favorites.includes(heroItem.id) ? 2.5 : 2}
+                                    className={`transition-all duration-300 ${
+                                      favorites.includes(heroItem.id)
+                                        ? 'drop-shadow-[0_0_6px_rgba(255,75,0,0.45)]'
+                                        : 'text-zinc-400 hover:text-red-500'
+                                    }`}
+                                  />
+                                </motion.button>
                               </div>
-                            )}
-                          </div>
 
-                          {/* View Count at bottom right */}
-                          <div className="flex items-center justify-end mt-2">
-                            {bestVid?.view_count !== undefined && bestVid.view_count > 0 ? (
-                              <span className="text-[10px] font-extrabold bg-red-950/20 px-1.5 py-0.5 rounded border border-red-500/10">
-                                <span className="bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text text-transparent">
-                                  조회수 {formatViewCount(bestVid.view_count)}회
-                                </span>
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold text-zinc-600 bg-zinc-800/50 px-1.5 py-0.5 rounded">
-                                조회수 0회
-                              </span>
-                            )}
+                              {/* Bottom Info */}
+                              <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
+                                <h3 className="font-extrabold text-[22px] text-white tracking-tight leading-tight drop-shadow-lg mb-1.5">
+                                  {heroItem.name}
+                                </h3>
+                                {heroVid?.title && (
+                                  <p className="text-[13px] font-medium text-zinc-300 line-clamp-2 leading-snug drop-shadow-md mb-3">
+                                    {heroVid.title}
+                                  </p>
+                                )}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {heroVid?.view_count !== undefined && heroVid.view_count > 0 && (
+                                    <span className="flex items-center gap-1 text-[11px] font-bold bg-black/50 backdrop-blur-md text-zinc-300 px-2.5 py-1 rounded-full border border-white/10">
+                                      <Eye size={12} className="text-zinc-400" />
+                                      {formatViewCount(heroVid.view_count)}회
+                                    </span>
+                                  )}
+                                  {heroVid?.is_short && (
+                                    <span className="flex items-center gap-0.5 text-[10px] font-extrabold bg-gradient-to-r from-red-600 to-orange-500 text-white px-2 py-1 rounded-full border border-white/20 shadow-[0_2px_8px_rgba(220,38,38,0.3)]">
+                                      <Play size={9} fill="currentColor" /> SHORTS
+                                    </span>
+                                  )}
+                                  {(heroItem.menu_info && heroItem.menu_info !== '정보 없음') && (
+                                    <span className="flex items-center gap-1 text-[11px] font-medium bg-black/50 backdrop-blur-md text-zinc-300 px-2.5 py-1 rounded-full border border-white/10">
+                                      ✨ {heroItem.menu_info.length > 20 ? heroItem.menu_info.slice(0, 20) + '…' : heroItem.menu_info}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
+                        )}
+
+                        {/* ====== DIVIDER ====== */}
+                        {miniList.length > 0 && (
+                          <div className="flex items-center gap-3 py-2 px-1">
+                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                            <span className="text-[11px] font-bold text-zinc-500 tracking-wider whitespace-nowrap">
+                              다른 맛집 둘러보기
+                            </span>
+                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                          </div>
+                        )}
+
+                        {/* ====== MINI LIST ====== */}
+                        <div className="space-y-0.5">
+                          {miniList.map(r => {
+                            const vid = getBestVideo(r.videos, activeVideoType);
+                            return (
+                              <div
+                                key={r.id}
+                                onClick={() => {
+                                  setHeroRestaurantId(r.id);
+                                  map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
+                                }}
+                                onMouseEnter={() => setHoveredRestaurantId(r.id)}
+                                onMouseLeave={() => setHoveredRestaurantId(null)}
+                                className="group flex items-center gap-3 px-2 py-2.5 rounded-xl cursor-pointer hover:bg-white/[0.04] transition-all duration-200"
+                              >
+                                {/* Mini Thumbnail */}
+                                <div className="relative w-[52px] h-[52px] rounded-xl overflow-hidden shrink-0 bg-zinc-900 border border-white/5">
+                                  {vid?.thumbnail ? (
+                                    <img
+                                      src={vid.thumbnail}
+                                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                      alt={r.name}
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-zinc-600">
+                                      <Utensils size={18} />
+                                    </div>
+                                  )}
+                                  {vid?.is_short && (
+                                    <div className="absolute bottom-0.5 right-0.5 bg-red-600 text-white text-[7px] font-extrabold px-1 py-px rounded">
+                                      S
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Mini Info */}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-bold text-[14px] text-zinc-200 truncate group-hover:text-white transition-colors">
+                                    {r.name}
+                                  </h4>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    {vid?.youtuber && (
+                                      <span className="text-[11px] text-zinc-500 truncate">
+                                        {vid.youtuber.name}
+                                      </span>
+                                    )}
+                                    {vid?.view_count !== undefined && vid.view_count > 0 && (
+                                      <span className="text-[11px] text-zinc-600">
+                                        · {formatViewCount(vid.view_count)}회
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Arrow hint */}
+                                <ChevronRight size={14} className="text-zinc-700 group-hover:text-zinc-400 transition-colors shrink-0" />
+                              </div>
+                            );
+                          })}
                         </div>
-                      </div>
+                      </>
                     );
-                  })
+                  })()
                 ) : (
                   <MyPageView 
                     onOpenSubmission={() => {
