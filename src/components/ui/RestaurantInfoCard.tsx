@@ -1,5 +1,5 @@
 import { Restaurant } from '@/types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
 import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronRight, Eye, CreditCard, Layers, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { MichelinIcon, BlueRibbonIcon } from '@/components/icons/CustomIcons';
@@ -150,52 +150,68 @@ export default function RestaurantInfoCard({
   onInsertToPlanningRoute,
   onRequestVideoSubmit
 }: RestaurantInfoCardProps) {
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      setIsMobileDevice(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const sortedVideos = restaurant?.videos 
     ? [...restaurant.videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
     : [];
 
-  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
-  const activeVideo = sortedVideos[activeVideoIndex];
+  // 스토리 링 Framer Motion 캐러셀 및 휠 스크롤 제어
+  const containerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [dragConstraints, setDragConstraints] = useState({ left: 0, right: 0 });
+  const storyX = useMotionValue(0);
 
-  // 스토리 링 가로 드래그 & 휠 스크롤 제어
-  const storyScrollRef = useRef<HTMLDivElement>(null);
-  const [isMouseDown, setIsMouseDown] = useState(false);
-  const [isStoryDragging, setIsStoryDragging] = useState(false);
-  const [storyStartX, setStoryStartX] = useState(0);
-  const [storyScrollLeft, setStoryScrollLeft] = useState(0);
-  const [mouseDownX, setMouseDownX] = useState(0);
-
-  const handleStoryDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!storyScrollRef.current) return;
-    setIsMouseDown(true);
-    setIsStoryDragging(false);
-    setMouseDownX(e.pageX);
-    setStoryStartX(e.pageX - storyScrollRef.current.offsetLeft);
-    setStoryScrollLeft(storyScrollRef.current.scrollLeft);
-  };
-
-  const handleStoryDragEnd = () => {
-    setIsMouseDown(false);
-    setIsStoryDragging(false);
-  };
-
-  const handleStoryDragMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isMouseDown || !storyScrollRef.current) return;
-    
-    const moveDiff = Math.abs(e.pageX - mouseDownX);
-    if (moveDiff > 8) {
-      setIsStoryDragging(true);
-      e.preventDefault();
-      const x = e.pageX - storyScrollRef.current.offsetLeft;
-      const walk = (x - storyStartX) * 1.5;
-      storyScrollRef.current.scrollLeft = storyScrollLeft - walk;
+  // 드래그 제약 조건 계산
+  const updateConstraints = () => {
+    if (containerRef.current && trackRef.current) {
+      const containerWidth = containerRef.current.offsetWidth;
+      const trackWidth = trackRef.current.scrollWidth;
+      const maxDrag = containerWidth - trackWidth;
+      setDragConstraints({
+        left: maxDrag < 0 ? maxDrag : 0,
+        right: 0
+      });
     }
   };
 
+  useEffect(() => {
+    updateConstraints();
+    window.addEventListener('resize', updateConstraints);
+    return () => window.removeEventListener('resize', updateConstraints);
+  }, [sortedVideos.length]);
+
+  // 마우스 휠 스크롤 감속 감쇄 감지 핸들러
   const handleStoryWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (!storyScrollRef.current) return;
-    storyScrollRef.current.scrollLeft += e.deltaY;
+    const currentX = storyX.get();
+    let newX = currentX - e.deltaY * 0.8;
+    const minX = dragConstraints.left;
+    const maxX = dragConstraints.right;
+    if (newX < minX) newX = minX;
+    if (newX > maxX) newX = maxX;
+
+    animate(storyX, newX, {
+      type: 'spring',
+      stiffness: 400,
+      damping: 35,
+      mass: 0.5
+    });
   };
+
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+  const activeVideo = sortedVideos[activeVideoIndex];
+
+
 
   // 액션 버튼 개별 호버 상태
   const [isBookmarkHovered, setIsBookmarkHovered] = useState(false);
@@ -238,7 +254,17 @@ export default function RestaurantInfoCard({
 
   // 유튜브 Iframe Player API 동적 로딩 및 재생 제어
   useEffect(() => {
-    if (!isPlayingVideo || !cleanYoutubeId) return;
+    if (!isPlayingVideo || !cleanYoutubeId) {
+      if (playerInstanceRef.current) {
+        try {
+          playerInstanceRef.current.destroy();
+        } catch (e) {
+          console.error('Error destroying YouTube Player:', e);
+        }
+        playerInstanceRef.current = null;
+      }
+      return;
+    }
 
     let destroyed = false;
     setEmbedError(false);
@@ -247,28 +273,46 @@ export default function RestaurantInfoCard({
     loadYouTubeIframeAPI().then(() => {
       if (destroyed) return;
 
+      const currentContainerId = isMobileDevice ? 'yt-player-container-mobile' : 'yt-player-container-desktop';
+
+      // 1. 이미 플레이어 인스턴스가 존재하고, API가 정상 동작 가능한 경우 재사용
+      if (playerInstanceRef.current && typeof playerInstanceRef.current.loadVideoById === 'function') {
+        try {
+          playerInstanceRef.current.loadVideoById({
+            videoId: cleanYoutubeId,
+            startSeconds: 0
+          });
+          playerInstanceRef.current.unMute();
+          playerInstanceRef.current.playVideo();
+          return;
+        } catch (e) {
+          console.warn('Failed to reuse YouTube Player instance, fallback to recreate:', e);
+          try {
+            playerInstanceRef.current.destroy();
+          } catch (_) {}
+          playerInstanceRef.current = null;
+        }
+      }
+
+      // 2. 플레이어 인스턴스가 없거나 재사용에 실패한 경우 새로 생성
       if (playerInstanceRef.current) {
         try {
           playerInstanceRef.current.destroy();
-        } catch (e) {
-          console.error('Error destroying previous YouTube Player:', e);
-        }
+        } catch (_) {}
         playerInstanceRef.current = null;
       }
 
-      const containerId = `yt-player-${cleanYoutubeId}`;
-
       mountTimer = setTimeout(() => {
         if (destroyed) return;
-        const container = document.getElementById(containerId);
+        const container = document.getElementById(currentContainerId);
         if (!container) return;
 
         try {
-          const newPlayer = new window.YT.Player(containerId, {
+          const newPlayer = new window.YT.Player(currentContainerId, {
             videoId: cleanYoutubeId,
             playerVars: {
               autoplay: 1,
-              mute: 1,
+              mute: 0,
               playsinline: 1,
               rel: 0,
               modestbranding: 1,
@@ -278,6 +322,7 @@ export default function RestaurantInfoCard({
               onReady: (event: any) => {
                 if (destroyed) return;
                 try {
+                  event.target.unMute();
                   event.target.playVideo();
                 } catch (playErr) {
                   console.error('Error playing video onReady:', playErr);
@@ -288,7 +333,7 @@ export default function RestaurantInfoCard({
                 const errCode = event.data;
                 console.warn(`YouTube Player error [Code: ${errCode}] detected: ${cleanYoutubeId}`);
                 if (errCode === 101 || errCode === 150 || errCode === 100 || errCode === 2 || errCode === 5) {
-                   setEmbedError(true);
+                  setEmbedError(true);
                 }
               }
             }
@@ -304,16 +349,8 @@ export default function RestaurantInfoCard({
     return () => {
       destroyed = true;
       if (mountTimer) clearTimeout(mountTimer);
-      if (playerInstanceRef.current) {
-        try {
-          playerInstanceRef.current.destroy();
-        } catch (e) {
-          console.error('Error destroying player on cleanup:', e);
-        }
-        playerInstanceRef.current = null;
-      }
     };
-  }, [isPlayingVideo, cleanYoutubeId]);
+  }, [isPlayingVideo, cleanYoutubeId, isMobileDevice]);
 
   // DB 연동 데이터 파싱
   const menuList = parseMenuInfo(restaurant?.menu_info);
@@ -332,7 +369,7 @@ export default function RestaurantInfoCard({
     }
   };
 
-  const Content = () => {
+  const renderContent = () => {
     if (!restaurant) return null;
 
     let cleanedTags = restaurant.content_tags?.filter(
@@ -380,6 +417,7 @@ export default function RestaurantInfoCard({
                       src={thumbnailFallback} 
                       alt="Video Thumbnail" 
                       className="w-full h-full object-cover relative z-10 brightness-[0.70]"
+                      draggable={false}
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = getFallbackThumbnail(restaurant.category || '');
                       }}
@@ -409,7 +447,7 @@ export default function RestaurantInfoCard({
                   </>
                 ) : (
                   <div className="relative w-full h-full">
-                    <div id={`yt-player-${cleanYoutubeId}`} className="w-full h-full border-0" />
+                    <div id={isMobileDevice ? 'yt-player-container-mobile' : 'yt-player-container-desktop'} className="w-full h-full border-0" />
 
                     {embedError && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#141416]/95 backdrop-blur-md p-4 text-center z-30 space-y-2">
@@ -584,57 +622,62 @@ export default function RestaurantInfoCard({
                   </button>
                 </div>
 
-                {/* 스크롤 컨테이너 내부 여백(px-4.5 py-1.5)을 주어 scale-105 효과 시 상/하/좌/우가 잘리지 않도록 공간 확보 */}
+                {/* 드래그 슬라이더 컨테이너: overflow-hidden으로 스크롤바 노출을 원천 배제 */}
                 <div 
-                  ref={storyScrollRef}
-                  onMouseDown={handleStoryDragStart}
-                  onMouseMove={handleStoryDragMove}
-                  onMouseUp={handleStoryDragEnd}
-                  onMouseLeave={handleStoryDragEnd}
+                  ref={containerRef}
                   onWheel={handleStoryWheel}
-                  className="flex flex-nowrap gap-4.5 overflow-x-auto hide-scrollbar w-full px-4.5 py-1.5 mb-0 z-10 relative items-start cursor-grab active:cursor-grabbing"
+                  className="-mx-4.5 w-[calc(100%+2.25rem)] overflow-hidden px-4.5 py-1.5 mb-0 z-10 relative items-start cursor-grab active:cursor-grabbing select-none"
                 >
-                  {sortedVideos.map((vid, idx) => {
-                    const isActive = activeVideoIndex === idx;
-                    return (
-                      <div 
-                        key={vid.id} 
-                        onClick={() => {
-                          if (!isStoryDragging) {
+                  <motion.div
+                    ref={trackRef}
+                    drag="x"
+                    dragConstraints={dragConstraints}
+                    dragElastic={0.15}
+                    dragTransition={{ power: 0.2, bounceStiffness: 300, bounceDamping: 25 }}
+                    style={{ x: storyX }}
+                    className="flex flex-nowrap gap-4.5 w-max"
+                  >
+                    {sortedVideos.map((vid, idx) => {
+                      const isActive = activeVideoIndex === idx;
+                      return (
+                        <div 
+                          key={vid.id} 
+                          onClick={() => {
                             setActiveVideoIndex(idx);
                             setIsPlayingVideo(true);
                             setEmbedError(false);
-                          }
-                        }}
-                        className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group select-none"
-                      >
-                        {/* 프로필 서클: 고정 크기(w,h) 명시로 어떤 브라우저에서도 찌그러지지 않도록 완벽한 원형 유지 */}
-                        <div className={`relative w-[60px] h-[60px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_12px_rgba(255,75,0,0.45)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
-                          <div className="w-[55px] h-[55px] bg-[#121214] rounded-full flex items-center justify-center shrink-0">
-                            <img 
-                              src={vid.youtuber.profile_image} 
-                              className="w-[50px] h-[50px] rounded-full object-cover shrink-0 shadow-inner" 
-                              alt={vid.youtuber.name}
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(vid.youtuber.name)}&background=random&color=fff&size=128`;
-                              }}
-                            />
+                          }}
+                          className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group select-none"
+                        >
+                          {/* 프로필 서클: 고정 크기(w,h) 명시로 어떤 브라우저에서도 찌그러지지 않도록 완벽한 원형 유지 */}
+                          <div className={`relative w-[60px] h-[60px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_12px_rgba(255,75,0,0.45)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
+                            <div className="w-[55px] h-[55px] bg-[#121214] rounded-full flex items-center justify-center shrink-0">
+                              <img 
+                                src={vid.youtuber.profile_image} 
+                                className="w-[50px] h-[50px] rounded-full object-cover shrink-0 shadow-inner" 
+                                alt={vid.youtuber.name}
+                                draggable={false}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(vid.youtuber.name)}&background=random&color=fff&size=128`;
+                                }}
+                              />
+                            </div>
+
+                            {/* 개선형 조회수 초소형 알약 뱃지 오버레이 */}
+                            {vid.view_count !== undefined && vid.view_count !== null && (
+                              <div className="absolute bottom-[-2px] right-[-4px] bg-white/[0.12] backdrop-blur-[4px] border border-white/15 px-2 py-[1.5px] rounded-full text-[8.5px] font-black text-white leading-none shadow-md z-20 whitespace-nowrap">
+                                {formatViewCount(vid.view_count)}
+                              </div>
+                            )}
                           </div>
 
-                          {/* 개선형 조회수 초소형 알약 뱃지 오버레이 */}
-                          {vid.view_count !== undefined && vid.view_count !== null && (
-                            <div className="absolute bottom-[-2px] right-[-4px] bg-white/[0.12] backdrop-blur-[4px] border border-white/15 px-2 py-[1.5px] rounded-full text-[8.5px] font-black text-white leading-none shadow-md z-20 whitespace-nowrap">
-                              {formatViewCount(vid.view_count)}
-                            </div>
-                          )}
+                          <span className={`block text-[10.5px] max-w-[76px] truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
+                            {vid.youtuber.name}
+                          </span>
                         </div>
-
-                        <span className={`text-[10.5px] max-w-[76px] truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
-                          {vid.youtuber.name}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </motion.div>
                 </div>
               </div>
             )}
@@ -838,7 +881,7 @@ export default function RestaurantInfoCard({
               transition={{ type: 'spring', damping: 25, stiffness: 250 }}
               className="md:hidden absolute bottom-0 left-1/2 -translate-x-1/2 z-30 w-full max-w-md bg-brand-charcoal/95 border border-white/10 backdrop-blur-2xl text-white rounded-t-[32px] shadow-[0_-10px_50px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[85vh]"
             >
-              <Content />
+              {isMobileDevice && renderContent()}
             </motion.div>
           </>
         )}
@@ -854,7 +897,7 @@ export default function RestaurantInfoCard({
         style={{ pointerEvents: restaurant ? 'auto' : 'none' }}
         className="hidden md:flex absolute top-6 left-[452px] bottom-6 w-[420px] z-30 flex-col bg-zinc-950/70 border border-white/10 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] overflow-hidden"
       >
-        {restaurant && <Content />}
+        {!isMobileDevice && restaurant && renderContent()}
       </motion.div>
     </>
   );
