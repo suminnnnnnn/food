@@ -159,27 +159,37 @@ export default function RestaurantInfoCard({
 
   // 스토리 링 가로 드래그 & 휠 스크롤 제어
   const storyScrollRef = useRef<HTMLDivElement>(null);
+  const [isMouseDown, setIsMouseDown] = useState(false);
   const [isStoryDragging, setIsStoryDragging] = useState(false);
   const [storyStartX, setStoryStartX] = useState(0);
   const [storyScrollLeft, setStoryScrollLeft] = useState(0);
+  const [mouseDownX, setMouseDownX] = useState(0);
 
   const handleStoryDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!storyScrollRef.current) return;
-    setIsStoryDragging(true);
+    setIsMouseDown(true);
+    setIsStoryDragging(false);
+    setMouseDownX(e.pageX);
     setStoryStartX(e.pageX - storyScrollRef.current.offsetLeft);
     setStoryScrollLeft(storyScrollRef.current.scrollLeft);
   };
 
   const handleStoryDragEnd = () => {
+    setIsMouseDown(false);
     setIsStoryDragging(false);
   };
 
   const handleStoryDragMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isStoryDragging || !storyScrollRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - storyScrollRef.current.offsetLeft;
-    const walk = (x - storyStartX) * 1.5;
-    storyScrollRef.current.scrollLeft = storyScrollLeft - walk;
+    if (!isMouseDown || !storyScrollRef.current) return;
+    
+    const moveDiff = Math.abs(e.pageX - mouseDownX);
+    if (moveDiff > 8) {
+      setIsStoryDragging(true);
+      e.preventDefault();
+      const x = e.pageX - storyScrollRef.current.offsetLeft;
+      const walk = (x - storyStartX) * 1.5;
+      storyScrollRef.current.scrollLeft = storyScrollLeft - walk;
+    }
   };
 
   const handleStoryWheel = (e: React.WheelEvent<HTMLDivElement>) => {
@@ -574,7 +584,7 @@ export default function RestaurantInfoCard({
                   </button>
                 </div>
 
-                {/* 스크롤 컨테이너 내부 여백(py-1)을 주어 scale-105 효과 시 상/하가 잘리지 않도록 공간 확보 */}
+                {/* 스크롤 컨테이너 내부 여백(px-4.5 py-1.5)을 주어 scale-105 효과 시 상/하/좌/우가 잘리지 않도록 공간 확보 */}
                 <div 
                   ref={storyScrollRef}
                   onMouseDown={handleStoryDragStart}
@@ -582,7 +592,7 @@ export default function RestaurantInfoCard({
                   onMouseUp={handleStoryDragEnd}
                   onMouseLeave={handleStoryDragEnd}
                   onWheel={handleStoryWheel}
-                  className="flex flex-nowrap gap-4.5 overflow-x-auto hide-scrollbar w-full py-1 mb-0 z-10 relative items-start cursor-grab active:cursor-grabbing"
+                  className="flex flex-nowrap gap-4.5 overflow-x-auto hide-scrollbar w-full px-4.5 py-1.5 mb-0 z-10 relative items-start cursor-grab active:cursor-grabbing"
                 >
                   {sortedVideos.map((vid, idx) => {
                     const isActive = activeVideoIndex === idx;
@@ -590,9 +600,11 @@ export default function RestaurantInfoCard({
                       <div 
                         key={vid.id} 
                         onClick={() => {
-                          setActiveVideoIndex(idx);
-                          setIsPlayingVideo(true);
-                          setEmbedError(false);
+                          if (!isStoryDragging) {
+                            setActiveVideoIndex(idx);
+                            setIsPlayingVideo(true);
+                            setEmbedError(false);
+                          }
                         }}
                         className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group select-none"
                       >
