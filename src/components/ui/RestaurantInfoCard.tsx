@@ -150,8 +150,12 @@ export default function RestaurantInfoCard({
   onInsertToPlanningRoute,
   onRequestVideoSubmit
 }: RestaurantInfoCardProps) {
+  const sortedVideos = restaurant?.videos 
+    ? [...restaurant.videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+    : [];
+
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
-  const activeVideo = restaurant?.videos?.[activeVideoIndex];
+  const activeVideo = sortedVideos[activeVideoIndex];
 
   // 액션 버튼 개별 호버 상태
   const [isBookmarkHovered, setIsBookmarkHovered] = useState(false);
@@ -526,20 +530,23 @@ export default function RestaurantInfoCard({
             </div>
 
             {/* [음식 카테고리 하단] 크리에이터 스토리 가로 아바타 슬라이더 배치 */}
-            {restaurant.videos && restaurant.videos.length > 0 && (
-              <div className="bg-white/5 border border-white/5 rounded-2xl p-4.5 pt-6 shadow-md relative overflow-hidden group/story">
-                {/* 상단 뱃지형 제보 버튼 */}
-                <button
-                  onClick={() => onRequestVideoSubmit && onRequestVideoSubmit(restaurant)}
-                  className="absolute top-2 right-2 flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full cursor-pointer transition-colors z-20"
-                >
-                  <Plus size={10} className="text-brand-orange" />
-                  <span className="text-[10px] font-bold text-white/90">영상 제보</span>
-                </button>
+            {sortedVideos && sortedVideos.length > 0 && (
+              <div className="bg-white/5 border border-white/5 rounded-2xl p-4.5 shadow-md relative overflow-hidden group/story">
+                {/* 상단 타이틀 + 제보 버튼 영역 (겹침 방지) */}
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-[11px] font-extrabold text-zinc-400 tracking-tight select-none">리뷰 크리에이터</span>
+                  <button
+                    onClick={() => onRequestVideoSubmit && onRequestVideoSubmit(restaurant)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full cursor-pointer transition-colors z-20"
+                  >
+                    <Plus size={10} className="text-brand-orange" />
+                    <span className="text-[10px] font-bold text-white/90">영상 제보</span>
+                  </button>
+                </div>
 
                 {/* 스크롤 컨테이너 내부 여백(p-2)과 음수 마진(-m-2)을 주어 scale-105 효과 시 상/좌/우측이 잘리지 않도록 공간 확보 */}
                 <div className="flex gap-4.5 overflow-x-auto hide-scrollbar p-2 -m-2 mb-0 z-10 relative items-start">
-                  {restaurant.videos.map((vid, idx) => {
+                  {sortedVideos.map((vid, idx) => {
                     const isActive = activeVideoIndex === idx;
                     return (
                       <div 
@@ -552,11 +559,11 @@ export default function RestaurantInfoCard({
                         className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group select-none"
                       >
                         {/* 프로필 서클: 고정 크기(w,h) 명시로 어떤 브라우저에서도 찌그러지지 않도록 완벽한 원형 유지 */}
-                        <div className={`relative w-[48px] h-[48px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_12px_rgba(255,75,0,0.45)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
-                          <div className="w-[44px] h-[44px] bg-[#121214] rounded-full flex items-center justify-center shrink-0">
+                        <div className={`relative w-[60px] h-[60px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_12px_rgba(255,75,0,0.45)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
+                          <div className="w-[55px] h-[55px] bg-[#121214] rounded-full flex items-center justify-center shrink-0">
                             <img 
                               src={vid.youtuber.profile_image} 
-                              className="w-[40px] h-[40px] rounded-full object-cover shrink-0 shadow-inner" 
+                              className="w-[50px] h-[50px] rounded-full object-cover shrink-0 shadow-inner" 
                               alt={vid.youtuber.name}
                               onError={(e) => {
                                 (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(vid.youtuber.name)}&background=random&color=fff&size=128`;
@@ -566,13 +573,13 @@ export default function RestaurantInfoCard({
 
                           {/* 개선형 조회수 초소형 알약 뱃지 오버레이 */}
                           {vid.view_count !== undefined && vid.view_count !== null && (
-                            <div className="absolute bottom-[-1px] right-[-3px] bg-white/[0.12] backdrop-blur-[4px] border border-white/15 px-1.5 py-[1px] rounded-full text-[7.5px] font-black text-white leading-none shadow-md z-20 whitespace-nowrap">
+                            <div className="absolute bottom-[-2px] right-[-4px] bg-white/[0.12] backdrop-blur-[4px] border border-white/15 px-2 py-[1.5px] rounded-full text-[8.5px] font-black text-white leading-none shadow-md z-20 whitespace-nowrap">
                               {formatViewCount(vid.view_count)}
                             </div>
                           )}
                         </div>
 
-                        <span className={`text-[10px] max-w-[64px] truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
+                        <span className={`text-[10.5px] max-w-[76px] truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
                           {vid.youtuber.name}
                         </span>
                       </div>
