@@ -1350,7 +1350,6 @@ export default function MapContainer({
                   <button
                     onClick={() => setDesktopView('list')}
                     className="p-2 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-xl transition-all border border-white/10 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm"
-                    title="뒤로 가기"
                   >
                     <ArrowLeft size={18} className="stroke-[2.5]" />
                   </button>
@@ -1367,196 +1366,182 @@ export default function MapContainer({
                 {desktopView === 'list' ? (
                   (() => {
                     const feedList = selectedCluster || filteredRestaurants;
-                    // Determine hero: if heroRestaurantId is set and exists in feedList, use it. Otherwise, use first item.
-                    const heroIndex = heroRestaurantId ? feedList.findIndex(r => r.id === heroRestaurantId) : 0;
-                    const heroItem = feedList[heroIndex >= 0 ? heroIndex : 0];
-                    const heroVid = heroItem ? getBestVideo(heroItem.videos, activeVideoType) : null;
-                    const miniList = feedList.filter(r => r.id !== heroItem?.id);
 
                     return (
-                      <>
-                        {/* ====== HERO CARD ====== */}
-                        {heroItem && (
-                          <div 
-                            className="group relative w-full rounded-2xl overflow-hidden cursor-pointer mb-1"
-                            onClick={() => {
-                              handleSelectRestaurant(heroItem);
-                              map?.setLevel(4, { animate: true });
-                              map?.panTo(new kakao.maps.LatLng(heroItem.lat, heroItem.lng));
-                            }}
-                            onMouseEnter={() => setHoveredRestaurantId(heroItem.id)}
-                            onMouseLeave={() => setHoveredRestaurantId(null)}
-                          >
-                            {/* Hero Thumbnail */}
-                            <div className="relative w-full aspect-[16/10] bg-zinc-950 overflow-hidden">
-                              {heroVid?.thumbnail ? (
-                                <img 
-                                  src={heroVid.thumbnail}
-                                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                  alt={heroItem.name}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-zinc-600 bg-gradient-to-br from-zinc-900 to-zinc-800">
-                                  <Utensils size={48} />
-                                </div>
-                              )}
+                      <div className="space-y-4">
+                        {feedList.map(r => {
+                          const vid = getBestVideo(r.videos, activeVideoType);
+                          const isFav = favorites.includes(r.id);
+                          const isSelected = selectedRestaurant?.id === r.id;
 
-                              {/* Gradient Overlay */}
-                              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent" />
+                          return (
+                            <div
+                              key={r.id}
+                              onClick={() => {
+                                handleSelectRestaurant(r);
+                                map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
+                              }}
+                              onMouseEnter={() => setHoveredRestaurantId(r.id)}
+                              onMouseLeave={() => setHoveredRestaurantId(null)}
+                              className={`group relative w-full rounded-2xl overflow-hidden cursor-pointer border transition-all duration-300 backdrop-blur-[20px] bg-zinc-900/50 hover:scale-[1.015] hover:shadow-[0_12px_30px_rgba(0,0,0,0.4)] ${
+                                isSelected 
+                                  ? 'border-orange-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]' 
+                                  : 'border-white/10 hover:border-orange-500/30'
+                              }`}
+                            >
+                              {/* 호버 시 은은하게 반짝이는 그라데이션 광채 보더 효과 */}
+                              <div 
+                                className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300" 
+                                style={{
+                                  padding: '1.2px',
+                                  background: 'linear-gradient(to right, rgba(220, 38, 38, 0.4), rgba(249, 115, 22, 0.4))',
+                                  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                                  WebkitMaskComposite: 'xor',
+                                  maskComposite: 'exclude',
+                                }}
+                              />
 
-                              {/* Top Row: Youtuber Pill + Favorite */}
-                              <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-20">
-                                {heroVid?.youtuber ? (
-                                  <div className="flex items-center gap-2 bg-black/50 backdrop-blur-xl pl-1 pr-3 py-1 rounded-full border border-white/15 shadow-lg">
-                                    {heroVid.youtuber.profile_image ? (
-                                      <img 
-                                        src={heroVid.youtuber.profile_image}
-                                        className="w-7 h-7 rounded-full object-cover border-2 border-white/20 shrink-0"
-                                        alt={heroVid.youtuber.name}
-                                      />
+                              {/* 16:9 대형 썸네일 영역 */}
+                              <div className="relative w-full aspect-video bg-zinc-950 overflow-hidden rounded-t-2xl">
+                                {vid?.thumbnail ? (
+                                  <img 
+                                    src={vid.thumbnail}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    alt={r.name}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-zinc-600 bg-gradient-to-br from-zinc-900 to-zinc-800">
+                                    <Utensils size={36} />
+                                  </div>
+                                )}
+
+                                {/* 썸네일 그라데이션 오버레이 (텍스트 가독성용) */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
+
+                                {/* 좌상단: 유튜버 프로필 링 */}
+                                {vid?.youtuber && (
+                                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/50 backdrop-blur-xl pl-1 pr-2.5 py-0.5 rounded-full border border-white/15 shadow-md max-w-[150px] z-10">
+                                    {vid.youtuber.profile_image ? (
+                                      <div className="instagram-story-ring shrink-0">
+                                        <img 
+                                          src={vid.youtuber.profile_image}
+                                          className="w-5 h-5 rounded-full object-cover border border-zinc-900"
+                                          alt={vid.youtuber.name}
+                                        />
+                                      </div>
                                     ) : (
-                                      <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-[11px] font-bold text-zinc-300 border-2 border-white/20 shrink-0">
-                                        {heroVid.youtuber.name[0]}
+                                      <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center text-[9px] font-bold text-zinc-300 border border-zinc-900 shrink-0">
+                                        {vid.youtuber.name[0]}
                                       </div>
                                     )}
-                                    <span className="text-[13px] font-bold text-white truncate max-w-[120px]">
-                                      {heroVid.youtuber.name}
+                                    <span className="text-[10px] font-black text-white truncate max-w-[80px]">
+                                      {vid.youtuber.name}
                                     </span>
                                   </div>
-                                ) : <div />}
+                                )}
 
+                                {/* 우상단: 즐겨찾기 버튼 */}
                                 <motion.button
                                   whileTap={{ scale: 0.8 }}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    const isFav = favorites.includes(heroItem.id);
                                     if (isFav) {
-                                      setFavorites(favorites.filter(id => id !== heroItem.id));
+                                      setFavorites(favorites.filter(id => id !== r.id));
                                     } else {
-                                      setFavorites([...favorites, heroItem.id]);
+                                      setFavorites([...favorites, r.id]);
                                     }
                                   }}
-                                  className="p-2 bg-black/50 backdrop-blur-xl rounded-full border border-white/15 hover:bg-white/10 transition-colors shadow-lg"
+                                  className="absolute top-3 right-3 p-1.5 bg-black/50 backdrop-blur-xl rounded-full border border-white/15 hover:bg-white/10 transition-colors shadow-md z-10"
                                 >
                                   <Star 
-                                    size={18}
-                                    stroke={favorites.includes(heroItem.id) ? 'url(#red-orange-grad)' : 'currentColor'}
-                                    fill={favorites.includes(heroItem.id) ? 'url(#red-orange-grad)' : 'none'}
-                                    strokeWidth={favorites.includes(heroItem.id) ? 2.5 : 2}
+                                    size={13}
+                                    stroke={isFav ? 'url(#red-orange-grad)' : 'currentColor'}
+                                    fill={isFav ? 'url(#red-orange-grad)' : 'none'}
+                                    strokeWidth={isFav ? 2.5 : 2}
                                     className={`transition-all duration-300 ${
-                                      favorites.includes(heroItem.id)
-                                        ? 'drop-shadow-[0_0_6px_rgba(255,75,0,0.45)]'
+                                      isFav
+                                        ? 'drop-shadow-[0_0_4px_rgba(255,75,0,0.45)]'
                                         : 'text-zinc-400 hover:text-red-500'
                                     }`}
                                   />
                                 </motion.button>
-                              </div>
 
-                              {/* Bottom Info */}
-                              <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
-                                <h3 className="font-extrabold text-[22px] text-white tracking-tight leading-tight drop-shadow-lg mb-1.5">
-                                  {heroItem.name}
-                                </h3>
-                                {heroVid?.title && (
-                                  <p className="text-[13px] font-medium text-zinc-300 line-clamp-2 leading-snug drop-shadow-md mb-3">
-                                    {heroVid.title}
-                                  </p>
+                                {/* 우하단: Shorts 배지 */}
+                                {vid?.is_short && (
+                                  <div className="absolute bottom-3 right-3 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-white/20 shadow-lg z-10 flex items-center gap-0.5">
+                                    <Play size={8} fill="currentColor" /> SHORTS
+                                  </div>
                                 )}
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {heroVid?.view_count !== undefined && heroVid.view_count > 0 && (
-                                    <span className="flex items-center gap-1 text-[11px] font-bold bg-black/50 backdrop-blur-md text-zinc-300 px-2.5 py-1 rounded-full border border-white/10">
-                                      <Eye size={12} className="text-zinc-400" />
-                                      {formatViewCount(heroVid.view_count)}회
-                                    </span>
-                                  )}
-                                  {heroVid?.is_short && (
-                                    <span className="flex items-center gap-0.5 text-[10px] font-extrabold bg-gradient-to-r from-red-600 to-orange-500 text-white px-2 py-1 rounded-full border border-white/20 shadow-[0_2px_8px_rgba(220,38,38,0.3)]">
-                                      <Play size={9} fill="currentColor" /> SHORTS
-                                    </span>
-                                  )}
-                                  {(heroItem.menu_info && heroItem.menu_info !== '정보 없음') && (
-                                    <span className="flex items-center gap-1 text-[11px] font-medium bg-black/50 backdrop-blur-md text-zinc-300 px-2.5 py-1 rounded-full border border-white/10">
-                                      ✨ {heroItem.menu_info.length > 20 ? heroItem.menu_info.slice(0, 20) + '…' : heroItem.menu_info}
-                                    </span>
-                                  )}
-                                </div>
                               </div>
-                            </div>
-                          </div>
-                        )}
 
-                        {/* ====== DIVIDER ====== */}
-                        {miniList.length > 0 && (
-                          <div className="flex items-center gap-3 py-2 px-1">
-                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                            <span className="text-[11px] font-bold text-zinc-500 tracking-wider whitespace-nowrap">
-                              다른 맛집 둘러보기
-                            </span>
-                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                          </div>
-                        )}
-
-                        {/* ====== MINI LIST ====== */}
-                        <div className="space-y-0.5">
-                          {miniList.map(r => {
-                            const vid = getBestVideo(r.videos, activeVideoType);
-                            return (
-                              <div
-                                key={r.id}
-                                onClick={() => {
-                                  setHeroRestaurantId(r.id);
-                                  map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
-                                }}
-                                onMouseEnter={() => setHoveredRestaurantId(r.id)}
-                                onMouseLeave={() => setHoveredRestaurantId(null)}
-                                className="group flex items-center gap-3 px-2 py-2.5 rounded-xl cursor-pointer hover:bg-white/[0.04] transition-all duration-200"
-                              >
-                                {/* Mini Thumbnail */}
-                                <div className="relative w-[52px] h-[52px] rounded-xl overflow-hidden shrink-0 bg-zinc-900 border border-white/5">
-                                  {vid?.thumbnail ? (
-                                    <img
-                                      src={vid.thumbnail}
-                                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                                      alt={r.name}
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-zinc-600">
-                                      <Utensils size={18} />
-                                    </div>
-                                  )}
-                                  {vid?.is_short && (
-                                    <div className="absolute bottom-0.5 right-0.5 bg-red-600 text-white text-[7px] font-extrabold px-1 py-px rounded">
-                                      S
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Mini Info */}
-                                <div className="flex-1 min-w-0">
-                                  <h4 className="font-bold text-[14px] text-zinc-200 truncate group-hover:text-white transition-colors">
-                                    {r.name}
-                                  </h4>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    {vid?.youtuber && (
-                                      <span className="text-[11px] text-zinc-400 font-medium truncate">
-                                        {vid.youtuber.name}
-                                      </span>
-                                    )}
-                                    {vid?.view_count !== undefined && vid.view_count > 0 && (
-                                      <span className="text-[11px] text-zinc-400 font-medium">
-                                        · {formatViewCount(vid.view_count)}회
+                              {/* 하단 정보 영역 */}
+                              <div className="p-4 flex flex-col space-y-2.5">
+                                {/* 식당명 + 카테고리 + 조회수 */}
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <h4 className="font-extrabold text-[16px] text-zinc-100 truncate tracking-tight group-hover:text-white transition-colors">
+                                      {r.name}
+                                    </h4>
+                                    {r.category && (
+                                      <span className="text-[10px] font-semibold text-zinc-500 shrink-0">
+                                        {r.category}
                                       </span>
                                     )}
                                   </div>
+
+                                  {vid?.view_count !== undefined && vid.view_count > 0 ? (
+                                    <span className="text-[10px] font-extrabold bg-red-950/20 px-2 py-0.5 rounded border border-red-500/10 shrink-0">
+                                      <span className="bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text text-transparent">
+                                        조회수 {formatViewCount(vid.view_count)}회
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-zinc-500 bg-zinc-800/40 px-1.5 py-0.5 rounded shrink-0">
+                                      조회수 0회
+                                    </span>
+                                  )}
                                 </div>
 
-                                {/* Arrow hint */}
-                                <ChevronRight size={14} className="text-zinc-700 group-hover:text-zinc-400 transition-colors shrink-0" />
+                                {/* 영상 제목 */}
+                                {vid?.title && (
+                                  <p className="text-[12.5px] font-medium text-zinc-400 line-clamp-2 leading-relaxed tracking-tight">
+                                    {vid.title}
+                                  </p>
+                                )}
+
+                                {/* AI 방문 꿀팁 배지 (칩) - 최대 3개 노출 */}
+                                {(() => {
+                                  const tips = [];
+                                  if (r.parking && r.parking !== '정보 없음') tips.push({ type: 'parking', icon: '🚗', label: '주차', text: r.parking });
+                                  if (r.reservation && r.reservation !== '정보 없음') tips.push({ type: 'reservation', icon: '📅', label: '예약', text: r.reservation });
+                                  if (r.packaging && r.packaging !== '정보 없음') tips.push({ type: 'packaging', icon: '🥡', label: '포장', text: r.packaging });
+                                  if (r.business_hours && r.business_hours !== '정보 없음') tips.push({ type: 'business_hours', icon: '⏰', label: '영업', text: r.business_hours });
+
+                                  if (tips.length === 0) return null;
+
+                                  return (
+                                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                                      {tips.slice(0, 3).map((tip, idx) => (
+                                        <div 
+                                          key={idx}
+                                          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/5 text-[10px] font-bold text-zinc-300 hover:bg-white/[0.08] transition-colors"
+                                          title={`${tip.label}: ${tip.text}`}
+                                        >
+                                          <span>{tip.icon}</span>
+                                          <span className="max-w-[70px] truncate">{tip.text}</span>
+                                        </div>
+                                      ))}
+                                      {tips.length > 3 && (
+                                        <span className="text-[9px] font-bold text-zinc-500 pl-0.5">+{tips.length - 3}</span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </>
+                            </div>
+                          );
+                        })}
+                      </div>
                     );
                   })()
                 ) : (
