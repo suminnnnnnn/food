@@ -91,8 +91,8 @@ const getFormattedCategory = (categoryStr?: string | null) => {
 };
 
 const formatViewCount = (count: number) => {
-  if (count >= 10000) return `${(count / 10000).toFixed(1).replace('.0', '')}만`;
-  if (count >= 1000) return `${(count / 1000).toFixed(1).replace('.0', '')}천`;
+  if (count >= 1000000) return `${(count / 1000000).toFixed(1).replace('.0', '')}M`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1).replace('.0', '')}K`;
   return count.toString();
 };
 
@@ -566,7 +566,7 @@ export default function RestaurantInfoCard({
 
                           {/* 개선형 조회수 초소형 알약 뱃지 오버레이 */}
                           {vid.view_count !== undefined && vid.view_count !== null && (
-                            <div className="absolute bottom-[-1px] right-[-3px] bg-zinc-950/80 backdrop-blur-[2px] border border-white/10 px-1.5 py-[1px] rounded-full text-[7.5px] font-black text-zinc-300 leading-none shadow-md z-20 whitespace-nowrap">
+                            <div className="absolute bottom-[-1px] right-[-3px] bg-white/[0.12] backdrop-blur-[4px] border border-white/15 px-1.5 py-[1px] rounded-full text-[7.5px] font-black text-white leading-none shadow-md z-20 whitespace-nowrap">
                               {formatViewCount(vid.view_count)}
                             </div>
                           )}

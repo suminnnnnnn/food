@@ -41,8 +41,8 @@ const getFormattedCategory = (categoryStr?: string | null) => {
 };
 
 const formatViewCount = (count: number) => {
-  if (count >= 10000) return `${(count / 10000).toFixed(1).replace('.0', '')}만`;
-  if (count >= 1000) return `${(count / 1000).toFixed(1).replace('.0', '')}천`;
+  if (count >= 1000000) return `${(count / 1000000).toFixed(1).replace('.0', '')}M`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1).replace('.0', '')}K`;
   return count.toString();
 };
 
