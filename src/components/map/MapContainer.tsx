@@ -29,6 +29,12 @@ import { getRouteBufferPolygon, isPointInPolygon, getDistance } from '@/lib/geoU
 
 
 
+const getSubCategory = (categoryStr?: string | null) => {
+  if (!categoryStr) return '';
+  const parts = categoryStr.split('>');
+  return parts[parts.length - 1].trim();
+};
+
 const formatViewCount = (count: number) => {
   if (count >= 10000) return `${(count / 10000).toFixed(1).replace('.0', '')}만`;
   if (count >= 1000) return `${(count / 1000).toFixed(1).replace('.0', '')}천`;
@@ -1455,15 +1461,27 @@ export default function MapContainer({
                               <div className="p-4 flex flex-col space-y-2.5">
                                 {/* 식당명 + 카테고리 */}
                                 <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
                                     <h4 className="font-extrabold text-[16px] text-zinc-100 truncate tracking-tight group-hover:text-white transition-colors">
                                       {r.name}
                                     </h4>
-                                    {r.category && (
-                                      <span className="text-[10px] font-semibold text-zinc-500 shrink-0">
-                                        {r.category}
-                                      </span>
-                                    )}
+                                    {r.category && (() => {
+                                      const subCategory = getSubCategory(r.category);
+                                      if (!subCategory) return null;
+                                      return (
+                                        <div 
+                                          className="shrink-0 rounded-full"
+                                          style={{
+                                            padding: '1px',
+                                            background: 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)',
+                                          }}
+                                        >
+                                          <div className="bg-zinc-950/90 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide text-transparent bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text">
+                                            {subCategory}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
 

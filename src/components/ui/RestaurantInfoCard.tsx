@@ -79,6 +79,12 @@ const getYouTubeId = (urlOrId: string): string => {
   return (match && match[2].length === 11) ? match[2] : urlOrId;
 };
 
+const getSubCategory = (categoryStr?: string | null) => {
+  if (!categoryStr) return '';
+  const parts = categoryStr.split('>');
+  return parts[parts.length - 1].trim();
+};
+
 // DB의 menu_info 필드를 파싱하여 배열로 반환하는 헬퍼
 const parseMenuInfo = (menuInfo?: string | null) => {
   if (!menuInfo) return [];
@@ -479,16 +485,25 @@ export default function RestaurantInfoCard({
               </div>
 
               {/* 카테고리 정보는 타이틀 아래로 독립 분리 */}
-              <div className="flex items-center text-xs font-bold text-zinc-400 pt-0.5">
-                <svg className="w-3.5 h-3.5 mr-1.5 shrink-0" viewBox="0 0 24 24" fill="url(#red-orange-grad)">
-                  <path d="M7 2C4.8 2 3 3.8 3 6c0 1.8 1.2 3.3 2.8 3.8l.7 10.7c.1.8.8 1.5 1.5 1.5s1.4-.7 1.5-1.5l.7-10.7C11.8 9.3 13 7.8 13 6c0-2.2-1.8-4-4-4H7z" />
-                  <rect x="15" y="2" width="2.2" height="20" rx="1.1" />
-                  <rect x="18.8" y="2" width="2.2" height="20" rx="1.1" />
-                </svg>
-                <span>
-                  {restaurant.category}
-                </span>
-              </div>
+              {restaurant.category && (() => {
+                const subCategory = getSubCategory(restaurant.category);
+                if (!subCategory) return null;
+                return (
+                  <div className="flex items-center pt-1.5">
+                    <div 
+                      className="shrink-0 rounded-full"
+                      style={{
+                        padding: '1px',
+                        background: 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)',
+                      }}
+                    >
+                      <div className="bg-zinc-950/90 px-3 py-0.5 rounded-full text-[10px] font-black tracking-wide text-transparent bg-gradient-to-r from-red-400 to-brand-orange bg-clip-text">
+                        {subCategory}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* 주소 정보 영역은 하단 기본정보 섹션으로 이동됨 */}
               
