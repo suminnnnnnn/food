@@ -1383,23 +1383,12 @@ export default function MapContainer({
                               }}
                               onMouseEnter={() => setHoveredRestaurantId(r.id)}
                               onMouseLeave={() => setHoveredRestaurantId(null)}
-                              className={`group relative w-full rounded-2xl overflow-hidden cursor-pointer border transition-all duration-300 backdrop-blur-[20px] bg-zinc-900/50 hover:scale-[1.015] hover:shadow-[0_12px_30px_rgba(0,0,0,0.4)] ${
+                              className={`group relative w-full rounded-2xl overflow-hidden cursor-pointer border transition-all duration-300 backdrop-blur-[20px] bg-zinc-900/50 hover:scale-[1.015] ${
                                 isSelected 
                                   ? 'border-orange-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]' 
-                                  : 'border-white/10 hover:border-orange-500/30'
+                                  : 'border-white/10 hover:border-orange-500/40 hover:shadow-[0_12px_40px_rgba(0,0,0,0.5),_0_0_20px_rgba(249,115,22,0.15)]'
                               }`}
                             >
-                              {/* 호버 시 은은하게 반짝이는 그라데이션 광채 보더 효과 */}
-                              <div 
-                                className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300" 
-                                style={{
-                                  padding: '1.2px',
-                                  background: 'linear-gradient(to right, rgba(220, 38, 38, 0.4), rgba(249, 115, 22, 0.4))',
-                                  WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                                  WebkitMaskComposite: 'xor',
-                                  maskComposite: 'exclude',
-                                }}
-                              />
 
                               {/* 16:9 대형 썸네일 영역 */}
                               <div className="relative w-full aspect-video bg-zinc-950 overflow-hidden rounded-t-2xl">
