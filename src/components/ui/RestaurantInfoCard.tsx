@@ -552,7 +552,7 @@ export default function RestaurantInfoCard({
                         className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group select-none"
                       >
                         {/* 프로필 서클: 고정 크기(w,h) 명시로 어떤 브라우저에서도 찌그러지지 않도록 완벽한 원형 유지 */}
-                        <div className={`w-[48px] h-[48px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_12px_rgba(255,75,0,0.45)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
+                        <div className={`relative w-[48px] h-[48px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_12px_rgba(255,75,0,0.45)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
                           <div className="w-[44px] h-[44px] bg-[#121214] rounded-full flex items-center justify-center shrink-0">
                             <img 
                               src={vid.youtuber.profile_image} 
@@ -563,18 +563,18 @@ export default function RestaurantInfoCard({
                               }}
                             />
                           </div>
-                        </div>
 
-                        <div className="flex flex-col items-center min-w-0">
-                          <span className={`text-[10px] max-w-[64px] truncate text-center leading-tight ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
-                            {vid.youtuber.name}
-                          </span>
+                          {/* 개선형 조회수 초소형 알약 뱃지 오버레이 */}
                           {vid.view_count !== undefined && vid.view_count !== null && (
-                            <span className="text-[9px] text-white/30 font-medium tracking-tight mt-0.5 leading-none group-hover:text-white/50 transition-colors">
-                              {formatViewCount(vid.view_count)}회
-                            </span>
+                            <div className="absolute bottom-[-1px] right-[-3px] bg-zinc-950/80 backdrop-blur-[2px] border border-white/10 px-1.5 py-[1px] rounded-full text-[7.5px] font-black text-zinc-300 leading-none shadow-md z-20 whitespace-nowrap">
+                              {formatViewCount(vid.view_count)}
+                            </div>
                           )}
                         </div>
+
+                        <span className={`text-[10px] max-w-[64px] truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
+                          {vid.youtuber.name}
+                        </span>
                       </div>
                     );
                   })}
