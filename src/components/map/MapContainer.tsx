@@ -1373,6 +1373,7 @@ export default function MapContainer({
                           const vid = getBestVideo(r.videos, activeVideoType);
                           const isFav = favorites.includes(r.id);
                           const isSelected = selectedRestaurant?.id === r.id;
+                          const isHovered = hoveredRestaurantId === r.id;
 
                           return (
                             <div
@@ -1383,11 +1384,17 @@ export default function MapContainer({
                               }}
                               onMouseEnter={() => setHoveredRestaurantId(r.id)}
                               onMouseLeave={() => setHoveredRestaurantId(null)}
-                              className={`group relative w-full rounded-2xl overflow-hidden cursor-pointer border transition-all duration-300 backdrop-blur-[20px] bg-zinc-900/50 hover:scale-[1.015] ${
-                                isSelected 
-                                  ? 'border-orange-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]' 
-                                  : 'border-white/10 hover:border-orange-500/40 hover:shadow-[0_12px_40px_rgba(0,0,0,0.5),_0_0_20px_rgba(249,115,22,0.15)]'
-                              }`}
+                              className="group relative w-full rounded-2xl overflow-hidden cursor-pointer border backdrop-blur-[20px] bg-zinc-900/50"
+                              style={{
+                                transform: isHovered ? 'scale(1.015)' : 'scale(1)',
+                                borderColor: isSelected 
+                                  ? 'rgba(249, 115, 22, 0.5)' 
+                                  : (isHovered ? 'rgba(249, 115, 22, 0.4)' : 'rgba(255, 255, 255, 0.1)'),
+                                boxShadow: isSelected 
+                                  ? '0 0 15px rgba(239, 68, 68, 0.2)' 
+                                  : (isHovered ? '0 12px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(249, 115, 22, 0.15)' : 'none'),
+                                transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease'
+                              }}
                             >
 
                               {/* 16:9 대형 썸네일 영역 */}
