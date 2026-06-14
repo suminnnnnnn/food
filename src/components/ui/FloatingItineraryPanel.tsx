@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DailyItinerary, ItineraryItem, Itinerary, Restaurant } from '@/types';
-import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Car, Footprints, Utensils, GripVertical, Heart, Share2, Bus } from 'lucide-react';
+import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Car, Footprints, Utensils, GripVertical, Heart, Share2, Bus, MoreVertical, RotateCcw } from 'lucide-react';
 import { getDistance } from '@/lib/geoUtils';
 
 interface Props {
@@ -71,6 +71,8 @@ export default function FloatingItineraryPanel({
   const [targetDayForSearch, setTargetDayForSearch] = useState<number>(1);
   const [isSearchingMode, setIsSearchingMode] = useState<boolean>(false);
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
+  const [hoveredConnectorIdx, setHoveredConnectorIdx] = useState<string | null>(null);
   
   // 카카오맵 연동 상태 관리
   const [activePollingItem, setActivePollingItem] = useState<{ dayNum: number; itemId: string; popupWindow: Window | null } | null>(null);
@@ -537,7 +539,9 @@ export default function FloatingItineraryPanel({
       exit={{ opacity: 0, x: -400 }}
       transition={{ type: 'spring', damping: 25, stiffness: 220 }}
       onDragOver={(e) => e.preventDefault()}
-      className="absolute left-6 top-6 bottom-6 bg-zinc-950/85 backdrop-blur-2xl border border-white/10 rounded-[28px] shadow-2xl z-40 p-5 flex flex-col min-h-0 text-white overflow-hidden"
+      onClick={() => showMoreMenu && setShowMoreMenu(false)}
+      className="absolute left-6 top-6 bottom-6 itn-glass-panel rounded-3xl z-40 p-5 flex flex-col min-h-0 overflow-hidden"
+      style={{ boxShadow: 'var(--itn-shadow-lg)' }}
     >
       {/* 공유 성공 미니 토스트 알림 */}
       <AnimatePresence>
@@ -546,7 +550,7 @@ export default function FloatingItineraryPanel({
             initial={{ opacity: 0, y: -20, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="absolute top-5 left-1/2 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-black px-4 py-2.5 rounded-full shadow-lg z-[60] tracking-tight border border-white/10 whitespace-nowrap"
+            className="absolute top-5 left-1/2 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[11px] font-bold px-4 py-2.5 rounded-full shadow-lg z-[60] tracking-tight whitespace-nowrap"
           >
             실시간 공유 링크가 클립보드에 복사되었습니다! 🔗
           </motion.div>
@@ -554,40 +558,65 @@ export default function FloatingItineraryPanel({
       </AnimatePresence>
 
       {/* 헤더 영역 */}
-      <div className="flex items-center justify-between pb-3 shrink-0 border-b border-white/5">
+      <div className="flex items-center justify-between pb-3 shrink-0 border-b" style={{ borderColor: 'var(--itn-border)' }}>
         {isSearchingMode ? (
           <div className="flex-1 flex gap-6 items-center">
             {/* 좌측 타임라인 헤더 */}
             <div className="w-[380px] flex items-center justify-between shrink-0">
               <div className="flex flex-col min-w-0 gap-0.5">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-black text-zinc-100 truncate max-w-[150px]">{itinerary.title}</h4>
-                  <button
-                    onClick={handleCopyShareLink}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-[9px] font-black text-zinc-300 hover:text-white hover:bg-orange-500/10 hover:border-orange-500/20 transition-all cursor-pointer shrink-0"
-                    title="공유 링크 만들기"
-                  >
-                    <Share2 size={10} className="text-orange-400" />
-                    <span>공유 🔗</span>
-                  </button>
-                </div>
+                <h4 className="text-base font-bold truncate max-w-[180px]" style={{ color: 'var(--itn-text)' }}>{itinerary.title}</h4>
                 {itinerary.start_date && (
-                  <span className="text-[10.5px] font-medium text-zinc-400">
+                  <span className="text-xs font-medium" style={{ color: 'var(--itn-text-sub)' }}>
                     {formatItineraryPeriod()}
                   </span>
                 )}
               </div>
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-500 hover:text-white transition-colors shrink-0"
-                title="편집 종료"
-              >
-                <X size={14} />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={handleCopyShareLink}
+                  className="p-1.5 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
+                  style={{ color: 'var(--itn-text-muted)' }}
+                  title="공유 링크 만들기"
+                >
+                  <Share2 size={16} />
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowMoreMenu(!showMoreMenu); }}
+                    className="p-1.5 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
+                    style={{ color: 'var(--itn-text-muted)' }}
+                    title="더보기"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                  {showMoreMenu && (
+                    <div className="absolute right-0 top-full mt-1 w-40 rounded-xl py-1 z-50" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow)' }} onClick={(e) => e.stopPropagation()}>
+                      {onResetCustomWaypoints && (
+                        <button
+                          onClick={() => { onResetCustomWaypoints(); setShowMoreMenu(false); }}
+                          className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-black/5 transition-colors cursor-pointer"
+                          style={{ color: 'var(--itn-text-sub)' }}
+                        >
+                          <RotateCcw size={13} />
+                          동선 초기화
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
+                  style={{ color: 'var(--itn-text-muted)' }}
+                  title="편집 종료"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
             {/* 우측 장소 탐색 헤더 (탭 변경 및 검색 닫기) */}
             <div className="flex-1 flex items-center justify-between min-w-0">
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 {(['search', 'recommend', 'favorite'] as const).map((tab) => {
                   const tabLabel = tab === 'search' ? '검색' : tab === 'recommend' ? '추천 맛집' : '즐겨찾기';
                   const isActive = exploreTab === tab;
@@ -595,11 +624,12 @@ export default function FloatingItineraryPanel({
                     <button
                       key={tab}
                       onClick={() => setExploreTab(tab)}
-                      className={`px-3 py-1 text-[12px] font-black rounded-lg transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                         isActive
-                          ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white shadow shadow-red-500/20'
-                          : 'bg-zinc-900 text-zinc-400 hover:text-white border border-white/5'
+                          ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-sm'
+                          : 'hover:bg-black/5'
                       }`}
+                      style={!isActive ? { color: 'var(--itn-text-muted)' } : undefined}
                     >
                       {tabLabel}
                     </button>
@@ -608,41 +638,67 @@ export default function FloatingItineraryPanel({
               </div>
               <button
                 onClick={() => setIsSearchingMode(false)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-white/5 text-[11px] font-bold text-zinc-400 hover:text-white transition-all cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold hover:bg-black/5 transition-all cursor-pointer"
+                style={{ color: 'var(--itn-text-muted)' }}
                 title="검색 닫기"
               >
-                <ArrowLeft size={10} />
-                <span>검색 닫기</span>
+                <ArrowLeft size={11} />
+                <span>닫기</span>
               </button>
             </div>
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-between">
             <div className="flex flex-col min-w-0 gap-0.5">
-              <div className="flex items-center gap-2">
-                <h4 className="text-sm font-black text-zinc-100 truncate max-w-[170px]">{itinerary.title}</h4>
-                <button
-                  onClick={handleCopyShareLink}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-[9px] font-black text-zinc-300 hover:text-white hover:bg-orange-500/10 hover:border-orange-500/20 transition-all cursor-pointer shrink-0"
-                  title="공유 링크 만들기"
-                >
-                  <Share2 size={10} className="text-orange-400" />
-                  <span>공유 🔗</span>
-                </button>
-              </div>
+              <h4 className="text-base font-bold truncate max-w-[200px]" style={{ color: 'var(--itn-text)' }}>{itinerary.title}</h4>
               {itinerary.start_date && (
-                <span className="text-[10.5px] font-medium text-zinc-400">
+                <span className="text-xs font-medium" style={{ color: 'var(--itn-text-sub)' }}>
                   {formatItineraryPeriod()}
                 </span>
               )}
             </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-500 hover:text-white transition-colors"
-              title="편집 종료"
-            >
-              <X size={14} />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={handleCopyShareLink}
+                className="p-1.5 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
+                style={{ color: 'var(--itn-text-muted)' }}
+                title="공유 링크 만들기"
+              >
+                <Share2 size={16} />
+              </button>
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowMoreMenu(!showMoreMenu); }}
+                  className="p-1.5 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
+                  style={{ color: 'var(--itn-text-muted)' }}
+                  title="더보기"
+                >
+                  <MoreVertical size={16} />
+                </button>
+                {showMoreMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-40 rounded-xl py-1 z-50" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow)' }} onClick={(e) => e.stopPropagation()}>
+                    {onResetCustomWaypoints && (
+                      <button
+                        onClick={() => { onResetCustomWaypoints(); setShowMoreMenu(false); }}
+                        className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-black/5 transition-colors cursor-pointer"
+                        style={{ color: 'var(--itn-text-sub)' }}
+                      >
+                        <RotateCcw size={13} />
+                        동선 초기화
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
+                style={{ color: 'var(--itn-text-muted)' }}
+                title="편집 종료"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -651,7 +707,7 @@ export default function FloatingItineraryPanel({
       <div className="flex-1 flex gap-6 min-h-0 mt-4 overflow-hidden">
         {/* 좌측 또는 전체: 통합 아코디언 타임라인 뷰 영역 (모든 Day 노출) */}
         <div className="w-[380px] flex flex-col min-h-0 overflow-hidden shrink-0">
-          <div className="flex-1 overflow-y-auto pr-1 space-y-3.5 relative min-h-0 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className="flex-1 overflow-y-auto pr-1 space-y-3 relative min-h-0 itn-scrollbar">
             {itinerary.days.map((dayData) => {
               const isExpanded = !!expandedDays[dayData.day];
               const dayItems = dayData.items || [];
@@ -670,38 +726,39 @@ export default function FloatingItineraryPanel({
                   }}
                   onDragLeave={() => setDragOverDay(null)}
                   onDrop={(e) => handleDropOnDay(e, dayData.day)}
-                  className={`border-b border-white/[0.06] transition-all duration-200 rounded-2xl ${
+                  className={`transition-all duration-200 rounded-2xl ${
                     isDragOverThis 
-                      ? 'bg-gradient-to-r from-red-500/10 to-orange-500/10 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.2)] scale-[0.99] border-dashed border'
-                      : ''
+                      ? 'bg-[var(--itn-accent-light)] scale-[0.99] border border-dashed'
+                      : 'border-b'
                   }`}
+                  style={{ borderColor: isDragOverThis ? 'var(--itn-accent)' : 'var(--itn-border-subtle)' }}
                 >
                   {/* Day 아코디언 헤더 */}
                   <div
                     onClick={() => toggleDayAccordion(dayData.day)}
-                    className="w-full px-3.5 py-3 flex items-center justify-between bg-transparent cursor-pointer hover:bg-zinc-900/30 transition-colors select-none"
+                    className="w-full px-3.5 py-3 flex items-center justify-between bg-transparent cursor-pointer hover:bg-black/[0.03] transition-colors select-none rounded-xl"
                   >
                     <div className="flex items-center gap-2">
-                      <div className="text-[13px] tracking-wider flex items-baseline">
-                        <span className="font-black text-zinc-150">Day{dayData.day}</span>
+                      <div className="text-sm tracking-wider flex items-baseline">
+                        <span className="font-bold" style={{ color: 'var(--itn-text)' }}>Day{dayData.day}</span>
                         {itinerary.start_date && (
-                          <span className="text-[11px] font-bold text-zinc-500 ml-1.5">
+                          <span className="text-xs font-medium ml-1.5" style={{ color: 'var(--itn-text-sub)' }}>
                             {formatDayDate(dayData.day)}
                           </span>
                         )}
                       </div>
                       {weather && (
-                        <span className="text-[11px] font-black text-zinc-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-white/[0.04] flex items-center gap-1" title="예보 정보">
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1" style={{ color: 'var(--itn-text-sub)', background: 'var(--itn-card)', border: '1px solid var(--itn-border)' }} title="예보 정보">
                           <span>{weather.icon}</span>
-                          <span className="text-[9.5px] font-bold">{weather.temp}</span>
+                          <span className="text-[11px] font-medium">{weather.temp}</span>
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       {dayItems.length > 0 && (
-                        <GripVertical size={12} className="text-zinc-600" />
+                        <GripVertical size={12} style={{ color: 'var(--itn-text-muted)' }} />
                       )}
-                      <div className="text-zinc-500">
+                      <div style={{ color: 'var(--itn-text-muted)' }}>
                         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </div>
                     </div>
@@ -709,9 +766,9 @@ export default function FloatingItineraryPanel({
 
                   {/* Day 아코디언 바디 (타임라인) */}
                   {isExpanded && (
-                    <div className="p-3 pl-8 space-y-3 relative">
+                    <div className="p-3 pl-8 space-y-0 relative">
                       {dayItems.length > 0 && (
-                        <div className="absolute left-[19px] top-4 bottom-12 w-[2px] bg-gradient-to-b from-orange-500/30 via-orange-500/10 to-transparent" />
+                        <div className="absolute left-[19px] top-4 bottom-12 w-[2px]" style={{ background: 'var(--itn-timeline)' }} />
                       )}
 
                       {dayItems.length === 0 ? (
@@ -723,167 +780,69 @@ export default function FloatingItineraryPanel({
                                 setIsSearchingMode(true);
                               }
                             }}
-                            className="w-8 h-8 rounded-full border border-dashed border-white/15 hover:border-orange-500/40 bg-zinc-900/30 hover:bg-zinc-900/60 flex items-center justify-center transition-all active:scale-95 cursor-pointer group"
+                            className="w-8 h-8 rounded-full border border-dashed hover:border-[var(--itn-accent)]/40 flex items-center justify-center transition-all active:scale-95 cursor-pointer group"
+                            style={{ borderColor: 'var(--itn-border)', background: 'var(--itn-card)' }}
                           >
-                            <Plus size={14} className="text-zinc-500 group-hover:text-orange-400 transition-colors" />
+                            <Plus size={14} className="group-hover:text-[var(--itn-accent)] transition-colors" style={{ color: 'var(--itn-text-muted)' }} />
                           </button>
                         </div>
                       ) : (
                         dayItems.map((item, idx) => {
                           const isSelected = selectedItemId === item.id;
+                          const connectorKey = `${dayData.day}-${idx}`;
                           
-                          // 이전 장소와의 거리 및 이동 시간 칩 연산
-                           let connectorChip = null;
-                           if (idx > 0) {
-                             const prevItem = dayItems[idx - 1];
-                             const distance = getDistance(prevItem.lat, prevItem.lng, item.lat, item.lng);
-                             const transport = item.transportType || (itinerary.transport === '자차/렌터카' ? 'car' : 'walk');
-                             
-                             // 이동 수단별 평속 산출 (자차 40, 대중교통 15, 도보 4)
-                             const speedKmh = transport === 'car' ? 40 : transport === 'transit' ? 15 : 4;
-                             const displayMinutes = item.customDuration || Math.max(1, Math.round((distance / speedKmh) * 60));
-                             
-                             connectorChip = (
-                               <div className="relative left-[-23px] py-2 flex flex-col gap-1.5 z-20 my-1 select-none" onClick={e => e.stopPropagation()}>
-                                 {/* 수직 도트 보조선 */}
-                                 <div className="w-[2px] h-10 border-l-2 border-dashed border-zinc-700/60 absolute left-[23px] top-[-12px] bottom-[-12px] z-[-1]" />
-                                 
-                                 <div className="flex items-center gap-2 ml-[12px] bg-zinc-900/95 backdrop-blur-md border border-white/[0.08] px-1.5 py-1.5 rounded-2xl shadow-lg flex-wrap max-w-[380px]">
-                                   <div className="flex items-center bg-zinc-950/70 rounded-xl p-0.5 border border-white/5 gap-0.5">
-                                     <button
-                                       onClick={() => handleUpdateTransportType(dayData.day, item.id, 'walk')}
-                                       className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                         transport === 'walk' ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/30' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60'
-                                       }`}
-                                       title="도보"
-                                     >
-                                       <Footprints size={14} strokeWidth={2.2} />
-                                     </button>
-                                     <button
-                                       onClick={() => handleUpdateTransportType(dayData.day, item.id, 'transit')}
-                                       className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                         transport === 'transit' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md shadow-blue-500/30' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60'
-                                       }`}
-                                       title="대중교통"
-                                     >
-                                       <Bus size={14} strokeWidth={2.2} />
-                                     </button>
-                                     <button
-                                       onClick={() => handleUpdateTransportType(dayData.day, item.id, 'car')}
-                                       className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                         transport === 'car' ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-md shadow-red-500/30' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60'
-                                       }`}
-                                       title="자차"
-                                     >
-                                       <Car size={14} strokeWidth={2.2} />
-                                     </button>
-                                   </div>
-                                   <span className="text-[11px] font-bold text-zinc-300 pr-2 flex items-center gap-1">
-                                     <span className="font-extrabold">{distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`}</span>
-                                     <span className="text-zinc-500">•</span>
-                                     <span>약 {displayMinutes}분</span>
-                                     {item.customDuration && (
-                                       <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/25 ml-1">실시간</span>
-                                     )}
-                                   </span>
-                                   
-                                   {/* 실시간 길찾기 & 직접 입력 컨트롤 */}
-                                   <div className="flex items-center gap-1 ml-auto">
-                                     <button
-                                       onClick={() => openKakaoMapRoute(dayData.day, prevItem, item)}
-                                       className={`px-2 py-1 text-[9px] font-black rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
-                                         activePollingItem?.itemId === item.id
-                                           ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 animate-pulse'
-                                           : 'bg-zinc-800 border-white/5 text-zinc-300 hover:text-white hover:bg-orange-500/10 hover:border-orange-500/20'
-                                       }`}
-                                     >
-                                       <Navigation size={9} className="text-orange-400" />
-                                       <span>{activePollingItem?.itemId === item.id ? '링크 대기중..' : '실시간 🔗'}</span>
-                                     </button>
-                                     
-                                     <button
-                                       onClick={() => setShowManualInputId(showManualInputId === item.id ? null : item.id)}
-                                       className="p-1 rounded bg-zinc-800 border border-white/5 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                       title="소요시간 직접 입력"
-                                     >
-                                       <Edit3 size={10} />
-                                     </button>
-                                   </div>
-                                 </div>
-
-                                 {/* 수동 입력 폼 */}
-                                 {showManualInputId === item.id && (
-                                   <div className="ml-[12px] p-2 bg-zinc-900 border border-white/10 rounded-xl flex items-center gap-2 max-w-[360px] shadow-lg">
-                                     <input
-                                       type="number"
-                                       placeholder="분 단위"
-                                       value={manualDuration}
-                                       onChange={e => setManualDuration(e.target.value)}
-                                       className="w-16 px-2 py-1 text-[11px] bg-zinc-950 border border-white/10 rounded-lg text-white font-bold"
-                                     />
-                                     <button
-                                       onClick={() => {
-                                         const min = parseInt(manualDuration);
-                                         if (!isNaN(min) && min > 0) {
-                                           handleApplyManualRoute(dayData.day, item.id, min);
-                                         }
-                                       }}
-                                       className="px-2.5 py-1 text-[9px] font-black rounded-lg bg-gradient-to-r from-red-600 to-orange-500 text-white cursor-pointer"
-                                     >
-                                       적용
-                                     </button>
-                                     <button
-                                       onClick={() => {
-                                         const link = prompt('카카오맵 공유 링크(kko.to 또는 map.kakao.com)를 입력해 주세요.');
-                                         if (link) {
-                                           parseAndApplyLinkDirectly(link, dayData.day, item.id);
-                                         }
-                                       }}
-                                       className="px-2.5 py-1 text-[9px] font-black rounded-lg bg-zinc-800 border border-white/5 text-zinc-300 hover:text-white cursor-pointer"
-                                     >
-                                       링크 분석
-                                     </button>
-                                   </div>
-                                 )}
-                               </div>
-                             );
-                           }
-
+                          // 이전 장소와의 거리 연산
+                            let distanceText: string | null = null;
+                            if (idx > 0) {
+                              const prevItem = dayItems[idx - 1];
+                              const distance = getDistance(prevItem.lat, prevItem.lng, item.lat, item.lng);
+                              distanceText = distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`;
+                            }
+                          
                           // 2일차 이상의 첫 스팟일 때 전날 마지막 스팟 연계 정보 연산
-                          let prevDayLinkChip = null;
+                          let prevDayDistText: string | null = null;
                           if (idx === 0 && dayData.day >= 2) {
                             const prevDayData = itinerary.days.find(d => d.day === dayData.day - 1);
                             const prevDayItems = prevDayData?.items || [];
                             const lastSpotOfPrevDay = prevDayItems[prevDayItems.length - 1];
-                            
                             if (lastSpotOfPrevDay) {
                               const distance = getDistance(lastSpotOfPrevDay.lat, lastSpotOfPrevDay.lng, item.lat, item.lng);
-                              const transport = item.transportType || (itinerary.transport === '자차/렌터카' ? 'car' : 'walk');
-                              const speedKmh = transport === 'car' ? 40 : transport === 'transit' ? 15 : 4;
-                              const minutes = Math.max(1, Math.round((distance / speedKmh) * 60));
-                              
-                              prevDayLinkChip = (
-                                <div className="relative left-[-23px] py-1.5 flex items-center gap-1.5 z-20 my-1.5 select-none" onClick={e => e.stopPropagation()}>
-                                  {/* 이전 일차 연계 수직 보조선 */}
-                                  <div className="w-[2px] h-8 border-l-2 border-dotted border-orange-500/30 absolute left-[23px] top-[-10px] bottom-[-10px] z-[-1]" />
-                                  
-                                  <div className="flex items-center gap-1.5 ml-[12px] bg-zinc-900/95 backdrop-blur-md border border-orange-500/20 p-1 rounded-full shadow-md">
-                                    <span className="text-[9px] font-black text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded-full border border-orange-500/20 shrink-0">
-                                      Day {dayData.day - 1} 연계 🔗
-                                    </span>
-                                    <span className="text-[10px] font-bold text-zinc-350 pr-2">
-                                      {lastSpotOfPrevDay.name} 출발 • {distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`} • 약 {minutes}분
-                                    </span>
-                                  </div>
-                                </div>
-                              );
+                              prevDayDistText = `Day${dayData.day - 1} → ${distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`}`;
                             }
                           }
-
+                          
                           return (
-                            <div key={item.id} className="relative group/panel">
-                              {prevDayLinkChip}
-                              {connectorChip}
+                            <div key={item.id} className="relative group/panel" style={{ marginTop: idx > 0 ? '2px' : '0' }}>
+                              {/* 이전 Day 연계 인라인 거리 */}
+                              {prevDayDistText && (
+                                <div className="relative left-[-23px] h-5 flex items-center select-none mb-0.5">
+                                  <span className="ml-[12px] text-[11px] font-medium" style={{ color: 'var(--itn-accent)' }}>{prevDayDistText}</span>
+                                </div>
+                              )}
+                              {/* 인라인 거리 텍스트 + 호버 추가 버튼 */}
+                              {distanceText && (
+                                <div
+                                  className="relative left-[-23px] h-5 flex items-center select-none group/connector"
+                                  onMouseEnter={() => setHoveredConnectorIdx(connectorKey)}
+                                  onMouseLeave={() => setHoveredConnectorIdx(null)}
+                                >
+                                  <span className="ml-[12px] text-[11px] font-medium" style={{ color: 'var(--itn-text-muted)' }}>{distanceText}</span>
+                                  {/* 호버 시 '+' 버튼 페이드인 */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTargetDayForSearch(dayData.day);
+                                      if (!isSearchingMode) setIsSearchingMode(true);
+                                    }}
+                                    className={`ml-2 w-4 h-4 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                                      hoveredConnectorIdx === connectorKey ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+                                    }`}
+                                    style={{ background: 'var(--itn-accent-light)', color: 'var(--itn-accent)' }}
+                                  >
+                                    <Plus size={10} />
+                                  </button>
+                                </div>
+                              )}
 
                               {/* 코스 노드 바디 (Notion 템플릿 스타일 확장) */}
                               <div
@@ -891,40 +850,47 @@ export default function FloatingItineraryPanel({
                                   onActiveDayChange(dayData.day);
                                   onSelectItem(item);
                                 }}
-                                className={`relative border rounded-2xl p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 ${
+                                className={`relative rounded-2xl p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 ${
                                   isSelected
-                                    ? 'bg-gradient-to-r from-red-950/25 to-orange-950/25 border-orange-500/50 shadow-[0_0_16px_rgba(249,115,22,0.15)] ring-1 ring-orange-500/20'
-                                    : 'bg-zinc-900/70 border-white/10 hover:border-orange-500/25 hover:bg-zinc-900/90 shadow-md hover:shadow-lg'
+                                    ? 'ring-2'
+                                    : ''
                                 }`}
+                                style={{
+                                  background: isSelected ? 'var(--itn-accent-light)' : 'var(--itn-card)',
+                                  border: `1px solid ${isSelected ? 'var(--itn-accent)' : 'var(--itn-border)'}`,
+                                  boxShadow: isSelected ? '0 0 0 2px rgba(var(--itn-accent-rgb), 0.15)' : 'var(--itn-shadow-sm)',
+                                  ...(isSelected ? { ringColor: 'rgba(var(--itn-accent-rgb), 0.2)' } : {})
+                                }}
                               >
-                                {/* 좌측 넘버링 인디케이터 (카드 내부 배치로 교통수단 컨트롤과 겹침 원천 방지) */}
+                                {/* 좌측 넘버링 인디케이터 */}
                                 <div className="absolute left-[-24px] top-3 flex flex-col items-center z-10" onClick={e => e.stopPropagation()}>
-                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-[11px] font-black flex items-center justify-center text-white shadow-md shadow-red-500/20 ring-2 ring-zinc-950">
+                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-[11px] font-bold flex items-center justify-center text-white shadow-md ring-2 ring-white">
                                     {idx + 1}
                                   </div>
                                   {item.visit_time && (
-                                    <span className="text-[9px] text-orange-400 font-black mt-1.5 bg-orange-500/10 px-1.5 py-0.5 rounded-md border border-orange-500/15">
+                                    <span className="text-[11px] font-bold mt-1.5 px-1.5 py-0.5 rounded-md" style={{ color: 'var(--itn-accent)', background: 'var(--itn-accent-light)' }}>
                                       {item.visit_time}
                                     </span>
                                   )}
                                 </div>
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">
-                                    <h5 className="text-[13.5px] font-black text-zinc-100 truncate flex items-center gap-1.5 tracking-tight">
+                                    <h5 className="text-sm font-bold truncate flex items-center gap-1.5 tracking-tight" style={{ color: 'var(--itn-text)' }}>
                                       <span>{item.name}</span>
                                     </h5>
-                                    <span className="text-[10.5px] text-zinc-400 block truncate mt-0.5">{item.address}</span>
+                                    <span className="text-xs block truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
                                   </div>
 
                                   {/* 컨트롤 */}
-                                  <div className="flex items-center gap-1.5 opacity-65 group-hover/panel:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
+                                  <div className="flex items-center gap-1 opacity-0 group-hover/panel:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
                                     <button
                                       onClick={() => {
                                         onActiveDayChange(dayData.day);
                                         onMoveUp(idx);
                                       }}
                                       disabled={idx === 0}
-                                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30 cursor-pointer transition-colors"
+                                      className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors"
+                                      style={{ color: 'var(--itn-text-muted)' }}
                                       title="위로 이동"
                                     >
                                       <ChevronUp size={13} />
@@ -935,14 +901,16 @@ export default function FloatingItineraryPanel({
                                         onMoveDown(idx);
                                       }}
                                       disabled={idx === dayItems.length - 1}
-                                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30 cursor-pointer transition-colors"
+                                      className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors"
+                                      style={{ color: 'var(--itn-text-muted)' }}
                                       title="아래로 이동"
                                     >
                                       <ChevronDown size={13} />
                                     </button>
                                     <button
                                       onClick={() => onEditItemMemo(item)}
-                                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-400 cursor-pointer transition-colors"
+                                      className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer transition-colors"
+                                      style={{ color: 'var(--itn-text-muted)' }}
                                       title="상세 속성 편집"
                                     >
                                       <Edit3 size={11} />
@@ -952,7 +920,8 @@ export default function FloatingItineraryPanel({
                                         onActiveDayChange(dayData.day);
                                         onRemoveItem(item.id);
                                       }}
-                                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400 cursor-pointer transition-colors"
+                                      className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-500/10 hover:text-red-400 cursor-pointer transition-colors"
+                                      style={{ color: 'var(--itn-text-muted)' }}
                                       title="장소 삭제"
                                     >
                                       <Trash2 size={11} />
@@ -964,16 +933,16 @@ export default function FloatingItineraryPanel({
                                 {(item.status || item.budget !== undefined) && (
                                   <div className="flex flex-wrap gap-1.5 items-center mt-1.5 select-none">
                                     {item.status && (
-                                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${
+                                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${
                                         item.status === 'confirmed'
-                                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                          : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                                          ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                                          : 'bg-amber-50 border-amber-200 text-amber-600'
                                       }`}>
                                         {item.status === 'confirmed' ? '예약 완료 ✅' : '예약 필요 ⏳'}
                                       </span>
                                     )}
                                     {item.budget !== undefined && (
-                                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-zinc-850 border border-white/[0.04] text-zinc-400">
+                                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-sub)' }}>
                                         💸 {item.budget.toLocaleString()}원
                                       </span>
                                     )}
@@ -982,16 +951,16 @@ export default function FloatingItineraryPanel({
 
                                 {/* 노션 체크리스트/준비물 실시간 토글 */}
                                 {item.checklist && item.checklist.length > 0 && (
-                                  <div className="space-y-1 mt-1.5 border-t border-white/5 pt-1.5" onClick={e => e.stopPropagation()}>
+                                  <div className="space-y-1 mt-1.5 pt-1.5" style={{ borderTop: '1px solid var(--itn-border-subtle)' }} onClick={e => e.stopPropagation()}>
                                     {item.checklist.map((check, cIdx) => (
-                                      <label key={cIdx} className="flex items-center gap-1.5 cursor-pointer text-[10px] text-zinc-300 hover:text-zinc-200 select-none">
+                                      <label key={cIdx} className="flex items-center gap-1.5 cursor-pointer text-xs select-none" style={{ color: 'var(--itn-text-sub)' }}>
                                         <input
                                           type="checkbox"
                                           checked={check.done}
                                           onChange={() => handleToggleChecklist(dayData.day, item.id, cIdx)}
-                                          className="w-3 h-3 rounded bg-zinc-800 border border-white/10 accent-orange-500 cursor-pointer"
+                                          className="w-3.5 h-3.5 rounded accent-orange-500 cursor-pointer"
                                         />
-                                        <span className={check.done ? 'line-through text-zinc-550' : ''}>{check.text}</span>
+                                        <span className={check.done ? 'line-through' : ''} style={check.done ? { color: 'var(--itn-text-muted)' } : undefined}>{check.text}</span>
                                       </label>
                                     ))}
                                   </div>
@@ -999,7 +968,7 @@ export default function FloatingItineraryPanel({
 
 
                                 {item.memo && (
-                                  <p className="text-[10px] text-zinc-350 bg-zinc-950/40 border border-white/5 px-2.5 py-1 rounded-lg truncate mt-1.5 select-none">
+                                  <p className="text-xs px-2.5 py-1 rounded-xl truncate mt-1.5 select-none" style={{ color: 'var(--itn-text-sub)', background: 'var(--itn-card-hover)', border: '1px solid var(--itn-border-subtle)' }}>
                                     💡 {item.memo}
                                   </p>
                                 )}
@@ -1009,9 +978,9 @@ export default function FloatingItineraryPanel({
                         })
                       )}
 
-                      {/* 각 Day별 장소 추가 버튼 — 장소가 있을 때만 표시 (빈 상태엔 위 + 버튼이 대체) */}
+                      {/* Day add spot button */}
                       {dayItems.length > 0 && (
-                      <div className="flex justify-center pt-2 pb-1">
+                      <div className="flex justify-center pt-3 pb-1">
                         <button
                           onClick={() => {
                             setTargetDayForSearch(dayData.day);
@@ -1019,9 +988,10 @@ export default function FloatingItineraryPanel({
                               setIsSearchingMode(true);
                             }
                           }}
-                          className="w-7 h-7 rounded-full border border-dashed border-white/10 hover:border-orange-500/40 bg-zinc-900/20 hover:bg-zinc-900/50 flex items-center justify-center transition-all active:scale-95 cursor-pointer group"
+                          className="w-7 h-7 rounded-full border border-dashed hover:border-[var(--itn-accent)]/40 flex items-center justify-center transition-all active:scale-95 cursor-pointer group"
+                          style={{ borderColor: 'var(--itn-border)', background: 'var(--itn-card)' }}
                         >
-                          <Plus size={12} className="text-zinc-500 group-hover:text-orange-400 transition-colors" />
+                          <Plus size={12} className="group-hover:text-[var(--itn-accent)] transition-colors" style={{ color: 'var(--itn-text-muted)' }} />
                         </button>
                       </div>
                       )}
@@ -1032,25 +1002,7 @@ export default function FloatingItineraryPanel({
             })}
           </div>
 
-          {/* 제어 하단 바 */}
-          <div className="pt-3 border-t border-white/5 shrink-0 flex gap-2">
-            {onResetCustomWaypoints && (
-              <button
-                onClick={onResetCustomWaypoints}
-                className="px-3.5 py-3 rounded-xl text-xs font-black text-zinc-400 bg-zinc-900 hover:bg-zinc-800 hover:text-white active:scale-[0.98] transition-all border border-white/10 cursor-pointer"
-                title="드래그 수정된 경로를 초기 실제 도로망으로 리셋"
-              >
-                동선 초기화 🔄
-              </button>
-            )}
-            <button
-              onClick={onSave}
-              className="flex-1 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 active:scale-[0.98] transition-all shadow-lg shadow-red-500/15 flex items-center justify-center gap-1.5 cursor-pointer border border-white/10"
-            >
-              <Check size={12} />
-              <span>코스 설계 완료</span>
-            </button>
-          </div>
+          {/* 하단 바 제거 - 자동 저장 + 헤더 더보기 메뉴로 대체 */}
         </div>
 
         {isSearchingMode && (
@@ -1061,30 +1013,32 @@ export default function FloatingItineraryPanel({
               <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex gap-1.5 shrink-0">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={12} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={12} style={{ color: 'var(--itn-text-muted)' }} />
                     <input
                       type="text"
                       placeholder="관광지, 스팟, 맛집 검색..."
                       value={searchQuery}
                       onChange={e => onSearchQueryChange(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && onSearchPlaces()}
-                      className="w-full bg-zinc-900/80 border border-white/5 rounded-xl pl-8 pr-3 py-1.5 text-[10px] text-white focus:outline-none focus:border-orange-500/50"
+                      className="w-full rounded-xl pl-8 pr-3 py-2 text-xs focus:outline-none transition-colors"
+                      style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text)' }}
                     />
                   </div>
                   <button
                     onClick={onSearchPlaces}
                     disabled={isSearching}
-                    className="px-2.5 bg-zinc-900 border border-white/5 hover:border-orange-500/30 rounded-xl text-[10px] font-black text-white hover:text-orange-400 disabled:opacity-50 transition-all cursor-pointer"
+                    className="px-3 rounded-xl text-xs font-bold disabled:opacity-50 transition-all cursor-pointer"
+                    style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-sub)' }}
                   >
                     검색
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto mt-3 pr-1 space-y-1.5 min-h-0 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="flex-1 overflow-y-auto mt-3 pr-1 space-y-1.5 min-h-0 itn-scrollbar">
                   {isSearching ? (
-                    <div className="py-8 text-center text-xs text-zinc-500">검색 중...</div>
+                    <div className="py-8 text-center text-xs" style={{ color: 'var(--itn-text-muted)' }}>검색 중...</div>
                   ) : searchResults.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-zinc-500">검색 결과가 없습니다.</div>
+                    <div className="py-8 text-center text-xs" style={{ color: 'var(--itn-text-muted)' }}>검색 결과가 없습니다.</div>
                   ) : (
                     searchResults.map((place: any, idx: number) => (
                       <div
@@ -1102,19 +1056,19 @@ export default function FloatingItineraryPanel({
                             is_search_result: true
                           }));
                         }}
-                        className="bg-zinc-900/40 hover:bg-zinc-900/70 border border-white/5 hover:border-orange-500/20 rounded-xl p-2.5 flex items-center justify-between gap-2 cursor-pointer transition-all active:scale-[0.98] select-none group"
+                        className="itn-card rounded-xl p-2.5 flex items-center justify-between gap-2 cursor-pointer transition-all active:scale-[0.98] select-none group"
                       >
                         <div className="min-w-0 flex-1">
-                          <h6 className="text-[12px] font-black text-zinc-100 truncate group-hover:text-orange-400 transition-colors">{place.place_name}</h6>
-                          <p className="text-[10px] text-zinc-400 truncate mt-1">
+                          <h6 className="text-xs font-bold truncate transition-colors" style={{ color: 'var(--itn-text)' }}>{place.place_name}</h6>
+                          <p className="text-xs truncate mt-1" style={{ color: 'var(--itn-text-sub)' }}>
                             {place.road_address_name || place.address_name}
                           </p>
-                          <span className="inline-block text-[11px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/10 px-2.5 py-0.5 rounded-full mt-1.5">
+                          <span className="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full mt-1.5" style={{ color: 'var(--itn-accent)', background: 'var(--itn-accent-light)' }}>
                             {place.category_name?.split(' > ').pop() || '관광지'}
                           </span>
                         </div>
                         <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          <Plus size={10} className="text-orange-400" />
+                          <Plus size={12} style={{ color: 'var(--itn-accent)' }} />
                         </div>
                       </div>
                     ))
@@ -1127,15 +1081,15 @@ export default function FloatingItineraryPanel({
               /* 2. 추천 맛집 탭 */
               <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex items-center justify-between pb-1.5 px-1 shrink-0">
-                  <span className="text-[12px] font-bold text-zinc-400 flex items-center gap-1">
-                    <Sparkles size={12} className="text-orange-400" />
+                  <span className="text-xs font-bold flex items-center gap-1" style={{ color: 'var(--itn-text-sub)' }}>
+                    <Sparkles size={12} style={{ color: 'var(--itn-accent)' }} />
                     <span>주변 및 가는길 5km 추천 맛집</span>
                   </span>
                 </div>
-                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0 itn-scrollbar">
                   {recommendedRestaurants.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                      <span className="text-[11px] text-zinc-550">지도의 코스 스팟을 선택하면<br/>그 주변의 추천 맛집이 활성화됩니다 ✨</span>
+                      <span className="text-xs" style={{ color: 'var(--itn-text-muted)' }}>지도의 코스 스팟을 선택하면<br/>그 주변의 추천 맛집이 활성화됩니다 ✨</span>
                     </div>
                   ) : (
                     recommendedRestaurants.map(({ restaurant, distance, type }) => (
@@ -1151,17 +1105,16 @@ export default function FloatingItineraryPanel({
                             if (onRestaurantDrop) onRestaurantDrop(restaurant, targetDayForSearch);
                           }, 50);
                         }}
-                        className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-white/5 rounded-xl p-2.5 flex items-start justify-between gap-2 transition-all cursor-pointer group"
+                        className="itn-card rounded-xl p-2.5 flex items-start justify-between gap-2 transition-all cursor-pointer group"
                       >
                         <div className="min-w-0">
-                          <h5 className="text-[12px] font-bold text-zinc-100 group-hover:text-orange-400 transition-colors truncate">{restaurant.name}</h5>
-                          <p className="text-[10px] text-zinc-400 truncate mt-1">{restaurant.address}</p>
+                          <h5 className="text-xs font-bold truncate transition-colors" style={{ color: 'var(--itn-text)' }}>{restaurant.name}</h5>
+                          <p className="text-xs truncate mt-1" style={{ color: 'var(--itn-text-sub)' }}>{restaurant.address}</p>
                           <div className="flex items-center gap-1.5 mt-1.5">
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
-                              type === 'near'
-                                ? 'text-orange-400 bg-orange-500/10 border-orange-500/10'
-                                : 'text-red-400 bg-red-500/10 border-red-500/10'
-                            }`}>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{
+                              color: type === 'near' ? 'var(--itn-accent)' : '#ef4444',
+                              background: type === 'near' ? 'var(--itn-accent-light)' : 'rgb(254 226 226)',
+                            }}>
                               {type === 'near' ? '5km 이내' : '가는길 추천'} ({formatDistance(distance)})
                             </span>
                           </div>
@@ -1174,7 +1127,8 @@ export default function FloatingItineraryPanel({
                               if (onRestaurantDrop) onRestaurantDrop(restaurant, targetDayForSearch);
                             }, 50);
                           }}
-                          className="p-1 rounded bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500 hover:text-white transition-colors cursor-pointer shrink-0"
+                          className="p-1 rounded-lg cursor-pointer shrink-0 transition-colors"
+                          style={{ background: 'var(--itn-accent-light)', color: 'var(--itn-accent)' }}
                           title="현재 일정에 추가"
                         >
                           <Plus size={10} />
@@ -1190,15 +1144,15 @@ export default function FloatingItineraryPanel({
               /* 3. 즐겨찾기 맛집 탭 */
               <div className="flex-1 flex flex-col min-h-0">
                 <div className="flex items-center justify-between pb-1.5 px-1 shrink-0">
-                  <span className="text-[12px] font-bold text-zinc-400 flex items-center gap-1">
-                    <Heart size={12} className="text-orange-400 fill-orange-400/20" />
+                  <span className="text-xs font-bold flex items-center gap-1" style={{ color: 'var(--itn-text-sub)' }}>
+                    <Heart size={12} style={{ color: 'var(--itn-accent)' }} />
                     <span>내가 저장한 즐겨찾기 맛집</span>
                   </span>
                 </div>
-                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0 itn-scrollbar">
                   {favorites.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                      <span className="text-[11px] text-zinc-500 font-bold">즐겨찾기해 둔 맛집이 없습니다.<br/>맛집 카드에서 하트(즐겨찾기)를 눌러보세요 ❤️</span>
+                      <span className="text-xs font-bold" style={{ color: 'var(--itn-text-muted)' }}>즐겨찾기해 둔 맛집이 없습니다.<br/>맛집 카드에서 하트(즐겨찾기)를 눌러보세요 ❤️</span>
                     </div>
                   ) : (
                     favorites.map((favId) => {
@@ -1217,12 +1171,12 @@ export default function FloatingItineraryPanel({
                               if (onRestaurantDrop) onRestaurantDrop(restaurant, targetDayForSearch);
                             }, 50);
                           }}
-                          className="bg-zinc-900/60 hover:bg-zinc-800 border border-white/5 hover:border-orange-500/30 rounded-xl p-3 flex items-start justify-between gap-3 transition-all cursor-pointer group"
+                          className="itn-card rounded-xl p-3 flex items-start justify-between gap-3 transition-all cursor-pointer group"
                         >
                           <div className="min-w-0">
-                            <h5 className="text-[12px] font-bold text-zinc-100 group-hover:text-orange-400 transition-colors truncate">{restaurant.name}</h5>
-                            <p className="text-[10px] text-zinc-400 truncate mt-1">{restaurant.address}</p>
-                            <span className="inline-block text-[11px] font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2.5 py-0.5 rounded-full mt-1.5">
+                            <h5 className="text-xs font-bold truncate transition-colors" style={{ color: 'var(--itn-text)' }}>{restaurant.name}</h5>
+                            <p className="text-xs truncate mt-1" style={{ color: 'var(--itn-text-sub)' }}>{restaurant.address}</p>
+                            <span className="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full mt-1.5" style={{ color: 'var(--itn-accent)', background: 'var(--itn-accent-light)' }}>
                               {restaurant.category || '음식점'}
                             </span>
                           </div>
@@ -1234,7 +1188,8 @@ export default function FloatingItineraryPanel({
                                 if (onRestaurantDrop) onRestaurantDrop(restaurant, targetDayForSearch);
                               }, 50);
                             }}
-                            className="p-1 rounded bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500 hover:text-white transition-colors cursor-pointer shrink-0"
+                            className="p-1 rounded-lg cursor-pointer shrink-0 transition-colors"
+                            style={{ background: 'var(--itn-accent-light)', color: 'var(--itn-accent)' }}
                             title="현재 일정에 추가"
                           >
                             <Plus size={10} />

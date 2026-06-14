@@ -13,10 +13,11 @@ interface OverlayContainerProps {
 
 export default function OverlayContainer({ activeTab, onClose, children }: OverlayContainerProps) {
   const titles: Record<TabType, string> = {
+    shopping: '인기 맛집 밀키트 쇼핑',
     home: '지도로 찾기',
-    near: '내 주변 핫플 목록',
-    favorites: '내 맛집 저장소',
-    mypage: '내 정보 및 제보',
+    near: '근처 맛집 목록',
+    favorites: '내 저장소',
+    mypage: '마이',
   };
 
   const isVisible = activeTab !== 'home';

@@ -28,6 +28,7 @@ export interface ContentTag {
 
 export interface Restaurant {
   id: string;
+  kakao_place_id?: string;
   name: string;
   category: string;
   address: string;
@@ -44,6 +45,7 @@ export interface Restaurant {
   reservation?: string;
   business_hours?: string;
   menu_info?: string;
+  description_summary?: string;
 }
 
 export interface AffiliateProduct {

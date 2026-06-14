@@ -117,40 +117,37 @@ export async function POST(req: Request) {
     // 3. 채널 썸네일 조회 (선택적)
     let profileImageUrl = null;
     try {
+      const isHandle = channelId.startsWith('@');
+      const paramName = isHandle ? 'forHandle' : 'id';
       const channelRes = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${YOUTUBE_API_KEY}`
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet&${paramName}=${encodeURIComponent(channelId)}&key=${YOUTUBE_API_KEY}`
       );
       const channelData = await channelRes.json();
-      profileImageUrl = channelData.items?.[0]?.snippet?.thumbnails?.default?.url || null;
+      const snippets = channelData.items?.[0]?.snippet;
+      profileImageUrl = snippets?.thumbnails?.high?.url || snippets?.thumbnails?.medium?.url || snippets?.thumbnails?.default?.url || null;
     } catch (e) {
       console.warn('채널 썸네일 조회 실패', e);
     }
 
+    // 유튜브 프로필 이미지 엑박 방지용 영구 이니셜 아바타 폴백 세팅
+    if (!profileImageUrl && channelTitle) {
+      profileImageUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(channelTitle)}&background=ff5e00&color=fff&bold=true&size=128&rounded=true`;
+    }
+
     // 4. DB 적재 로직
     // 4-1. Channels UPSERT
-    let dbChannelId;
-    const { data: existingChannel } = await supabase
+    const { data: chDataDb, error: channelErr } = await supabase
       .from('channels')
+      .upsert({
+        youtube_channel_id: channelId,
+        name: channelTitle,
+        profile_image_url: profileImageUrl
+      }, { onConflict: 'youtube_channel_id' })
       .select('id')
-      .eq('youtube_channel_id', channelId)
       .single();
 
-    if (existingChannel) {
-      dbChannelId = existingChannel.id;
-    } else {
-      const { data: newChannel, error: channelErr } = await supabase
-        .from('channels')
-        .insert({
-          youtube_channel_id: channelId,
-          name: channelTitle,
-          profile_image_url: profileImageUrl
-        })
-        .select('id')
-        .single();
-      
-      if (channelErr) throw channelErr;
-      dbChannelId = newChannel.id;
-    }
+    if (channelErr) throw channelErr;
+    const dbChannelId = chDataDb.id;
 
     // 4-2. Videos UPSERT
     let dbVideoId;

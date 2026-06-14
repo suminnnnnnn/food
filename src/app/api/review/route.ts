@@ -142,11 +142,14 @@ export async function POST(req: Request) {
             
             if (ytChannelId && process.env.YOUTUBE_API_KEY) {
               try {
-                const chRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${ytChannelId}&key=${process.env.YOUTUBE_API_KEY}`);
+                const isHandle = ytChannelId.startsWith('@');
+                const paramName = isHandle ? 'forHandle' : 'id';
+                const chRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet&${paramName}=${encodeURIComponent(ytChannelId)}&key=${process.env.YOUTUBE_API_KEY}`);
                 if (chRes.ok) {
                   const chData = await chRes.json();
                   if (chData.items && chData.items.length > 0) {
-                    ytChannelProfileUrl = chData.items[0].snippet.thumbnails?.default?.url || "";
+                    const snippets = chData.items[0].snippet;
+                    ytChannelProfileUrl = snippets.thumbnails?.high?.url || snippets.thumbnails?.medium?.url || snippets.thumbnails?.default?.url || "";
                   }
                 }
               } catch (e) {
@@ -253,6 +256,7 @@ ${matchedCandidates.length > 0
    - 예약 가능 여부 및 플랫폼 (예: 캐치테이블 예약 필수, 네이버 예약 가능)
    - 포장(테이크아웃) 가능 여부 (예: 전 메뉴 포장 가능)
    - 영업시간 및 휴무일 (예: 매일 11:30 - 22:00, 월요일 휴무)
+6. 유튜버의 생생한 시그니처 꿀팁 요약: 영상의 제목과 상세 설명을 바탕으로, 유튜버가 이 식당에서 강조한 실전 방문 꿀팁(추천 주문 조합, 웨이팅 대처법, 예약 꿀팁 등)을 생생한 유튜버의 관점에서 한줄평으로 요약하여 'quote' 필드에 작성해 주세요. (예: "주말엔 11시 전 오픈런 필수, 시그니처 짚불구이에 비빔국수 조합이 베스트!")
 
 반드시 아래 JSON 형식으로만 응답해야 하며, 마크다운 백틱(\`\`\`) 등 불필요한 텍스트를 절대 섞지 마십시오.
 {
@@ -260,6 +264,7 @@ ${matchedCandidates.length > 0
   "confidence_score": 0에서 100 사이의 숫자,
   "youtuber_name": "채널명",
   "reason": "최종 검수 판정 사유 및 중복 대조 근거에 대한 짧은 요약",
+  "quote": "유튜버가 직접 강조한 실전 방문 및 주문 꿀팁 요약",
   "keywords": ["🔥 키워드1", "💸 키워드2", "🥩 키워드3"],
   "extracted_menu": "추출 대표 메뉴 정보 또는 '정보 없음'",
   "parking_info": "추출 주차 정보 또는 '정보 없음'",
@@ -396,7 +401,7 @@ ${matchedCandidates.length > 0
             .upsert({
               restaurant_id: finalRestaurantId,
               video_id: vData.id,
-              quote: aiResult.reason || 'AI 검수 승인됨',
+              quote: aiResult.quote || aiResult.reason || 'AI 검수 승인됨',
               keywords: aiResult.keywords || []
             }, { onConflict: 'restaurant_id, video_id' });
         }

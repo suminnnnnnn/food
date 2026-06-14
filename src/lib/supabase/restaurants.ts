@@ -108,6 +108,7 @@ export async function getRestaurantsInBounds(
 
     return {
       id: row.id,
+      kakao_place_id: row.kakao_place_id,
       name: row.name,
       category: row.category || '',
       address: row.road_address || row.address || '',
@@ -214,6 +215,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
 
   return {
     id: data.id,
+    kakao_place_id: data.kakao_place_id,
     name: data.name,
     category: data.category || '',
     address: data.road_address || data.address || '',
@@ -318,6 +320,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
 
     return {
       id: row.id,
+      kakao_place_id: row.kakao_place_id,
       name: row.name,
       category: row.category || '',
       address: row.road_address || row.address || '',

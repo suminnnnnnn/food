@@ -4,20 +4,21 @@ const INITIAL_CENTER = { lat: 37.5665, lng: 126.9780 };
 const INITIAL_LEVEL = 5;
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Map, CustomOverlayMap, MapMarker, MarkerClusterer, Polygon, Polyline, useKakaoLoader } from 'react-kakao-maps-sdk';
+import { Map, CustomOverlayMap, MapMarker, MarkerClusterer, Polygon, Polyline, Circle, useKakaoLoader } from 'react-kakao-maps-sdk';
 
 import { supabase } from '@/lib/supabase/client';
 import { Restaurant, ItineraryItem, Itinerary } from '@/types';
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye } from 'lucide-react';
+import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
 import FavoritesView from '@/components/ui/FavoritesView';
 import MyPageView from '@/components/ui/MyPageView';
-import BottomTabBar from '@/components/ui/BottomTabBar';
+import BottomTabBar, { TabType } from '@/components/ui/BottomTabBar';
+import ShoppingTabView from '@/components/ui/ShoppingTabView';
 import OverlayContainer from '@/components/ui/OverlayContainer';
 import RestaurantSubmissionBottomSheet from '@/components/ui/RestaurantSubmissionBottomSheet';
 import LoginModal from '@/components/ui/LoginModal';
@@ -179,8 +180,9 @@ export default function MapContainer({
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [selectedCluster, setSelectedCluster] = useState<Restaurant[] | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(INITIAL_LEVEL);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>(INITIAL_CENTER);
   // 스마트 탭 시스템 및 제보하기 상태 추가
-  const [activeTab, setActiveTab] = useState<any>('home');
+  const [activeTab, setActiveTab] = useState<TabType>('home');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [desktopView, setDesktopView] = useState<'list' | 'mypage'>('list');
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
@@ -224,6 +226,311 @@ export default function MapContainer({
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState<number>(5); // 5 = 6월, 6 = 7월
   const [isFabMenuOpen, setIsFabMenuOpen] = useState<boolean>(false);
   const [heroRestaurantId, setHeroRestaurantId] = useState<string | null>(null);
+
+  // 4차 기획: 자유 손그림 드로잉 필터 상태 및 헬퍼 함수
+  const [isAreaDrawingMode, setIsAreaDrawingMode] = useState<boolean>(false);
+  const [isDrawingActive, setIsDrawingActive] = useState<boolean>(false);
+  const [drawingPoints, setDrawingPoints] = useState<{ lat: number; lng: number }[]>([]);
+  const [filterPolygon, setFilterPolygon] = useState<{ lat: number; lng: number }[] | null>(null);
+  const [isSnapActive, setIsSnapActive] = useState<boolean>(false);
+
+  const startAreaDrawing = () => {
+    setIsAreaDrawingMode(true);
+    setIsDrawingActive(false);
+    setDrawingPoints([]);
+    setFilterPolygon(null);
+    setIsSnapActive(false);
+    setSelectedRestaurant(null);
+    setSelectedCluster(null);
+  };
+
+  const clearAreaFilter = () => {
+    if (nativePolygonRef.current) {
+      nativePolygonRef.current.setMap(null);
+      nativePolygonRef.current = null;
+    }
+    setFilterPolygon(null);
+    setDrawingPoints([]);
+    setIsAreaDrawingMode(false);
+    setIsDrawingActive(false);
+    setIsSnapActive(false);
+  };
+
+  const handleMapDragEnd = (map: kakao.maps.Map) => {
+    const center = map.getCenter();
+    setMapCenter({ lat: center.getLat(), lng: center.getLng() });
+  };
+
+  const handleMapZoomChanged = (map: kakao.maps.Map) => {
+    setZoomLevel(map.getLevel());
+    const center = map.getCenter();
+    setMapCenter({ lat: center.getLat(), lng: center.getLng() });
+  };
+
+  // 4차 기획 개선: 브라우저 컨테이너 기반 드로잉을 위한 Ref 및 핸들러 정의
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const nativePolygonRef = useRef<kakao.maps.Polygon | null>(null);
+  const nativeGlowPolygonRef = useRef<kakao.maps.Polygon | null>(null);
+
+  // 4차 기획: 완성된 자유 드로잉 영역 네이티브 Polygon 관리 (SDK 버그 방지)
+  useEffect(() => {
+    if (!map) return;
+
+    let animFrameId: number;
+
+    if (nativePolygonRef.current) {
+      nativePolygonRef.current.setMap(null);
+      nativePolygonRef.current = null;
+    }
+    if (nativeGlowPolygonRef.current) {
+      nativeGlowPolygonRef.current.setMap(null);
+      nativeGlowPolygonRef.current = null;
+    }
+
+    if (!isAreaDrawingMode && filterPolygon && filterPolygon.length >= 3 && typeof window !== 'undefined' && window.kakao && window.kakao.maps) {
+      const path = filterPolygon.map(pt => new window.kakao.maps.LatLng(pt.lat, pt.lng));
+      
+      // 1. 네온 글로우 밑선 폴리곤 생성
+      const glowPolygon = new window.kakao.maps.Polygon({
+        path: path,
+        strokeWeight: 7.5,
+        strokeColor: "#FF6F00",
+        strokeOpacity: 0.28,
+        strokeStyle: "solid",
+        fillColor: "#FF6F00",
+        fillOpacity: 0.08,
+      });
+
+      // 2. 메인 레드-오렌지 실선 폴리곤 생성
+      const mainPolygon = new window.kakao.maps.Polygon({
+        path: path,
+        strokeWeight: 2.2,
+        strokeColor: "#ff3b30",
+        strokeOpacity: 0.95,
+        strokeStyle: "solid",
+        fillColor: "transparent",
+        fillOpacity: 0,
+      });
+
+      // 리액트의 <Polyline> 등 드로잉 궤적 엘리먼트 언마운트 완료 후 다음 프레임에서 안전하게 지도에 바인딩 (insertBefore Node 타입 크래시 해결)
+      animFrameId = requestAnimationFrame(() => {
+        glowPolygon.setMap(map);
+        mainPolygon.setMap(map);
+      });
+      nativeGlowPolygonRef.current = glowPolygon;
+      nativePolygonRef.current = mainPolygon;
+    }
+
+    return () => {
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+      }
+      if (nativePolygonRef.current) {
+        nativePolygonRef.current.setMap(null);
+        nativePolygonRef.current = null;
+      }
+      if (nativeGlowPolygonRef.current) {
+        nativeGlowPolygonRef.current.setMap(null);
+        nativeGlowPolygonRef.current = null;
+      }
+    };
+  }, [filterPolygon, isAreaDrawingMode, map]);
+
+  const handleContainerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // 마우스 좌측 버튼 클릭(button === 0)일 때만 드로잉 활성화
+    if (!isAreaDrawingMode || e.button !== 0 || !map) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDrawingActive(true);
+    setIsSnapActive(false);
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (typeof window === 'undefined' || !window.kakao || !window.kakao.maps) return;
+
+    const projection = map.getProjection();
+    const latlng = projection.coordsFromContainerPoint(new window.kakao.maps.Point(x, y));
+    if (latlng && typeof latlng.getLat === 'function') {
+      const lat = latlng.getLat();
+      const lng = latlng.getLng();
+      if (!isNaN(lat) && !isNaN(lng)) {
+        setDrawingPoints([{ lat, lng }]);
+      }
+    }
+  };
+
+  const handleContainerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isAreaDrawingMode || !isDrawingActive || !map || drawingPoints.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (typeof window === 'undefined' || !window.kakao || !window.kakao.maps) return;
+
+    const projection = map.getProjection();
+    const latlng = projection.coordsFromContainerPoint(new window.kakao.maps.Point(x, y));
+    if (!latlng || typeof latlng.getLat !== 'function') return;
+
+    const lat = latlng.getLat();
+    const lng = latlng.getLng();
+    if (isNaN(lat) || isNaN(lng)) return;
+
+    const newPoint = { lat, lng };
+
+    // 자석 스냅 감지
+    const firstPoint = drawingPoints[0];
+    const dist = getDistance(firstPoint.lat, firstPoint.lng, newPoint.lat, newPoint.lng);
+    if (dist <= 0.035 && drawingPoints.length > 2) {
+      setIsSnapActive(true);
+      setDrawingPoints((prev) => [...prev.slice(0, -1), firstPoint]);
+      return;
+    }
+    setIsSnapActive(false);
+
+    // 떨림으로 인한 불필요하게 촘촘한 좌표 수집 차단 (최소 0.5m 이동 시에만 추가)
+    const lastPoint = drawingPoints[drawingPoints.length - 1];
+    const moveDist = getDistance(lastPoint.lat, lastPoint.lng, newPoint.lat, newPoint.lng);
+    if (moveDist < 0.00005) return;
+
+    setDrawingPoints((prev) => [...prev, newPoint]);
+  };
+
+  const handleContainerMouseUp = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!isAreaDrawingMode || !isDrawingActive) return;
+    setIsDrawingActive(false);
+
+    if (drawingPoints.length < 3) {
+      setDrawingPoints([]);
+      setIsSnapActive(false);
+      return;
+    }
+
+    let finalPoints = [...drawingPoints];
+
+    if (isSnapActive) {
+      finalPoints.push(drawingPoints[0]);
+    } else {
+      const first = finalPoints[0];
+      const last = finalPoints[finalPoints.length - 1];
+      const distance = getDistance(last.lat, last.lng, first.lat, first.lng);
+
+      if (distance > 0.01) {
+        const midPointsCount = 3;
+        const interpolated: { lat: number; lng: number }[] = [];
+        for (let i = 1; i <= midPointsCount; i++) {
+          const t = i / (midPointsCount + 1);
+          const interpLat = last.lat + (first.lat - last.lat) * t;
+          const interpLng = last.lng + (first.lng - last.lng) * t;
+          
+          const dLat = first.lat - last.lat;
+          const dLng = first.lng - last.lng;
+          const perpLat = -dLng;
+          const perpLng = dLat;
+          
+          const bulgeFactor = 0.15;
+          const sinT = Math.sin(t * Math.PI);
+          
+          interpolated.push({
+            lat: interpLat + perpLat * bulgeFactor * sinT,
+            lng: interpLng + perpLng * bulgeFactor * sinT
+          });
+        }
+        finalPoints = [...finalPoints, ...interpolated, first];
+      } else {
+        finalPoints.push(first);
+      }
+    }
+
+    // 인접 중복 좌표 필터링 (다각형의 동일 꼭짓점 연속 존재로 인한 계산식 NaN 유발 예방)
+    const cleanedPoints = finalPoints.filter((pt, idx) => {
+      if (idx === 0) return true;
+      const prev = finalPoints[idx - 1];
+      return pt.lat !== prev.lat || pt.lng !== prev.lng;
+    });
+
+    // 마우스/터치 업 이벤트 전파가 카카오 지도 내부에서 정상 종결된 후 상태 변경으로 인한 리렌더링 및 draggable={true} 복구를 처리하기 위해 300ms 딜레이 부여
+    setTimeout(() => {
+      setFilterPolygon(cleanedPoints);
+      setIsAreaDrawingMode(false);
+      setIsSnapActive(false);
+    }, 300);
+  };
+
+  // 모바일 터치 이벤트 핸들러 추가
+  const handleContainerTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isAreaDrawingMode || !map || e.touches.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDrawingActive(true);
+    setIsSnapActive(false);
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    if (typeof window === 'undefined' || !window.kakao || !window.kakao.maps) return;
+
+    const projection = map.getProjection();
+    const latlng = projection.coordsFromContainerPoint(new window.kakao.maps.Point(x, y));
+    if (latlng && typeof latlng.getLat === 'function') {
+      const lat = latlng.getLat();
+      const lng = latlng.getLng();
+      if (!isNaN(lat) && !isNaN(lng)) {
+        setDrawingPoints([{ lat, lng }]);
+      }
+    }
+  };
+
+  const handleContainerTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isAreaDrawingMode || !isDrawingActive || !map || drawingPoints.length === 0 || e.touches.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    if (typeof window === 'undefined' || !window.kakao || !window.kakao.maps) return;
+
+    const projection = map.getProjection();
+    const latlng = projection.coordsFromContainerPoint(new window.kakao.maps.Point(x, y));
+    if (!latlng || typeof latlng.getLat !== 'function') return;
+
+    const lat = latlng.getLat();
+    const lng = latlng.getLng();
+    if (isNaN(lat) || isNaN(lng)) return;
+
+    const newPoint = { lat, lng };
+
+    const firstPoint = drawingPoints[0];
+    const dist = getDistance(firstPoint.lat, firstPoint.lng, newPoint.lat, newPoint.lng);
+    if (dist <= 0.035 && drawingPoints.length > 2) {
+      setIsSnapActive(true);
+      setDrawingPoints((prev) => [...prev.slice(0, -1), firstPoint]);
+      return;
+    }
+    setIsSnapActive(false);
+
+    // 좌표 수 유지를 위한 미세 움직임 필터링
+    const lastPoint = drawingPoints[drawingPoints.length - 1];
+    const moveDist = getDistance(lastPoint.lat, lastPoint.lng, newPoint.lat, newPoint.lng);
+    if (moveDist < 0.00005) return;
+
+    setDrawingPoints((prev) => [...prev, newPoint]);
+  };
+
+
 
   // 캘린더 날짜 렌더링 헬퍼 함수
   const getDaysInMonth = (year: number, month: number) => {
@@ -869,6 +1176,7 @@ export default function MapContainer({
       const ne = bounds.getNorthEast();
       
       setZoomLevel(map.getLevel());
+      setMapCenter({ lat, lng });
       
       // 약간 더 넓은 영역(Buffer Zone)을 서버에 요청하여 마커를 미리 당겨옵니다 (Pre-fetching UX)
       const latPadding = (ne.getLat() - sw.getLat()) * 0.3;
@@ -1069,6 +1377,16 @@ export default function MapContainer({
   // 카테고리, 영상 포맷 필터 및 정렬 로직 (useMemo 적용)
   const filteredRestaurants = useMemo(() => {
     let result = restaurants.filter(r => {
+      // 0. 손그림 영역 필터 다각형 검사
+      if (filterPolygon && filterPolygon.length >= 3) {
+        if (typeof r.lat !== 'number' || typeof r.lng !== 'number' || isNaN(r.lat) || isNaN(r.lng)) {
+          return false;
+        }
+        if (!isPointInPolygon({ lat: r.lat, lng: r.lng }, filterPolygon)) {
+          return false;
+        }
+      }
+
       // 1. 음식 종류 필터
       let catMatch = false;
       if (activeCategory === '전체') {
@@ -1125,7 +1443,7 @@ export default function MapContainer({
       });
     }
     return result;
-  }, [restaurants, activeCategory, activeSort, activeVideoType]);
+  }, [restaurants, activeCategory, activeSort, activeVideoType, filterPolygon]);
 
   if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center">Loading Maps...</div>;
   if (mapError) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center text-red-500 font-bold">Failed to load Kakao Maps: {mapError.message}</div>;
@@ -1146,7 +1464,7 @@ export default function MapContainer({
 
       {/* 데스크탑 좌측 스마트 사이드바 (Practical, Info-First) */}
       <AnimatePresence>
-        {!hideDefaultSidebar && !isSidebarCollapsed && (
+        {!hideDefaultSidebar && !isSidebarCollapsed && !isAreaDrawingMode && (
           <motion.div
             initial={{ x: -400, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -1170,9 +1488,17 @@ export default function MapContainer({
                         className="w-6 h-6 object-contain rounded-md shadow-sm" 
                         alt="모두의맛집" 
                       />
-                      <h2 className="text-[22px] font-extrabold text-white tracking-tight">
-                        우리 동네 맛집
-                      </h2>
+                      <div className="flex items-center gap-2.5">
+                        <h2 className="text-[22px] font-extrabold text-white tracking-tight">
+                          우리 동네 맛집
+                        </h2>
+                        {filterPolygon && filterPolygon.length >= 3 && (
+                          <span className="text-[10px] font-black text-brand-orange-light flex items-center gap-1.5 animate-pulse bg-brand-orange/15 border border-brand-orange/25 px-2.5 py-0.5 rounded-full shadow-sm shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+                            영역 필터 적용 중
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {/* 프로필 연동형 마이페이지 전환 버튼 */}
@@ -1634,19 +1960,58 @@ export default function MapContainer({
 
 
       {/* 실제 지도 렌더링 영역 (테마 필터 격리 적용) */}
-      <div className={`absolute inset-0 w-full h-full transition-colors duration-700 ${mapTheme}`}>
+      <div 
+        ref={mapContainerRef}
+        onMouseDown={handleContainerMouseDown}
+        onMouseMove={handleContainerMouseMove}
+        onMouseUp={handleContainerMouseUp}
+        onMouseLeave={handleContainerMouseUp}
+        onTouchStart={handleContainerTouchStart}
+        onTouchMove={handleContainerTouchMove}
+        onTouchEnd={handleContainerMouseUp}
+        className={`absolute inset-0 w-full h-full transition-colors duration-700 ${mapTheme}`}
+      >
         <Map
           key="place-map-v2"
-          center={INITIAL_CENTER}
-          level={INITIAL_LEVEL}
+          center={mapCenter}
+          level={zoomLevel}
           style={{ width: '100%', height: '100%' }}
           onCreate={setMap}
+          draggable={!isAreaDrawingMode}
+          disableDoubleClickZoom={isAreaDrawingMode}
           onClick={() => {
-            setSelectedRestaurant(null);
-            setSelectedCluster(null);
+            if (!isAreaDrawingMode) {
+              setSelectedRestaurant(null);
+              setSelectedCluster(null);
+            }
           }}
           isPanto={true}
+          onDragEnd={handleMapDragEnd}
+          onZoomChanged={handleMapZoomChanged}
         >
+
+        {/* 4차 기획: 자유 손그림 실시간 궤적(Polyline) 렌더링 */}
+        {isAreaDrawingMode && drawingPoints.length > 1 && (
+          <Polyline
+            path={drawingPoints}
+            strokeWeight={4}
+            strokeColor="#FF6F00"
+            strokeOpacity={0.85}
+            strokeStyle="solid"
+          />
+        )}
+
+        {/* 4차 기획: 자석 스냅 효과 활성화 시 시각 피드백용 닫힘 예시 면 렌더링 */}
+        {isAreaDrawingMode && drawingPoints.length > 2 && isSnapActive && (
+          <Polygon
+            path={[...drawingPoints, drawingPoints[0]]}
+            strokeWeight={0}
+            fillColor="#FF6F00"
+            fillOpacity={0.25}
+          />
+        )}
+
+
 
 
         {/* 3차 기획: 실시간 일정 드로잉 경로 버퍼 다각형(Polygon) 렌더링 */}
@@ -1862,18 +2227,25 @@ export default function MapContainer({
           <CustomOverlayMap
             key={restaurant.id}
             position={{ lat: restaurant.lat, lng: restaurant.lng }}
-            clickable={true}
+            clickable={!isAreaDrawingMode}
             yAnchor={1} // 핀의 꼬리가 마커 위치에 오도록 (하단 정렬)
             zIndex={mapHoveredRestaurantId === restaurant.id ? 100 : (selectedRestaurant?.id === restaurant.id ? 50 : (effectiveHoveredId === restaurant.id ? 30 : 10))}
           >
             <div 
               onClick={() => {
+                if (isAreaDrawingMode) return;
                 handleSelectRestaurant(restaurant);
                 map?.panTo(new kakao.maps.LatLng(restaurant.lat, restaurant.lng));
               }} 
-              onMouseEnter={() => setMapHoveredRestaurantId(restaurant.id)}
-              onMouseLeave={() => setMapHoveredRestaurantId(null)}
-              draggable={isPlanningMode}
+              onMouseEnter={() => {
+                if (isAreaDrawingMode) return;
+                setMapHoveredRestaurantId(restaurant.id);
+              }}
+              onMouseLeave={() => {
+                if (isAreaDrawingMode) return;
+                setMapHoveredRestaurantId(null);
+              }}
+              draggable={isPlanningMode && !isAreaDrawingMode}
               onDragStart={(e) => {
                 if (isPlanningMode) {
                   e.dataTransfer.setData('text/plain', JSON.stringify(restaurant));
@@ -2099,11 +2471,107 @@ export default function MapContainer({
             <Navigation size={18} fill="currentColor" />
           </button>
         </div>
+
+        {/* 영역 그리기 필터 */}
+        <div className="flex items-center gap-2 group">
+          <span className="text-[10px] font-black text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
+            {filterPolygon ? '영역 필터 해제' : '영역으로 찾기'}
+          </span>
+          <button
+            onClick={filterPolygon ? clearAreaFilter : startAreaDrawing}
+            className={`p-3 rounded-full border hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer ${
+              isAreaDrawingMode
+                ? 'bg-gradient-to-tr from-red-600 to-brand-orange text-white border-transparent animate-pulse'
+                : filterPolygon
+                ? 'bg-zinc-900 text-brand-orange border-brand-orange/40 hover:border-brand-orange/60'
+                : 'bg-zinc-900 text-orange-500 hover:text-orange-400 border-white/10 hover:border-orange-500/30'
+            }`}
+            title="영역 그리기 필터"
+          >
+            <Pentagon size={18} className={isAreaDrawingMode ? 'stroke-[2.5]' : ''} />
+          </button>
+        </div>
       </div>
+
+      {/* 4차 기획: 영역 그리기 컨트롤 패널 (슬림 글래스모피즘 캡슐형 + 스피닝 테두리) */}
+      <AnimatePresence>
+        {(isAreaDrawingMode || (filterPolygon && filterPolygon.length >= 3)) && (
+          <motion.div
+            initial={{ scale: 0.85, x: '-50%', opacity: 0 }}
+            animate={{ 
+              scale: isDrawingActive ? 0.96 : 1,
+              y: isDrawingActive ? -15 : 0, 
+              x: '-50%', 
+              opacity: isDrawingActive ? 0.12 : 1 
+            }}
+            exit={{ scale: 0.85, x: '-50%', opacity: 0 }}
+            transition={{ type: 'spring', damping: 22, stiffness: 220 }}
+            className={`absolute top-6 left-1/2 -translate-x-1/2 z-50 p-[1.5px] overflow-hidden rounded-full shadow-[0_12px_45px_-5px_rgba(255,111,0,0.25)] text-white transition-all duration-300 flex items-center justify-between ${
+              isDrawingActive ? 'pointer-events-none' : ''
+            }`}
+            style={{
+              background: 'transparent'
+            }}
+          >
+            {/* 시계방향으로 회전하는 빨강-주황 그라데이션 테두리 뒷판 */}
+            <div 
+              className="absolute inset-[-200%] bg-[conic-gradient(from_0deg,#ff2d55,#ff9500,#ff2d55)] animate-border-spin pointer-events-none z-0"
+              style={{
+                opacity: isDrawingActive ? 0.15 : 1,
+                transition: 'opacity 0.3s ease'
+              }}
+            />
+
+            {/* 실제 내용물 내부 알약 카드 */}
+            <div className="relative z-10 w-full h-full bg-zinc-950/92 dark:bg-zinc-950/95 backdrop-blur-3xl rounded-full px-5 py-2.5 flex items-center justify-between gap-4.5">
+              {isAreaDrawingMode ? (
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <span className="text-[11px] font-black text-brand-orange-light tracking-wider uppercase flex items-center gap-1.5 shrink-0">
+                    <PenTool size={13} className="stroke-[2.5]" />
+                    그리기 모드
+                  </span>
+                  <span className="text-[11.5px] font-medium text-zinc-400 truncate max-w-[150px] md:max-w-xs shrink">
+                    {drawingPoints.length > 0 ? (
+                      <>
+                        수집 좌표: <span className="text-brand-orange font-bold">{drawingPoints.length}</span>개
+                        {isSnapActive && <span className="text-brand-orange-light font-black ml-1.5 animate-pulse">스냅 감지!</span>}
+                      </>
+                    ) : (
+                      '지도에 마우스나 손가락으로 쓱 그려보세요!'
+                    )}
+                  </span>
+                  <button
+                    onClick={clearAreaFilter}
+                    className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-zinc-300 hover:text-white rounded-full text-[10.5px] font-black transition-all active:scale-95 cursor-pointer shrink-0"
+                  >
+                    취소
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <span className="text-[11px] font-black text-brand-orange-light tracking-wider uppercase flex items-center gap-1.5 shrink-0">
+                    <PenTool size={13} className="stroke-[2.5]" />
+                    그린 영역 내 맛집
+                  </span>
+                  <span className="text-[10px] font-black bg-white/10 border border-white/5 px-2.5 py-0.5 rounded-full text-zinc-300 shrink-0">
+                    맛집 {filteredRestaurants.length}개 발견
+                  </span>
+                  <button
+                    onClick={clearAreaFilter}
+                    className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-brand-orange hover:from-red-500 hover:to-orange-500 text-white rounded-full text-[10.5px] font-black transition-all active:scale-95 shadow-md shadow-red-500/15 flex items-center justify-center gap-1 cursor-pointer shrink-0"
+                  >
+                    <X size={11} className="stroke-[2.5]" /> 해제
+                  </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 퀵-슬라이더 덱 (클러스터 클릭 시 데스크탑/모바일 공통 플로팅 팝업) */}
       <AnimatePresence>
-        {!selectedRestaurant && selectedCluster && selectedCluster.length > 0 && (
+        {!isAreaDrawingMode && !selectedRestaurant && selectedCluster && selectedCluster.length > 0 && (
           <motion.div 
             initial={{ y: 150, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -2176,7 +2644,7 @@ export default function MapContainer({
 
       {/* 식당 상세 정보 카드 Overlay */}
       <RestaurantInfoCard 
-        restaurant={selectedRestaurant} 
+        restaurant={isAreaDrawingMode ? null : selectedRestaurant} 
         onClose={() => handleSelectRestaurant(null)} 
         isSidebarCollapsed={isSidebarCollapsed || hideDefaultSidebar}
         onRequestVideoSubmit={(restaurant) => {
@@ -2211,6 +2679,9 @@ export default function MapContainer({
 
       {/* 모바일 탭 컨텐츠 오버레이 바텀시트 */}
       <OverlayContainer activeTab={activeTab} onClose={() => setActiveTab('home')}>
+        {activeTab === 'shopping' && (
+          <ShoppingTabView />
+        )}
         {activeTab === 'near' && (
           <NearHotplacesView
             displayedRestaurants={restaurants}
@@ -2344,7 +2815,9 @@ export default function MapContainer({
       </AnimatePresence>
 
       {/* 모바일 하단 내비게이션 스마트 탭바 */}
-      <BottomTabBar activeTab={activeTab} onChangeTab={setActiveTab} />
+      {!isAreaDrawingMode && !filterPolygon && (
+        <BottomTabBar activeTab={activeTab} onChangeTab={setActiveTab} />
+      )}
 
 
       {/* 나만의 핫플 제보하기 바텀시트 */}

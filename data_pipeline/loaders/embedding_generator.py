@@ -6,18 +6,23 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 def generate_context_string(item: dict) -> str:
     """
-    파편화된 메타데이터를 하나의 의미론적 문장(Context String)으로 압축합니다.
+    파편화된 메타데이터와 요약, 태그 정보를 하나의 의미론적 문장(Context String)으로 압축합니다.
     """
     name = item.get("name", "")
     category = item.get("category", "분류없음")
     address = item.get("address") or item.get("road_address") or ""
+    description_summary = item.get("description_summary", "")
+    tags = item.get("tags", [])
     
-    # 텍스트가 풍부할수록 임베딩 퀄리티가 높아지므로 사용 가능한 정보를 다 모음
     context_parts = [f"이곳은 {name}입니다."]
     if category:
         context_parts.append(f"주요 카테고리는 {category}입니다.")
     if address:
         context_parts.append(f"위치는 {address}에 있습니다.")
+    if description_summary:
+        context_parts.append(description_summary)
+    if tags:
+        context_parts.append(f"관련 태그로는 {', '.join(tags)} 등이 있습니다.")
         
     return " ".join(context_parts)
 
@@ -35,11 +40,15 @@ async def generate_embedding(text: str) -> list[float]:
     
     def _embed():
         result = genai.embed_content(
-            model="models/text-embedding-004",
+            model="models/gemini-embedding-001",
             content=text,
-            task_type="retrieval_document"
+            task_type="retrieval_document",
+            output_dimensionality=768
         )
-        return result['embedding']
+        emb_data = result.get('embedding', [])
+        if isinstance(emb_data, dict):
+            return emb_data.get('values', [])
+        return emb_data
         
     embedding = await asyncio.to_thread(_embed)
     return embedding

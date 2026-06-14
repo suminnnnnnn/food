@@ -311,17 +311,17 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
   return (
     <>
       <CustomModal isOpen={isOpen} onClose={onClose}>
-        <div className="p-6 text-white bg-zinc-950/80 backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden max-h-[85vh] flex flex-col">
+        <div className="p-6 text-[var(--itn-text)] itn-glass-panel rounded-3xl overflow-hidden max-h-[85vh] flex flex-col">
           {/* 헤더 */}
-          <div className="flex items-center justify-between pb-4 border-b border-white/5">
+          <div className="flex items-center justify-between pb-4 border-b border-[var(--itn-border)]">
             <div>
-              <h3 className="text-lg font-bold bg-gradient-to-r from-red-500 to-orange-400 bg-clip-text text-transparent flex items-center gap-2">
-                <Sparkles size={18} className="text-orange-500" />
+              <h3 className="text-lg font-bold text-[var(--itn-text)] flex items-center gap-2">
+                <Sparkles size={18} className="text-[var(--itn-accent)]" />
                 {editingItinerary ? '나의 미식 일정 편집' : '트리플 스타일 일정 플래너'}
               </h3>
-              <p className="text-xs text-zinc-400 mt-0.5">시안 속 디테일(이동 거리, 상세 메모, 방문 예정 시간)을 탑재한 프리미엄 도구입니다.</p>
+              <p className="text-xs text-[var(--itn-text-sub)] mt-0.5">시안 속 디테일(이동 거리, 상세 메모, 방문 예정 시간)을 탑재한 프리미엄 도구입니다.</p>
             </div>
-            <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+            <button onClick={onClose} className="text-[var(--itn-text-muted)] hover:text-[var(--itn-text)] transition-colors">
               ✕
             </button>
           </div>
@@ -331,8 +331,8 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
               /* 1단계: 일정 기본 정보 설정 */
               <div className="space-y-5 py-2">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Edit3 size={14} className="text-orange-500" />
+                  <label className="text-xs font-bold text-[var(--itn-text-sub)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Edit3 size={14} className="text-[var(--itn-accent)]" />
                     여행지 및 제목
                   </label>
                   <input
@@ -340,13 +340,13 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                     placeholder="예: 후쿠오카 여행"
                     value={title}
                     onChange={e => setTitle(e.target.value)}
-                    className="w-full bg-zinc-900/60 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-colors"
+                    className="w-full bg-[var(--itn-card)] border border-[var(--itn-border)] rounded-2xl px-4 py-3.5 text-sm text-[var(--itn-text)] focus:outline-none focus:border-[var(--itn-accent)]/50 transition-colors"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Calendar size={14} className="text-orange-500" />
+                  <label className="text-xs font-bold text-[var(--itn-text-sub)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar size={14} className="text-[var(--itn-accent)]" />
                     여행 기간 (일수)
                   </label>
                   <div className="grid grid-cols-7 gap-2">
@@ -357,7 +357,7 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                         className={`py-3 rounded-xl text-xs font-black transition-all border ${
                           daysCount === num
                             ? 'bg-gradient-to-r from-red-600 to-orange-500 border-transparent text-white shadow-lg shadow-red-500/10 scale-105'
-                            : 'bg-zinc-900/40 border-white/5 text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200'
+                            : 'bg-[var(--itn-card)] border-[var(--itn-border)] text-[var(--itn-text-sub)] hover:bg-[var(--itn-card-hover)] hover:text-[var(--itn-text)]'
                         }`}
                       >
                         {num}일
@@ -368,8 +368,8 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
 
                 {/* 동행자 설정 */}
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Users size={14} className="text-orange-500" />
+                  <label className="text-xs font-bold text-[var(--itn-text-sub)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Users size={14} className="text-[var(--itn-accent)]" />
                     누구와 함께하나요?
                   </label>
                   <div className="flex gap-2.5 flex-wrap">
@@ -379,8 +379,8 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                         onClick={() => setCompanion(comp)}
                         className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
                           companion === comp
-                            ? 'bg-orange-500/20 border-orange-500 text-orange-400 shadow-md'
-                            : 'bg-zinc-900/40 border-white/5 text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200'
+                            ? 'bg-[var(--itn-accent-light)] border-[var(--itn-accent)] text-[var(--itn-accent)] shadow-md'
+                            : 'bg-[var(--itn-card)] border-[var(--itn-border)] text-[var(--itn-text-sub)] hover:bg-[var(--itn-card-hover)] hover:text-[var(--itn-text)]'
                         }`}
                       >
                         {comp}
@@ -391,8 +391,8 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
 
                 {/* 여행 테마 설정 */}
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Tag size={14} className="text-orange-500" />
+                  <label className="text-xs font-bold text-[var(--itn-text-sub)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Tag size={14} className="text-[var(--itn-accent)]" />
                     여행 테마/스타일
                   </label>
                   <div className="flex gap-2.5 flex-wrap">
@@ -402,8 +402,8 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                         onClick={() => setTheme(th)}
                         className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
                           theme === th
-                            ? 'bg-orange-500/20 border-orange-500 text-orange-400 shadow-md'
-                            : 'bg-zinc-900/40 border-white/5 text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200'
+                            ? 'bg-[var(--itn-accent-light)] border-[var(--itn-accent)] text-[var(--itn-accent)] shadow-md'
+                            : 'bg-[var(--itn-card)] border-[var(--itn-border)] text-[var(--itn-text-sub)] hover:bg-[var(--itn-card-hover)] hover:text-[var(--itn-text)]'
                         }`}
                       >
                         {th}
@@ -424,17 +424,17 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
               /* 2단계: 코스 편집 (트리플 스타일 타임라인) */
               <div className="flex flex-col md:flex-row gap-6 h-[55vh]">
                 {/* 왼쪽: 일정 목록 및 타임라인 */}
-                <div className="flex-1 flex flex-col min-h-0 bg-zinc-900/20 border border-white/5 rounded-2xl p-4">
+                <div className="flex-1 flex flex-col min-h-0 bg-[var(--itn-card)] border border-[var(--itn-border)] rounded-2xl p-4">
                   
                   {/* 상단 메타 요약 헤더 (트리플 디테일) */}
-                  <div className="pb-3 border-b border-white/5 mb-3 flex flex-col justify-between">
+                  <div className="pb-3 border-b border-[var(--itn-border)] mb-3 flex flex-col justify-between">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-base font-black text-white">{title}</h4>
-                      <button onClick={() => setStep(1)} className="text-[10px] text-zinc-400 font-bold bg-zinc-800 px-2 py-0.5 rounded-lg border border-white/5 hover:bg-zinc-700">
+                      <h4 className="text-base font-black text-[var(--itn-text)]">{title}</h4>
+                      <button onClick={() => setStep(1)} className="text-xs text-[var(--itn-text-sub)] font-bold bg-transparent px-2 py-0.5 rounded-lg border border-[var(--itn-border)] hover:bg-[var(--itn-card-hover)]">
                         정보수정
                       </button>
                     </div>
-                    <span className="text-[10px] text-zinc-500 font-semibold mt-1">
+                    <span className="text-xs text-[var(--itn-text-muted)] font-semibold mt-1">
                       {companion} • {theme} | 총 {daysCount}일 코스
                     </span>
                   </div>
@@ -452,7 +452,7 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                         className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black transition-all ${
                           activeDay === d.day
                             ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-md'
-                            : 'bg-zinc-900/60 text-zinc-400 border border-white/5 hover:text-white'
+                            : 'bg-[var(--itn-card)] text-[var(--itn-text-sub)] border border-[var(--itn-border)] hover:text-[var(--itn-text)]'
                         }`}
                       >
                         Day {d.day}
@@ -463,15 +463,15 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                   {/* 트리플 스타일 수직 타임라인 목록 */}
                   <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin relative">
                     {daysData.find(d => d.day === activeDay)?.items.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-center p-8 border border-dashed border-white/5 rounded-xl">
-                        <MapPin size={24} className="text-zinc-600 mb-2" />
-                        <span className="text-xs text-zinc-500 font-semibold">일차에 추가된 장소가 없습니다.</span>
-                        <span className="text-[10px] text-zinc-600 mt-1">하단 장소 추가 및 추천 맛집을 더해보세요.</span>
+                      <div className="h-full flex flex-col items-center justify-center text-center p-8 border border-dashed border-[var(--itn-border)] rounded-xl">
+                        <MapPin size={24} className="text-[var(--itn-text-muted)] mb-2" />
+                        <span className="text-xs text-[var(--itn-text-muted)] font-semibold">일차에 추가된 장소가 없습니다.</span>
+                        <span className="text-xs text-[var(--itn-text-muted)] mt-1">하단 장소 추가 및 추천 맛집을 더해보세요.</span>
                       </div>
                     ) : (
                       <div className="relative pl-10 space-y-4">
                         {/* 세로 타임라인 라인 */}
-                        <div className="absolute left-[29px] top-4 bottom-4 w-0.5 bg-zinc-800" />
+                        <div className="absolute left-[29px] top-4 bottom-4 w-0.5 bg-[var(--itn-timeline)]" />
                         
                         {daysData.find(d => d.day === activeDay)?.items.map((item, idx, arr) => {
                           // 다음 노드와의 거리 계산
@@ -487,15 +487,15 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                               
                               {/* 마커 번호 + 시간 정보 인디케이터 (좌측 배치) */}
                               <div className="absolute right-full mr-4 top-1 flex flex-col items-center z-10">
-                                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-red-600 to-orange-500 text-[10px] font-black flex items-center justify-center text-white shadow-md border border-white/20">
+                                <div className="w-6 h-6 rounded-full bg-gradient-to-r from-red-600 to-orange-500 text-xs font-black flex items-center justify-center text-white ring-white ring-2 shadow-md">
                                   {idx + 1}
                                 </div>
                                 {item.visit_time ? (
-                                  <span className="text-[9px] text-orange-400 font-black mt-1.5 flex items-center gap-0.5 bg-orange-500/10 px-1 py-0.5 rounded border border-orange-500/15">
+                                  <span className="text-[11px] text-[var(--itn-accent)] font-black mt-1.5 flex items-center gap-0.5 bg-[var(--itn-accent-light)] px-1 py-0.5 rounded border border-[var(--itn-accent)]/15">
                                     {item.visit_time}
                                   </span>
                                 ) : (
-                                  <Clock size={10} className="text-zinc-600 mt-2" />
+                                  <Clock size={10} className="text-[var(--itn-text-muted)] mt-2" />
                                 )}
                               </div>
 
@@ -507,14 +507,14 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                                 }}
                                 className={`border rounded-2xl p-4 flex flex-col gap-2 cursor-pointer transition-all ${
                                   selectedSpotForRecommendation?.id === item.id
-                                    ? 'bg-gradient-to-r from-red-950/20 to-orange-950/20 border-orange-500/40 shadow-inner'
-                                    : 'bg-zinc-900/30 border-white/5 hover:border-white/10 hover:bg-zinc-900/40'
+                                    ? 'bg-[var(--itn-accent-light)] border-[var(--itn-accent)]/40 shadow-inner'
+                                    : 'bg-[var(--itn-card)] border-[var(--itn-border)] hover:border-[var(--itn-border)] hover:bg-[var(--itn-card-hover)]'
                                 }`}
                               >
                                 <div className="flex items-start justify-between gap-3 min-w-0">
                                   <div className="min-w-0">
-                                    <h5 className="text-sm font-black text-white truncate">{item.name}</h5>
-                                    <p className="text-[10px] text-zinc-500 truncate mt-0.5">
+                                    <h5 className="text-sm font-black text-[var(--itn-text)] truncate">{item.name}</h5>
+                                    <p className="text-xs text-[var(--itn-text-muted)] truncate mt-0.5">
                                       {item.category} • {item.address.split(' ').slice(0, 2).join(' ')}
                                     </p>
                                   </div>
@@ -524,20 +524,20 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleMoveUp(idx); }}
                                       disabled={idx === 0}
-                                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30"
+                                      className="p-1 rounded hover:bg-[var(--itn-card-hover)] text-[var(--itn-text-sub)] disabled:opacity-30"
                                     >
                                       <ChevronUp size={14} />
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleMoveDown(idx); }}
                                       disabled={idx === arr.length - 1}
-                                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 disabled:opacity-30"
+                                      className="p-1 rounded hover:bg-[var(--itn-card-hover)] text-[var(--itn-text-sub)] disabled:opacity-30"
                                     >
                                       <ChevronDown size={14} />
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); handleRemoveItem(item.id); }}
-                                      className="p-1.5 rounded hover:bg-red-500/10 text-zinc-500 hover:text-red-400"
+                                      className="p-1.5 rounded hover:bg-red-500/10 text-[var(--itn-text-muted)] hover:text-red-400"
                                     >
                                       <Trash2 size={12} />
                                     </button>
@@ -546,17 +546,16 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
 
                                 {/* 메모 노출 영역 (트리플 스타일) */}
                                 {item.memo && (
-                                  <div className="mt-1 bg-zinc-900/50 border border-white/5 px-3 py-2 rounded-xl text-[10px] text-zinc-400 font-semibold leading-relaxed">
+                                  <div className="mt-1 bg-[var(--itn-card)] border border-[var(--itn-border)] px-3 py-2 rounded-xl text-xs text-[var(--itn-text-sub)] font-semibold leading-relaxed">
                                     {item.memo}
                                   </div>
                                 )}
                               </div>
 
-                              {/* 장소와 장소 사이 실시간 이동 거리선 칩 */}
+                              {/* 장소와 장소 사이 실시간 이동 거리선 칩 (트리플 스타일) */}
                               {distanceStr && (
                                 <div className="h-6 flex items-center justify-start ml-2 my-1">
-                                  <div className="flex items-center gap-1 text-[9px] font-black text-zinc-500 bg-zinc-950/70 border border-white/5 px-2.5 py-0.5 rounded-full z-10 shadow-sm">
-                                    <Navigation size={8} className="text-orange-500" />
+                                  <div className="flex items-center text-[11px] font-black text-[var(--itn-text-sub)] bg-[var(--itn-card)] border border-[var(--itn-border)] px-2 py-0.5 rounded-lg z-10 shadow-sm">
                                     {distanceStr}
                                   </div>
                                 </div>
@@ -573,7 +572,7 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                   <div className="grid grid-cols-2 gap-2.5 mt-3 shrink-0">
                     <button
                       onClick={() => setShowSearchModal(true)}
-                      className="py-3 rounded-xl border border-white/10 bg-zinc-900/40 hover:bg-orange-500/5 hover:border-orange-500/20 hover:text-orange-400 text-xs font-bold text-zinc-300 transition-all flex items-center justify-center gap-2"
+                      className="py-3 rounded-xl border border-[var(--itn-border)] bg-transparent hover:bg-[var(--itn-card-hover)] hover:border-[var(--itn-accent)]/20 hover:text-[var(--itn-accent)] text-xs font-bold text-[var(--itn-text-sub)] transition-all flex items-center justify-center gap-2"
                     >
                       <Plus size={14} />
                       <span>장소 추가</span>
@@ -587,7 +586,7 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                         }
                         handleOpenMemoModal(items[0]);
                       }}
-                      className="py-3 rounded-xl border border-white/10 bg-zinc-900/40 hover:bg-orange-500/5 hover:border-orange-500/20 hover:text-orange-400 text-xs font-bold text-zinc-300 transition-all flex items-center justify-center gap-2"
+                      className="py-3 rounded-xl border border-[var(--itn-border)] bg-transparent hover:bg-[var(--itn-card-hover)] hover:border-[var(--itn-accent)]/20 hover:text-[var(--itn-accent)] text-xs font-bold text-[var(--itn-text-sub)] transition-all flex items-center justify-center gap-2"
                     >
                       <Clock size={14} />
                       <span>시간/메모 추가</span>
@@ -596,13 +595,13 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                 </div>
 
                 {/* 오른쪽: 주변 맛집 추천 */}
-                <div className="w-full md:w-80 flex flex-col min-h-0 bg-zinc-900/20 border border-white/5 rounded-2xl p-4">
-                  <div className="pb-2.5 border-b border-white/5 mb-3">
-                    <h4 className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
-                      <Sparkles size={14} className="text-orange-400" />
+                <div className="w-full md:w-80 flex flex-col min-h-0 bg-[var(--itn-card)] border border-[var(--itn-border)] rounded-2xl p-4">
+                  <div className="pb-2.5 border-b border-[var(--itn-border)] mb-3">
+                    <h4 className="text-xs font-bold text-[var(--itn-text)] flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-[var(--itn-accent)]" />
                       주변 1.5km 검증 맛집
                     </h4>
-                    <p className="text-[10px] text-zinc-500 mt-1">
+                    <p className="text-xs text-[var(--itn-text-muted)] mt-1">
                       {selectedSpotForRecommendation 
                         ? `[${selectedSpotForRecommendation.name}] 주변 추천 맛집`
                         : '일정 장소를 선택하면 근처 유튜브 맛집을 자동 추천합니다.'}
@@ -612,27 +611,27 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                   <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
                     {isRecommendationLoading ? (
                       <div className="h-full flex items-center justify-center">
-                        <svg className="animate-spin h-5 w-5 text-orange-500" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-5 w-5 text-[var(--itn-accent)]" viewBox="0 0 24 24">
                           <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
                           <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
                       </div>
                     ) : recommendedRestaurants.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                        <Navigation size={18} className="text-zinc-700 mb-1" />
-                        <span className="text-[10px] text-zinc-500">추천 맛집이 없습니다.</span>
+                        <Navigation size={18} className="text-[var(--itn-text-muted)] mb-1" />
+                        <span className="text-xs text-[var(--itn-text-muted)]">추천 맛집이 없습니다.</span>
                       </div>
                     ) : (
                       recommendedRestaurants.map(({ restaurant, distance }) => (
                         <div
                           key={restaurant.id}
-                          className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-white/5 rounded-xl p-3 flex items-start justify-between gap-2.5 transition-all"
+                          className="bg-[var(--itn-card)] hover:bg-[var(--itn-card-hover)] border border-[var(--itn-border)] rounded-xl p-3 flex items-start justify-between gap-2.5 transition-all"
                         >
                           <div className="min-w-0">
-                            <h5 className="text-xs font-bold text-white truncate">{restaurant.name}</h5>
-                            <p className="text-[9px] text-zinc-500 truncate mt-0.5">{restaurant.address}</p>
+                            <h5 className="text-xs font-bold text-[var(--itn-text)] truncate">{restaurant.name}</h5>
+                            <p className="text-[11px] text-[var(--itn-text-muted)] truncate mt-0.5">{restaurant.address}</p>
                             <div className="flex items-center gap-1.5 mt-1.5">
-                              <span className="text-[8px] font-black text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded-full border border-orange-500/10">
+                              <span className="text-[11px] font-black text-[var(--itn-accent)] bg-[var(--itn-accent-light)] px-1.5 py-0.5 rounded-full border border-[var(--itn-accent)]/10">
                                 {formatDistance(distance)} 근처
                               </span>
                             </div>
@@ -640,7 +639,7 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
 
                           <button
                             onClick={() => handleAddRestaurantToItinerary(restaurant)}
-                            className="flex-shrink-0 p-1.5 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500 hover:text-white transition-colors"
+                            className="flex-shrink-0 p-1.5 rounded-lg bg-[var(--itn-accent-light)] border border-[var(--itn-accent)]/20 text-[var(--itn-accent)] hover:bg-[var(--itn-accent)] hover:text-white transition-colors"
                           >
                             <Plus size={12} />
                           </button>
@@ -655,10 +654,10 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
 
           {/* 하단 제어바 (2단계만 활성화) */}
           {step === 2 && (
-            <div className="pt-4 border-t border-white/5 flex gap-3">
+            <div className="pt-4 border-t border-[var(--itn-border)] flex gap-3">
               <button
                 onClick={() => setStep(1)}
-                className="px-5 py-3.5 rounded-xl text-xs font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-colors border border-white/5"
+                className="px-5 py-3.5 rounded-xl text-xs font-bold text-[var(--itn-text-sub)] hover:text-[var(--itn-text)] hover:bg-[var(--itn-card-hover)] transition-colors border border-[var(--itn-border)]"
               >
                 이전 (기본설정)
               </button>
@@ -675,27 +674,27 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
 
       {/* 장소 검색 서브 모달 */}
       <CustomModal isOpen={showSearchModal} onClose={() => setShowSearchModal(false)}>
-        <div className="p-5 text-white bg-zinc-950 border border-white/10 rounded-3xl max-h-[70vh] flex flex-col">
-          <div className="pb-3 border-b border-white/5 flex justify-between items-center">
-            <h4 className="text-sm font-bold text-zinc-200">장소 검색</h4>
-            <button onClick={() => setShowSearchModal(false)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+        <div className="p-5 text-[var(--itn-text)] itn-glass-panel rounded-3xl max-h-[70vh] flex flex-col">
+          <div className="pb-3 border-b border-[var(--itn-border)] flex justify-between items-center">
+            <h4 className="text-sm font-bold text-[var(--itn-text)]">장소 검색</h4>
+            <button onClick={() => setShowSearchModal(false)} className="text-[var(--itn-text-muted)] hover:text-[var(--itn-text)]">✕</button>
           </div>
 
           <div className="mt-3 flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--itn-text-muted)]" size={16} />
               <input
                 type="text"
                 placeholder="관광지, 스팟, 카페명을 입력해보세요..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearchPlaces()}
-                className="w-full bg-zinc-900/80 border border-white/5 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500/50"
+                className="w-full bg-[var(--itn-card)] border border-[var(--itn-border)] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[var(--itn-text)] focus:outline-none focus:border-[var(--itn-accent)]/50"
               />
             </div>
             <button
               onClick={handleSearchPlaces}
-              className="px-4 py-2.5 bg-orange-500 text-xs font-bold rounded-xl hover:bg-orange-400 transition-colors"
+              className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-orange-500 text-white text-xs font-bold rounded-xl hover:from-red-500 hover:to-orange-400 transition-colors"
             >
               검색
             </button>
@@ -704,13 +703,13 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
           <div className="flex-1 overflow-y-auto mt-4 space-y-2 pr-1 scrollbar-thin">
             {isSearching ? (
               <div className="py-12 flex justify-center">
-                <svg className="animate-spin h-5 w-5 text-orange-500" viewBox="0 0 24 24">
+                <svg className="animate-spin h-5 w-5 text-[var(--itn-accent)]" viewBox="0 0 24 24">
                   <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
                   <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
               </div>
             ) : searchResults.length === 0 ? (
-              <div className="py-12 text-center text-xs text-zinc-500">
+              <div className="py-12 text-center text-xs text-[var(--itn-text-muted)]">
                 검색어를 입력하고 검색 버튼을 누르세요.
               </div>
             ) : (
@@ -718,18 +717,18 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                 <div
                   key={place.id}
                   onClick={() => handleAddPlaceToItinerary(place)}
-                  className="bg-zinc-900/40 hover:bg-zinc-900/60 border border-white/5 rounded-xl p-3 flex items-start justify-between gap-3 cursor-pointer transition-colors"
+                  className="bg-[var(--itn-card)] hover:bg-[var(--itn-card-hover)] border border-[var(--itn-border)] rounded-xl p-3 flex items-start justify-between gap-3 cursor-pointer transition-colors"
                 >
                   <div className="min-w-0">
-                    <h5 className="text-xs font-bold text-white truncate">{place.place_name}</h5>
-                    <p className="text-[10px] text-zinc-500 truncate mt-0.5">
+                    <h5 className="text-xs font-bold text-[var(--itn-text)] truncate">{place.place_name}</h5>
+                    <p className="text-xs text-[var(--itn-text-muted)] truncate mt-0.5">
                       {place.road_address_name || place.address_name}
                     </p>
-                    <span className="inline-block text-[8px] text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded-full mt-1.5">
+                    <span className="inline-block text-[11px] text-[var(--itn-text-sub)] bg-[var(--itn-card)] px-1.5 py-0.5 rounded-full mt-1.5 border border-[var(--itn-border)]">
                       {place.category_name.split(' > ').pop() || '관광지'}
                     </span>
                   </div>
-                  <div className="p-1 rounded bg-orange-500/10 text-orange-400 flex items-center justify-center">
+                  <div className="p-1 rounded bg-[var(--itn-accent-light)] text-[var(--itn-accent)] flex items-center justify-center">
                     <Plus size={14} />
                   </div>
                 </div>
@@ -741,20 +740,20 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
 
       {/* 시간 및 메모 입력 서브 모달 */}
       <CustomModal isOpen={showMemoModal} onClose={() => setShowMemoModal(false)}>
-        <div className="p-5 text-white bg-zinc-950 border border-white/10 rounded-3xl flex flex-col gap-4">
-          <div className="pb-3 border-b border-white/5 flex justify-between items-center">
+        <div className="p-5 text-[var(--itn-text)] itn-glass-panel rounded-3xl flex flex-col gap-4">
+          <div className="pb-3 border-b border-[var(--itn-border)] flex justify-between items-center">
             <div>
-              <h4 className="text-sm font-bold text-zinc-200">시간/메모 추가 및 변경</h4>
+              <h4 className="text-sm font-bold text-[var(--itn-text)]">시간/메모 추가 및 변경</h4>
               {editingItemForMemo && (
-                <p className="text-[10px] text-orange-400 font-semibold mt-0.5">{editingItemForMemo.name}</p>
+                <p className="text-xs text-[var(--itn-accent)] font-semibold mt-0.5">{editingItemForMemo.name}</p>
               )}
             </div>
-            <button onClick={() => setShowMemoModal(false)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+            <button onClick={() => setShowMemoModal(false)} className="text-[var(--itn-text-muted)] hover:text-[var(--itn-text)]">✕</button>
           </div>
 
           {/* 대상 장소 선택 드롭다운 (만약 일차 내 장소들을 스위칭하고 싶을 때) */}
           <div className="space-y-2">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase">대상 장소 선택</label>
+            <label className="text-xs text-[var(--itn-text-muted)] font-bold uppercase">대상 장소 선택</label>
             <select
               value={editingItemForMemo?.id || ''}
               onChange={(e) => {
@@ -765,7 +764,7 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
                   setInputMemo(selected.memo || '');
                 }
               }}
-              className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+              className="w-full bg-[var(--itn-card)] border border-[var(--itn-border)] rounded-xl px-3 py-2 text-xs text-[var(--itn-text)] focus:outline-none"
             >
               {daysData.find(d => d.day === activeDay)?.items.map(item => (
                 <option key={item.id} value={item.id}>{item.name}</option>
@@ -775,25 +774,25 @@ export default function ItineraryPlannerBottomSheet({ isOpen, onClose, user, onS
 
           {/* 방문 시간 입력 */}
           <div className="space-y-2">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase">방문 예정 시간</label>
+            <label className="text-xs text-[var(--itn-text-muted)] font-bold uppercase">방문 예정 시간</label>
             <input
               type="text"
               placeholder="예: 19:30"
               value={inputVisitTime}
               onChange={e => setInputVisitTime(e.target.value)}
-              className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500/50"
+              className="w-full bg-[var(--itn-card)] border border-[var(--itn-border)] rounded-xl px-3 py-2 text-xs text-[var(--itn-text)] focus:outline-none focus:border-[var(--itn-accent)]/50"
             />
           </div>
 
           {/* 메모 입력 */}
           <div className="space-y-2">
-            <label className="text-[10px] text-zinc-500 font-bold uppercase">상세 팁/메모</label>
+            <label className="text-xs text-[var(--itn-text-muted)] font-bold uppercase">상세 팁/메모</label>
             <textarea
               placeholder="예: 전방 50m 소소버스투어 핑크색 깃발찾기"
               value={inputMemo}
               onChange={e => setInputMemo(e.target.value)}
               rows={3}
-              className="w-full bg-zinc-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500/50 resize-none"
+              className="w-full bg-[var(--itn-card)] border border-[var(--itn-border)] rounded-xl px-3 py-2 text-xs text-[var(--itn-text)] focus:outline-none focus:border-[var(--itn-accent)]/50 resize-none"
             />
           </div>
 

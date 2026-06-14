@@ -37,3 +37,38 @@ def parse_coordinates(mapx, mapy):
         return x, y
     except (ValueError, TypeError):
         return None, None
+
+import aiohttp
+from config import KAKAO_REST_API_KEY
+
+KAKAO_ADDRESS_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/address.json"
+
+async def address_to_coordinates(session: aiohttp.ClientSession, address: str):
+    """
+    카카오 주소 검색 API를 호출하여 주소 문자열로부터 위경도 좌표(lon, lat)를 반환합니다 (지오코딩).
+    """
+    if not address:
+        return None, None
+        
+    headers = {
+        "Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"
+    }
+    params = {
+        "query": address,
+        "size": 1
+    }
+    
+    try:
+        async with session.get(KAKAO_ADDRESS_SEARCH_URL, headers=headers, params=params) as response:
+            if response.status == 200:
+                data = await response.json()
+                documents = data.get("documents", [])
+                if documents:
+                    doc = documents[0]
+                    lon = float(doc.get("x"))
+                    lat = float(doc.get("y"))
+                    return lon, lat
+            return None, None
+    except Exception:
+        return None, None
+

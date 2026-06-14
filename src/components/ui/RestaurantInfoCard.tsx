@@ -1,6 +1,6 @@
 import { Restaurant } from '@/types';
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
-import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronRight, Eye, CreditCard, Layers, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare } from 'lucide-react';
+import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronRight, Eye, CreditCard, Layers, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { MichelinIcon, BlueRibbonIcon } from '@/components/icons/CustomIcons';
 import { openExternal } from '@/lib/external-link';
@@ -97,15 +97,53 @@ const formatViewCount = (count: number) => {
 };
 
 // DB의 menu_info 필드를 파싱하여 배열로 반환하는 헬퍼
-const parseMenuInfo = (menuInfo?: string | null) => {
+interface MenuItem {
+  name: string;
+  price?: string;
+}
+
+const parseSingleMenuItem = (item: string): MenuItem => {
+  const match = item.match(/^(.*?)\s*[:\s]\s*([\d,]+\s*원?)$/);
+  if (match) {
+    const name = match[1].trim();
+    let price = match[2].trim();
+    if (!price.endsWith('원')) {
+      const numPrice = Number(price.replace(/,/g, ''));
+      price = isNaN(numPrice) ? price : `${numPrice.toLocaleString()}원`;
+    }
+    return { name, price };
+  }
+  return { name: item };
+};
+
+const parseMenuInfo = (menuInfo?: string | null): MenuItem[] => {
   if (!menuInfo) return [];
+  try {
+    if (menuInfo.trim().startsWith('[')) {
+      const parsed = JSON.parse(menuInfo);
+      if (Array.isArray(parsed)) {
+        return parsed.map((m: any) => {
+          if (m && typeof m === 'object' && m.name) {
+            return {
+              name: m.name,
+              price: m.price ? `${Number(m.price).toLocaleString()}원` : undefined
+            };
+          }
+          return parseSingleMenuItem(String(m));
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to parse menu_info as JSON:", e);
+  }
   // 공공데이터에서 넘어오는 각종 구분자(<br>, <br/>, 쉼표 등) 처리
   const cleaned = menuInfo.replace(/<br\s*\/?>/gi, '\n');
   return cleaned
     .split('\n')
     .flatMap(line => line.split(','))
     .map(item => item.trim())
-    .filter(item => item.length > 0 && item !== '없음');
+    .filter(item => item.length > 0 && item !== '없음')
+    .map(parseSingleMenuItem);
 };
 
 const parseBusinessHours = (hours?: string | null) => {
@@ -150,6 +188,49 @@ export default function RestaurantInfoCard({
   onInsertToPlanningRoute,
   onRequestVideoSubmit
 }: RestaurantInfoCardProps) {
+  const openNaverDeeplink = (name: string, address?: string) => {
+    const query = name + ' ' + (address ? address.split(' ').slice(0, 2).join(' ') : '');
+    const encodedQuery = encodeURIComponent(query);
+    
+    if (typeof window === 'undefined') return;
+    
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      window.location.href = `nmap://search?query=${encodedQuery}&appname=modoo-matjip`;
+      setTimeout(() => {
+        window.open(`https://m.map.naver.com/search2/search.naver?query=${encodedQuery}`, '_blank', 'noopener,noreferrer');
+      }, 1500);
+    } else {
+      openExternal(`https://map.naver.com/v5/search/${encodedQuery}`, { reason: 'naver_map_review' });
+    }
+  };
+
+  const openKakaoDeeplink = (name: string, kakaoPlaceId?: string, lat?: number, lng?: number) => {
+    if (typeof window === 'undefined') return;
+    
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      const appUrl = kakaoPlaceId 
+        ? `kakaomap://look?id=${kakaoPlaceId}` 
+        : `kakaomap://search?q=${encodeURIComponent(name)}`;
+      window.location.href = appUrl;
+      
+      setTimeout(() => {
+        const webUrl = kakaoPlaceId 
+          ? `https://place.map.kakao.com/${kakaoPlaceId}` 
+          : `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
+        window.open(webUrl, '_blank', 'noopener,noreferrer');
+      }, 1500);
+    } else {
+      const pcUrl = kakaoPlaceId 
+        ? `https://place.map.kakao.com/${kakaoPlaceId}` 
+        : `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
+      openExternal(pcUrl, { reason: 'kakao_map_review' });
+    }
+  };
+
   const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   useEffect(() => {
@@ -215,7 +296,6 @@ export default function RestaurantInfoCard({
 
   // 액션 버튼 개별 호버 상태
   const [isBookmarkHovered, setIsBookmarkHovered] = useState(false);
-  const [isPinHovered, setIsPinHovered] = useState(false);
   const [isShareHovered, setIsShareHovered] = useState(false);
 
   // 복사 피드백 애니메이션 상태
@@ -248,7 +328,6 @@ export default function RestaurantInfoCard({
     setIsPlayingVideo(false);
     setEmbedError(false);
     setIsBookmarkHovered(false);
-    setIsPinHovered(false);
     setIsShareHovered(false);
   }, [restaurant?.id]);
 
@@ -520,28 +599,7 @@ export default function RestaurantInfoCard({
                     />
                   </button>
                   
-                  {/* 2. 길찾기 (핀 모양 아이콘) */}
-                  <button
-                    onClick={() => {
-                      openExternal(`https://map.kakao.com/link/map/${restaurant.id}`, { reason: 'kakao_map_direct' });
-                    }}
-                    onMouseEnter={() => setIsPinHovered(true)}
-                    onMouseLeave={() => setIsPinHovered(false)}
-                    className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-300 cursor-pointer group shadow-sm ${
-                      isPinHovered
-                        ? 'bg-white/[0.04] border border-red-500/35 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.25)]'
-                        : 'bg-zinc-900/80 hover:bg-zinc-800/80 text-zinc-400 hover:text-white border border-white/5'
-                    }`}
-                    title="길찾기 이동"
-                  >
-                    <Navigation 
-                      size={14} 
-                      stroke={isPinHovered ? 'url(#red-orange-grad)' : 'currentColor'}
-                      fill={isPinHovered ? 'url(#red-orange-grad)' : 'none'}
-                      strokeWidth={isPinHovered ? 2.5 : 2}
-                      className="transition-transform duration-300 group-hover:scale-110" 
-                    />
-                  </button>
+
 
                   {/* 3. 공유하기 (공유 로고) */}
                   <button
@@ -679,48 +737,65 @@ export default function RestaurantInfoCard({
                     })}
                   </motion.div>
                 </div>
+
+                {/* 🌟 선택된 크리에이터 한줄평 요약 */}
+                <AnimatePresence mode="wait">
+                  {activeVideo && activeVideo.quote && (
+                    <motion.div
+                      key={activeVideo.id}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      transition={{ duration: 0.2 }}
+                      className="mt-3.5 p-3.5 bg-zinc-900/40 border border-white/5 border-l-2 border-l-brand-orange rounded-r-xl text-[12px] font-medium text-zinc-300 leading-relaxed relative overflow-hidden"
+                    >
+                      <div className="flex items-center gap-1.5 mb-1.5 text-[9.5px] font-black text-brand-orange-light tracking-wider uppercase">
+                        <span>{activeVideo.youtuber.name} Tip</span>
+                      </div>
+                      <p className="italic font-semibold pl-0.5 text-zinc-200">
+                        "{activeVideo.quote}"
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
 
-            {/* ✨ AI 방문 꿀팁 섹션 */}
-            {(restaurant.menu_info && restaurant.menu_info !== '정보 없음' || 
-              restaurant.parking && restaurant.parking !== '정보 없음' || 
-              restaurant.business_hours && restaurant.business_hours !== '정보 없음' || 
-              restaurant.reservation && restaurant.reservation !== '정보 없음' || 
-              restaurant.packaging && restaurant.packaging !== '정보 없음') && (
+            {/* ✨ AI 방문 꿀팁 및 요약 섹션 */}
+            {(restaurant.description_summary || 
+              (restaurant.parking && restaurant.parking !== '정보 없음' && restaurant.parking !== '주차 불가') || 
+              (restaurant.business_hours && restaurant.business_hours !== '정보 없음') || 
+              (restaurant.reservation && restaurant.reservation !== '정보 없음' && restaurant.reservation !== '예약 불가') || 
+              (restaurant.packaging && restaurant.packaging !== '정보 없음' && restaurant.packaging !== '포장 불가')) && (
               <div className="mt-5 p-4 rounded-2xl bg-zinc-900/60 border border-brand-orange/20 shadow-inner">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-black text-brand-orange-light tracking-tight">✨ AI 방문 꿀팁</span>
+                  <span className="text-sm font-black text-brand-orange-light tracking-tight flex items-center gap-1">
+                    <Sparkles size={14} className="text-brand-orange animate-pulse" />
+                    AI 한눈에 보는 요약 & 방문 꿀팁
+                  </span>
                 </div>
-                <div className="space-y-2.5 flex flex-col">
-                  {restaurant.menu_info && restaurant.menu_info !== '정보 없음' && (
-                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
-                      <span className="shrink-0 text-amber-500 mt-0.5">🍽️</span>
-                      <span className="leading-snug">{restaurant.menu_info}</span>
+                <div className="space-y-3 flex flex-col">
+                  {restaurant.description_summary && (
+                    <div className="p-3 bg-white/[0.03] border border-white/5 rounded-xl text-[12.5px] font-bold text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                      {restaurant.description_summary}
                     </div>
                   )}
-                  {restaurant.parking && restaurant.parking !== '정보 없음' && (
+                  {restaurant.parking && restaurant.parking !== '정보 없음' && restaurant.parking !== '주차 불가' && (
                     <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
                       <span className="shrink-0 text-blue-400 mt-0.5">🚗</span>
-                      <span className="leading-snug">{restaurant.parking}</span>
+                      <span className="leading-snug">주차: {restaurant.parking}</span>
                     </div>
                   )}
-                  {restaurant.business_hours && restaurant.business_hours !== '정보 없음' && (
-                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
-                      <span className="shrink-0 text-emerald-400 mt-0.5">⏰</span>
-                      <span className="leading-snug">{restaurant.business_hours}</span>
-                    </div>
-                  )}
-                  {restaurant.reservation && restaurant.reservation !== '정보 없음' && (
+                  {restaurant.reservation && restaurant.reservation !== '정보 없음' && restaurant.reservation !== '예약 불가' && (
                     <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
                       <span className="shrink-0 text-purple-400 mt-0.5">📅</span>
-                      <span className="leading-snug">{restaurant.reservation}</span>
+                      <span className="leading-snug">예약: {restaurant.reservation}</span>
                     </div>
                   )}
-                  {restaurant.packaging && restaurant.packaging !== '정보 없음' && (
+                  {restaurant.packaging && restaurant.packaging !== '정보 없음' && restaurant.packaging !== '포장 불가' && (
                     <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
                       <span className="shrink-0 text-orange-400 mt-0.5">🥡</span>
-                      <span className="leading-snug">{restaurant.packaging}</span>
+                      <span className="leading-snug">포장: {restaurant.packaging}</span>
                     </div>
                   )}
                 </div>
@@ -824,25 +899,74 @@ export default function RestaurantInfoCard({
             {menuList.length > 0 && (
               <div className="bg-[#1b1b1e] border border-white/5 rounded-2xl p-4.5 space-y-3 shadow-md relative overflow-hidden">
                 <div className="flex items-center gap-1.5 mb-2 shrink-0">
-                  <Utensils size={14} stroke="url(#red-orange-grad)" />
+                  <Utensils size={14} className="text-brand-orange" />
                   <span className="text-[12px] font-black text-white/90 uppercase tracking-wider">메뉴 안내</span>
                 </div>
-                <div className="flex flex-wrap gap-2 relative z-10">
+                <div className="flex flex-col gap-2.5 relative z-10 w-full px-1">
                   {menuList.map((menu, index) => (
-                    <span 
+                    <div 
                       key={index}
-                      className="px-3 py-1.5 bg-gradient-to-r from-red-500/10 to-brand-orange/10 border border-red-500/20 rounded-full text-xs font-black text-white/90 shadow-sm hover:from-red-500/20 hover:to-brand-orange/20 transition-colors"
+                      className="flex items-baseline justify-between gap-2 py-0.5 group/item transition-colors hover:text-white"
                     >
-                      {menu}
-                    </span>
+                      <span className="text-[13px] font-bold text-white/80 max-w-[70%] truncate group-hover/item:text-white transition-colors">
+                        {menu.name}
+                      </span>
+                      {menu.price && (
+                        <div className="flex-1 border-b border-dashed border-white/10 h-[1px] min-w-[12px] self-end mb-[4px]" />
+                      )}
+                      {menu.price && (
+                        <span className="text-[13px] font-extrabold text-brand-orange-light shrink-0">
+                          {menu.price}
+                        </span>
+                      )}
+                    </div>
                   ))}
                 </div>
                 <div className="pt-2 flex items-center gap-1 border-t border-white/5 mt-2">
                   <Info size={10} className="text-zinc-500" />
-                  <p className="text-[9px] text-zinc-500 font-bold">공공데이터 기준으로 실제 정보와 다를 수 있습니다.</p>
+                  <p className="text-[9px] text-zinc-500 font-bold">실제 정보와 다를 수 있습니다.</p>
                 </div>
               </div>
             )}
+
+            {/* 플랫폼별 상세정보 후기 링크 카드 (가장 하단 배치 및 설명 제거로 미니멀화) */}
+            <div className="grid grid-cols-2 gap-3 pt-1 shrink-0">
+              {/* 네이버 지도 바로가기 카드 */}
+              <div 
+                onClick={() => openNaverDeeplink(restaurant.name, restaurant.address)}
+                className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-green-500/30 rounded-2xl p-3.5 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+              >
+                <div className="absolute -right-6 -bottom-6 w-12 h-12 bg-green-500/10 rounded-full blur-xl group-hover:bg-green-500/20 transition-all duration-300" />
+                <div className="flex items-center gap-2 relative z-10">
+                  {/* 네이버 지도 파비콘 적용 */}
+                  <img 
+                    src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAYAAAByDd+UAAACk0lEQVR4AbWVA6wkQRBA+2wzzsU6MzrbFydn27ZtMzjbtm3bto26fZk/ld7MZr2bvMx2dXW9qR6ZKl1qRoTpKmlMZ8nowjii9WElUbi9FDX9/zUxfWWfGSivXBgTZz4uQoOoo0wzXf+J6eNj5F9JMVMk5dw/knK6MHbizPeSAaHEoWT1TGu5aNonFRz0W8xkRwT8R0icefLIDyYN3llreWea/qGIaIcUt9DugDxQaQRCFiHzF/4NhHanQtZ0lpVhC0m2ZFpQY9rdXzfGvEfMtQ9DqN1pEVhx/Ku4v7pTPwvCBovfaWzM1u9JHatUuwwq5Bbn2rGIAm43CO2fGfvBK+QGsu/aDvKEGy+okG2wZBQGj3Dzjc9e4bR33LmeRyWokG2wZBQBFf7+91ePSFV47IWYBW/BloYntGRaZMm1Z3ZxDipW4ZLXYEvDEM74MpdElVFg9R0/YbqVh+X8hy/uUIXkmXVvWMObyJFO+tM9qJAEM/3HR0vmERbdsQf8hCMu+vK2OSBlPXW4CUM/FnM/nGMBIgqYPRcEIdsHZQ5v8MXmcdQYQvJUyMmuerslrOeQbWWBKzNHj4g5vAWJw6lZisaYJ8+Wbro6LCwhmLX3b7BQZSdWOoKLI71cWATkAkLtLrwOr1dIabbeLsfZemRXOnqwpNol68MVKmyJR3a5oZhrVRTGflLyDx5vEPnniS4vNEtvTs4+RDEV3SzkcDvvH/1/q45KyY/ti3+lQimVuaLbKcXFI71ROV/UQrp0jgWqO7KUXh6kAaQeWaRCxbC1N/NODiRT7uXqxAnGRahbeyfbyUBC4tpdvIRgbqSvZu6le2gLGXMyzMddCGydK+QGYkw8YUKuE9eTzvS6JVJoP6ORyuA/h5JhrOurT/kAAAAASUVORK5CYII=" 
+                    alt="Naver Map Logo" 
+                    className="w-4 h-4 rounded shadow-sm object-contain"
+                  />
+                  <span className="text-[11px] font-bold text-white group-hover:text-green-400 transition-colors">네이버 지도</span>
+                </div>
+                <ExternalLink size={11} className="text-white/30 group-hover:text-green-400 transition-colors relative z-10 shrink-0" />
+              </div>
+
+              {/* 카카오맵 바로가기 카드 */}
+              <div 
+                onClick={() => openKakaoDeeplink(restaurant.name, restaurant.kakao_place_id, restaurant.lat, restaurant.lng)}
+                className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-yellow-500/30 rounded-2xl p-3.5 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+              >
+                <div className="absolute -right-6 -bottom-6 w-12 h-12 bg-yellow-500/10 rounded-full blur-xl group-hover:bg-yellow-500/20 transition-all duration-300" />
+                <div className="flex items-center gap-2 relative z-10">
+                  {/* 카카오맵 파비콘 적용 */}
+                  <img 
+                    src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAOVBMVEVHcEwAdv//5wD/5AD74gAAfP/64QD64QD64QD74gC4wIOApbw+i+ejtZvv3CJaldjTzlwlhfLc0kuK1weQAAAACnRSTlMA////Fv//+bQX9hPeKgAAALpJREFUKJF901sSgyAMBVBIBHlKcf+LLYYWCYL5ccZjLoFBIazZ9aR2Y4WwM6llhVmjEV0mQinsksVNOqack8ObG4KTUpWS6oMjoiMibvrHo1mpoRP9hTJkekRkCDUPgNIDMKRUX95BuL5aYXoixaoD4JzE1oGU97OB+FbGfb4eggb/UxnhcbZ1zmK+WYdaE+bbeqRl5YlTpNNJXSPD0soaGWqUoW8cMDpkyC4tMtvfr+a2xnLlt/Xv8AWzshIVTzb8eQAAAABJRU5ErkJggg==" 
+                    alt="Kakao Map Logo" 
+                    className="w-4 h-4 rounded shadow-sm object-contain"
+                  />
+                  <span className="text-[11px] font-bold text-white group-hover:text-yellow-400 transition-colors">카카오맵</span>
+                </div>
+                <ExternalLink size={11} className="text-white/30 group-hover:text-yellow-400 transition-colors relative z-10 shrink-0" />
+              </div>
+            </div>
           </div>
         </div>
       </>

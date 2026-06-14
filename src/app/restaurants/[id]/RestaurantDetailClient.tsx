@@ -41,13 +41,137 @@ const getYouTubeId = (urlOrId: string): string => {
   return (match && match[2].length === 11) ? match[2] : urlOrId;
 };
 
+const formatRelativeTime = (dateStr?: string | null): string => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  const diffMonth = Math.floor(diffDay / 30);
+  const diffYear = Math.floor(diffDay / 365);
+
+  if (diffSec < 60) return '방금 전';
+  if (diffMin < 60) return `${diffMin}분 전`;
+  if (diffHr < 24) return `${diffHr}시간 전`;
+  if (diffDay < 7) return `${diffDay}일 전`;
+  if (diffDay < 30) return `${Math.floor(diffDay / 7)}주 전`;
+  if (diffMonth < 12) return `${diffMonth}개월 전`;
+  return `${diffYear}년 전`;
+};
+
+const parseMenuData = (menuInfoStr: string | null | undefined) => {
+  if (!menuInfoStr) return [];
+  try {
+    if (menuInfoStr.trim().startsWith('[')) {
+      const parsed = JSON.parse(menuInfoStr);
+      if (Array.isArray(parsed)) {
+        return parsed.map((m: any) => {
+          if (m && typeof m === 'object' && m.name) {
+            return {
+              name: m.name,
+              price: m.price ? `${Number(m.price).toLocaleString()}원` : ''
+            };
+          }
+          return { name: String(m), price: '' };
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to parse menu_info as JSON:", e);
+  }
+  // 일반 텍스트의 경우
+  const cleaned = menuInfoStr.replace(/<br\s*\/?>/gi, '\n');
+  return cleaned.split('\n').filter(item => item.trim() !== '').map(item => {
+    const parts = item.split(/[:|-]/);
+    return {
+      name: parts[0]?.trim() || '',
+      price: parts[1]?.trim() || ''
+    };
+  });
+};
+
 interface RestaurantDetailClientProps {
   restaurant: Restaurant;
 }
 
 export default function RestaurantDetailClient({ restaurant }: RestaurantDetailClientProps) {
+  const openNaverDeeplink = (name: string, address?: string) => {
+    const query = name + ' ' + (address ? address.split(' ').slice(0, 2).join(' ') : '');
+    const encodedQuery = encodeURIComponent(query);
+    
+    if (typeof window === 'undefined') return;
+    
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      window.location.href = `nmap://search?query=${encodedQuery}&appname=modoo-matjip`;
+      setTimeout(() => {
+        window.open(`https://m.map.naver.com/search2/search.naver?query=${encodedQuery}`, '_blank', 'noopener,noreferrer');
+      }, 1500);
+    } else {
+      openExternal(`https://map.naver.com/v5/search/${encodedQuery}`, { reason: 'naver_map_review' });
+    }
+  };
+
+  const openKakaoDeeplink = (name: string, kakaoPlaceId?: string, lat?: number, lng?: number) => {
+    if (typeof window === 'undefined') return;
+    
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      const appUrl = kakaoPlaceId 
+        ? `kakaomap://look?id=${kakaoPlaceId}` 
+        : `kakaomap://search?q=${encodeURIComponent(name)}`;
+      window.location.href = appUrl;
+      
+      setTimeout(() => {
+        const webUrl = kakaoPlaceId 
+          ? `https://place.map.kakao.com/${kakaoPlaceId}` 
+          : `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
+        window.open(webUrl, '_blank', 'noopener,noreferrer');
+      }, 1500);
+    } else {
+      const pcUrl = kakaoPlaceId 
+        ? `https://place.map.kakao.com/${kakaoPlaceId}` 
+        : `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
+      openExternal(pcUrl, { reason: 'kakao_map_review' });
+    }
+  };
+
+  const openKakaoRouteDeeplink = (name: string, kakaoPlaceId?: string, lat?: number, lng?: number) => {
+    if (typeof window === 'undefined') return;
+    
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      const appUrl = kakaoPlaceId 
+        ? `kakaomap://route?ep=${kakaoPlaceId}&by=CAR` 
+        : `kakaomap://route?ep=${lat},${lng}&by=CAR`;
+      window.location.href = appUrl;
+      
+      setTimeout(() => {
+        const webUrl = kakaoPlaceId 
+          ? `https://map.kakao.com/link/to/${kakaoPlaceId}` 
+          : `https://map.kakao.com/link/to/${encodeURIComponent(name)},${lat},${lng}`;
+        window.open(webUrl, '_blank', 'noopener,noreferrer');
+      }, 1500);
+    } else {
+      const pcUrl = kakaoPlaceId 
+        ? `https://map.kakao.com/link/to/${kakaoPlaceId}` 
+        : `https://map.kakao.com/link/to/${encodeURIComponent(name)},${lat},${lng}`;
+      openExternal(pcUrl, { reason: 'kakao_navi' });
+    }
+  };
+
+  const sortedVideos = restaurant.videos
+    ? [...restaurant.videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+    : [];
+
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
-  const activeVideo = restaurant.videos?.[activeVideoIndex];
+  const activeVideo = sortedVideos[activeVideoIndex];
 
   // 유튜브 ID 정제 및 썸네일 Fallback (불완전 데이터 방어 및 로드 무결성 확보)
   const cleanYoutubeId = activeVideo ? getYouTubeId(activeVideo.youtube_id) : '';
@@ -372,10 +496,10 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
                   </div>
 
                   {/* 하단 조회수 정보 오버레이 */}
-                  {activeVideo.view_count && (
+                  {activeVideo.view_count !== undefined && activeVideo.view_count !== null && (
                     <div className="absolute bottom-5 left-5 z-20 bg-black/55 backdrop-blur-md border border-white/10 text-white/90 text-[11px] font-black px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-md">
                       <Flame size={12} className="text-red-500 fill-current animate-pulse" />
-                      조회수 {activeVideo.view_count.toLocaleString()}뷰 돌파
+                      조회수 {activeVideo.view_count.toLocaleString()}회{activeVideo.published_at && ` · ${formatRelativeTime(activeVideo.published_at)}`}
                     </div>
                   )}
                 </div>
@@ -475,7 +599,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
           
           {/* 크리에이터 목록 가로 캐러셀 */}
           <div className="flex gap-5 overflow-x-auto hide-scrollbar pb-3">
-            {restaurant.videos.map((vid, idx) => {
+            {sortedVideos.map((vid, idx) => {
               const isActive = activeVideoIndex === idx;
               return (
                 <div 
@@ -511,7 +635,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
             <div className="mt-6 p-5 bg-[#252528] border-l-4 border-orange-500 rounded-r-2xl relative overflow-hidden shadow-inner">
               <span className="absolute -top-3 -left-1 text-[80px] text-orange-500/10 font-serif leading-none select-none">“</span>
               <div className="flex items-center gap-2 mb-2 relative z-10">
-                <span className="text-[11px] font-black text-orange-400 tracking-wider">CREATOR PICK</span>
+                <span className="text-[11px] font-black text-orange-400 tracking-wider">CREATOR TIP</span>
                 <span className="w-1 h-1 bg-white/20 rounded-full" />
                 <span className="text-[11px] font-bold text-white/40">{activeVideo.youtuber.name}</span>
               </div>
@@ -538,28 +662,41 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
         </div>
       )}
 
-      {/* 대표 메뉴 및 가격표 카드 */}
-      {restaurant.menu_info && restaurant.menu_info !== '정보 없음' && (
-        <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md">
+      {/* AI 한눈에 보는 요약 카드 */}
+      {restaurant.description_summary && (
+        <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full filter blur-2xl -z-10 animate-pulse" />
           <div className="flex items-center gap-1.5 mb-4">
-            <Utensils size={18} className="text-orange-500" />
-            <span className="text-[15px] font-black tracking-tight text-white">대표 메뉴 & 가격</span>
+            <Sparkles size={18} className="text-orange-400 animate-pulse" />
+            <span className="text-[15px] font-black tracking-tight text-white">AI 한눈에 보는 요약 & 방문 꿀팁</span>
           </div>
-          <div className="divide-y divide-white/5 bg-[#252528]/40 border border-white/5 rounded-2xl px-5 shadow-inner">
-            {restaurant.menu_info.split('\n').filter(item => item.trim() !== '').map((item, idx) => {
-              const parts = item.split(/[:|-]/);
-              const name = parts[0]?.trim();
-              const price = parts[1]?.trim();
-              return (
-                <div key={idx} className="flex justify-between py-4 text-sm font-semibold">
-                  <span className="text-zinc-300">{name}</span>
-                  {price && <span className="text-orange-400 font-bold">{price}</span>}
-                </div>
-              );
-            })}
+          <div className="p-5 bg-[#252528]/40 border border-white/5 rounded-2xl text-zinc-200 text-sm font-semibold leading-relaxed whitespace-pre-wrap shadow-inner">
+            {restaurant.description_summary}
           </div>
         </div>
       )}
+
+      {/* 대표 메뉴 및 가격표 카드 */}
+      {restaurant.menu_info && restaurant.menu_info !== '정보 없음' && (() => {
+        const menuItems = parseMenuData(restaurant.menu_info);
+        if (menuItems.length === 0) return null;
+        return (
+          <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md">
+            <div className="flex items-center gap-1.5 mb-4">
+              <Utensils size={18} className="text-orange-500" />
+              <span className="text-[15px] font-black tracking-tight text-white">대표 메뉴 & 가격</span>
+            </div>
+            <div className="divide-y divide-white/5 bg-[#252528]/40 border border-white/5 rounded-2xl px-5 shadow-inner">
+              {menuItems.map((item, idx) => (
+                <div key={idx} className="flex justify-between py-4 text-sm font-semibold">
+                  <span className="text-zinc-300">{item.name}</span>
+                  {item.price && <span className="text-orange-400 font-bold">{item.price}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 상세 편의 정보 위젯 */}
       <div className="bg-white/5 border border-white/10 rounded-[28px] p-6 backdrop-blur-md">
@@ -677,7 +814,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
         
         {/* 정적 카카오 지도 이미지 */}
         <div 
-          onClick={() => openExternal(`https://map.kakao.com/link/map/${restaurant.id}`, { reason: 'kakao_map' })}
+          onClick={() => openKakaoDeeplink(restaurant.name, restaurant.kakao_place_id, restaurant.lat, restaurant.lng)}
           className="relative w-full aspect-[21/9] rounded-2xl overflow-hidden border border-white/5 shadow-inner cursor-pointer group"
         >
           <img 
@@ -695,7 +832,7 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
         {/* 하단 퀵 링크 바 */}
         <div className="flex gap-3 pt-2">
           <button 
-            onClick={() => openExternal(`https://map.kakao.com/link/to/${restaurant.id}`, { reason: 'kakao_navi' })}
+            onClick={() => openKakaoRouteDeeplink(restaurant.name, restaurant.kakao_place_id, restaurant.lat, restaurant.lng)}
             className="flex-1 py-3.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Navigation size={14} />
@@ -719,6 +856,47 @@ export default function RestaurantDetailClient({ restaurant }: RestaurantDetailC
             <Share2 size={14} />
             공유하기
           </button>
+        </div>
+
+        {/* 플랫폼별 상세정보 후기 링크 카드 (가장 하단 위치 및 슬림한 1줄 리뉴얼) */}
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          {/* 네이버 지도 바로가기 카드 */}
+          <div 
+            onClick={() => openNaverDeeplink(restaurant.name, restaurant.address)}
+            className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-green-500/30 rounded-2xl p-3.5 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+          >
+            {/* 은은한 네이버 그린 백그라운드 후광 */}
+            <div className="absolute -right-6 -bottom-6 w-12 h-12 bg-green-500/10 rounded-full blur-xl group-hover:bg-green-500/20 transition-all duration-300" />
+            <div className="flex items-center gap-2 relative z-10">
+              {/* 네이버 지도 파비콘 적용 */}
+              <img 
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAYAAAByDd+UAAACk0lEQVR4AbWVA6wkQRBA+2wzzsU6MzrbFydn27ZtMzjbtm3bto26fZk/ld7MZr2bvMx2dXW9qR6ZKl1qRoTpKmlMZ8nowjii9WElUbi9FDX9/zUxfWWfGSivXBgTZz4uQoOoo0wzXf+J6eNj5F9JMVMk5dw/knK6MHbizPeSAaHEoWT1TGu5aNonFRz0W8xkRwT8R0icefLIDyYN3llreWea/qGIaIcUt9DugDxQaQRCFiHzF/4NhHanQtZ0lpVhC0m2ZFpQY9rdXzfGvEfMtQ9DqN1pEVhx/Ku4v7pTPwvCBovfaWzM1u9JHatUuwwq5Bbn2rGIAm43CO2fGfvBK+QGsu/aDvKEGy+okG2wZBQGj3Dzjc9e4bR33LmeRyWokG2wZBQBFf7+91ePSFV47IWYBW/BloYntGRaZMm1Z3ZxDipW4ZLXYEvDEM74MpdElVFg9R0/YbqVh+X8hy/uUIXkmXVvWMObyJFO+tM9qJAEM/3HR0vmERbdsQf8hCMu+vK2OSBlPXW4CUM/FnM/nGMBIgqYPRcEIdsHZQ5v8MXmcdQYQvJUyMmuerslrOeQbWWBKzNHj4g5vAWJw6lZisaYJ8+Wbro6LCwhmLX3b7BQZSdWOoKLI71cWATkAkLtLrwOr1dIabbeLsfZemRXOnqwpNol68MVKmyJR3a5oZhrVRTGflLyDx5vEPnniSbgvNEtvTs4+RDEV3SzkcDvvH/1/q45KyY/ti3+lQimVuaLbKcXFI71ROV/UQrp0jgWqO7KUXh6kAaQeWaRCxbC1N/NODiRT7uXqxAnGRahbeyfbyUBC4tpdvIRgbqSvZu6le2gLGXMyzMddCGydK+QGYkw8YUKuE9eTzvS6JVJoP6ORyuA/h5JhrOurT/kAAAAASUVORK5CYII=" 
+                alt="Naver Map Logo" 
+                className="w-4 h-4 rounded shadow-sm object-contain"
+              />
+              <span className="text-[11px] font-bold text-white group-hover:text-green-400 transition-colors">네이버 지도</span>
+            </div>
+            <ExternalLink size={11} className="text-white/30 group-hover:text-green-400 transition-colors relative z-10 shrink-0" />
+          </div>
+
+          {/* 카카오맵 바로가기 카드 */}
+          <div 
+            onClick={() => openKakaoDeeplink(restaurant.name, restaurant.kakao_place_id, restaurant.lat, restaurant.lng)}
+            className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-yellow-500/30 rounded-2xl p-3.5 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+          >
+            {/* 은은한 카카오 옐로우 백그라운드 후광 */}
+            <div className="absolute -right-6 -bottom-6 w-12 h-12 bg-yellow-500/10 rounded-full blur-xl group-hover:bg-yellow-500/20 transition-all duration-300" />
+            <div className="flex items-center gap-2 relative z-10">
+              {/* 카카오맵 파비콘 적용 */}
+              <img 
+                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAOVBMVEVHcEwAdv//5wD/5AD74gAAfP/64QD64QD64QD74gC4wIOApbw+i+ejtZvv3CJaldjTzlwlhfLc0kuK1weQAAAACnRSTlMA////Fv//+bQX9hPeKgAAALpJREFUKJF901sSgyAMBVBIBHlKcf+LLYYWCYL5ccZjLoFBIazZ9aR2Y4WwM6llhVmjEV0mQinsksVNOqack8ObG4KTUpWS6oMjoiMibvrHo1mpoRP9hTJkekRkCDUPgNIDMKRUX95BuL5aYXoixaoD4JzE1oGU97OB+FbGfb4eggb/UxnhcbZ1zmK+WYdaE+bbeqRl5YlTpNNJXSPD0soaGWqUoW8cMDpkyC4tMtvfr+a2xnLlt/Xv8AWzshIVTzb8eQAAAABJRU5ErkJggg==" 
+                alt="Kakao Map Logo" 
+                className="w-4 h-4 rounded shadow-sm object-contain"
+              />
+              <span className="text-[11px] font-bold text-white group-hover:text-yellow-400 transition-colors">카카오맵</span>
+            </div>
+            <ExternalLink size={11} className="text-white/30 group-hover:text-yellow-400 transition-colors relative z-10 shrink-0" />
+          </div>
         </div>
       </div>
 

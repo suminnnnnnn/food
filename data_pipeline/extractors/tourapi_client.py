@@ -46,7 +46,7 @@ async def fetch_tour_api_detail_intro(session: aiohttp.ClientSession, content_id
         "contentTypeId": content_type_id
     }
     
-    url = "https://apis.data.go.kr/B551011/KorService1/detailIntro1"
+    url = "https://apis.data.go.kr/B551011/KorService2/detailIntro2"
     
     async with session.get(url, params=params) as response:
         try:
@@ -65,6 +65,49 @@ async def extract_tour_data():
         items = data.get("response", {}).get("body", {}).get("items", {}).get("item", [])
         return items
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
+async def fetch_naju_tour_data(session: aiohttp.ClientSession, page_no: int = 1, num_of_rows: int = 50) -> list:
+    """
+    TourAPI areaBasedList1을 호출하여 전라남도 나주시(areaCode=38, sigunguCode=4)의 음식점(contentTypeId=39) 정보를 수집합니다.
+    """
+    url = "https://apis.data.go.kr/B551011/KorService2/areaBasedList2"
+    params = {
+        "serviceKey": unquote(TOUR_API_KEY) if "%" in TOUR_API_KEY else TOUR_API_KEY,
+        "numOfRows": num_of_rows,
+        "pageNo": page_no,
+        "MobileOS": "ETC",
+        "MobileApp": "ModooMatjip",
+        "_type": "json",
+        "arrange": "A",
+        "contentTypeId": "39",      # 음식점
+        "lDongRegnCd": "46",         # 전남
+        "lDongSignguCd": "170"     # 나주시 (법정동 시군구코드 3자리)
+    }
+    
+    try:
+        async with session.get(url, params=params) as response:
+            print(f"TourAPI status: {response.status}")
+            if response.status != 200:
+                print(f"TourAPI error response: {await response.text()}")
+                return []
+            data = await response.json()
+            print(f"TourAPI response JSON: {data}")
+            print(f"TourAPI response JSON keys: {data.keys()}")
+            items = data.get("response", {}).get("body", {}).get("items", {}).get("item", [])
+            if isinstance(items, dict):
+                return [items]
+            return items if isinstance(items, list) else []
+    except Exception as e:
+        print(f"Error fetching Naju TourAPI data: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
 if __name__ == "__main__":
-    items = asyncio.run(extract_tour_data())
-    print(f"Fetched {len(items)} items")
+    async def test():
+        async with aiohttp.ClientSession() as session:
+            items = await fetch_naju_tour_data(session, num_of_rows=5)
+            print(f"Fetched {len(items)} Naju TourAPI items")
+            for item in items:
+                print(f" - {item.get('title')} | Addr: {item.get('addr1')}")
+    asyncio.run(test())
