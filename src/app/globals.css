@@ -1,0 +1,287 @@
+@import "tailwindcss";
+
+@theme {
+  /* 브랜드 오렌지 & 차콜 디자인 시스템 테마 토큰 */
+  --color-brand-orange: #FF6F00;
+  --color-brand-orange-light: #FF9E40;
+  --color-brand-charcoal: #121212;
+  --color-brand-gray: #1E1E1E;
+
+  --color-brand: oklch(0.65 0.18 40);
+  --color-brand-light: oklch(0.85 0.10 40);
+  --color-brand-dark: oklch(0.50 0.18 40);
+  --color-surface: oklch(0.99 0.005 40);
+  --color-surface-2: oklch(0.96 0.008 40);
+  --color-border: oklch(0.90 0.010 40);
+  --color-text: oklch(0.20 0.010 40);
+  --color-text-sub: oklch(0.50 0.010 40);
+  --color-trending: oklch(0.60 0.20 25);
+  --color-michelin: oklch(0.55 0.15 250);
+  --color-blueribbon: oklch(0.50 0.18 270);
+
+  /* 스페이싱 (4pt 스케일) */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+}
+
+:root {
+  --background: #121212; /* Sleek Charcoal 기본 테마 */
+  --foreground: #FFFFFF;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+  overflow-x: hidden;
+}
+
+/* =========================================
+   글래스모피즘(Glassmorphism) 공통 유틸리티
+   ========================================= */
+.glass-panel {
+  background: rgba(30, 30, 30, 0.6) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 마커 활성화 시의 네온 오렌지 Glow */
+.marker-active-glow {
+  box-shadow: 0 0 20px rgba(255, 111, 0, 0.7);
+  filter: drop-shadow(0 0 8px rgba(255, 111, 0, 0.5));
+}
+
+/* =========================================
+   카카오맵 프리미엄 스킨 필터 (타일 전용)
+   ========================================= */
+
+/* 1. 미니멀 실버 (Minimalist Silver) */
+.theme-silver {
+  background-color: #f8f9fa !important;
+}
+.theme-silver img:not(.no-filter),
+.theme-silver canvas {
+  filter: grayscale(100%) brightness(1.15) contrast(0.85) !important;
+}
+
+/* 2. 미드나잇 네이비 (Midnight Navy) */
+.theme-navy {
+  background-color: #0f172a !important;
+}
+.theme-navy img:not(.no-filter),
+.theme-navy canvas {
+  filter: grayscale(0.6) invert(1) hue-rotate(210deg) brightness(0.85) contrast(1.1) saturate(1.2) !important;
+}
+
+/* 3. 웜 샌드 (Warm Sand / Beige) */
+.theme-sand {
+  background-color: #fdfbf7 !important;
+}
+.theme-sand img:not(.no-filter),
+.theme-sand canvas {
+  filter: sepia(40%) saturate(130%) hue-rotate(-15deg) brightness(1.05) contrast(0.9) !important;
+}
+
+/* =========================================
+   스크롤바 숨김 처리 유틸리티 (Hide Scrollbar)
+   ========================================= */
+/* =========================================
+   스크롤바 숨김 처리 유틸리티 (Hide Scrollbar)
+   ========================================= */
+.hide-scrollbar {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari and Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* =========================================
+   인스타그램 스토리 그라데이션 링 & 오렌지 글로우
+   ========================================= */
+.instagram-story-ring {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%) !important;
+  padding: 2px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-center: center;
+}
+
+.neon-glow-orange {
+  transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.neon-glow-orange:hover {
+  box-shadow: 0 12px 30px rgba(255, 111, 0, 0.15), 0 0 20px rgba(255, 111, 0, 0.25) !important;
+  border-color: rgba(255, 111, 0, 0.4) !important;
+}
+
+/* =========================================
+   호버 시 은은하게 빛나는 화이트 아크릴 섀도우 및 2% 확대 (옵션 C)
+   ========================================= */
+.hover-acrylic-glow {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.hover-acrylic-glow:hover {
+  transform: scale(1.02) !important;
+  box-shadow: 0 8px 30px rgba(255, 255, 255, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.22) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+/* =========================================
+   일정 플래너 라이트 글래스 테마 토큰
+   ========================================= */
+:root {
+  --itn-bg: oklch(0.985 0.003 40);
+  --itn-card: oklch(0.995 0.003 40);
+  --itn-card-hover: oklch(0.97 0.008 40);
+  --itn-border: oklch(0.92 0.010 40);
+  --itn-border-subtle: oklch(0.95 0.005 40);
+  --itn-text: oklch(0.20 0.010 40);
+  --itn-text-sub: oklch(0.45 0.010 40);
+  --itn-text-muted: oklch(0.62 0.008 40);
+  --itn-accent: #FF6F00;
+  --itn-accent-rgb: 255, 111, 0;
+  --itn-accent-light: oklch(0.95 0.04 40);
+  --itn-timeline: oklch(0.88 0.012 40);
+  --itn-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --itn-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+  --itn-shadow-lg: 0 12px 40px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.itn-glass-panel {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(28px) saturate(1.6) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.6) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+.itn-card {
+  background: var(--itn-card);
+  border: 1px solid var(--itn-border);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.itn-card:hover {
+  border-color: rgba(var(--itn-accent-rgb), 0.25);
+  box-shadow: var(--itn-shadow);
+}
+
+/* 일정 플래너 내부 스크롤바 스타일 */
+.itn-scrollbar::-webkit-scrollbar {
+  width: 3px;
+}
+.itn-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.itn-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--itn-border);
+  border-radius: 999px;
+}
+.itn-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--itn-accent-rgb), 0.3);
+}
+
+/* =========================================
+   영역 그리기 팝업 테두리 회전 애니메이션
+   ========================================= */
+@keyframes border-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.animate-border-spin {
+  animation: border-spin 4s linear infinite;
+}
+
+/* =========================================
+   지도 위 그리기 영역 혁신 애니메이션 효과
+   ========================================= */
+/* 지도 위 흐르는 레이저 빔 효과 (빨간색 윗선) */
+svg path[stroke="#ff3b30"] {
+  stroke-dasharray: 12, 12;
+  animation: svg-laser-flow 8s linear infinite !important;
+}
+
+/* 지도 위 숨쉬는 펄싱 네온 글로우 효과 (주황색 밑선) */
+svg path[stroke="#FF6F00"] {
+  animation: svg-glow-pulse 3s ease-in-out infinite alternate !important;
+}
+
+@keyframes svg-laser-flow {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -240;
+  }
+}
+
+@keyframes svg-glow-pulse {
+  0% {
+    stroke-width: 5.5px;
+    stroke-opacity: 0.16;
+  }
+  100% {
+    stroke-width: 9.5px;
+    stroke-opacity: 0.36;
+  }
+}
+
+/* =========================================
+   현 위치 파란색 펄싱 도트 애니메이션
+   ========================================= */
+@keyframes locate-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.locate-pulse-ring {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(59, 130, 246, 0.4); /* Blue-500 semi-transparent */
+  border-radius: 50%;
+  animation: locate-pulse 2s infinite ease-out;
+}
+
+.locate-dot {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  background-color: #3b82f6; /* Blue-500 */
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
+}

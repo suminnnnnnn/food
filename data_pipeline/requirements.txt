@@ -1,0 +1,8 @@
+aiohttp
+pyproj
+supabase
+google-generativeai
+tenacity
+python-dotenv
+google-api-python-client
+yt-dlp
