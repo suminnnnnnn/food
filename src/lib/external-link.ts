@@ -39,10 +39,23 @@ export async function openExternal(
   }
 
   // 일반 웹 브라우저 환경
+  const isToss = typeof navigator !== 'undefined' && /Toss/i.test(navigator.userAgent);
   const w = window.open(url, '_blank', 'noopener,noreferrer');
   if (!w) {
-    // 팝업 차단 시 fallback
-    window.location.href = url;
+    if (isToss) {
+      // Toss WebView 환경에서는 window.open이 허용되지 않으므로 현재 창에서 리다이렉트하여 앱이 가로채도록 처리합니다.
+      window.location.href = url;
+    } else {
+      // 일반 브라우저에서 팝업이 차단된 경우, 현재 탭의 상태를 잃지 않기 위해
+      // 강제 리다이렉트하는 대신 동적 anchor 클릭을 시도하여 안전하게 새 창/탭으로 열기를 재시도합니다.
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   }
 }
 

@@ -154,12 +154,12 @@ export default function NearHotplacesView({
                         </div>
                       ) : isMichelin ? (
                         <div className="flex items-center text-[11.5px] font-bold text-brand-orange-light">
-                          <span className="mr-1.5 text-xs">⭐</span>
+                          <Star size={11} className="mr-1 text-brand-orange fill-current shrink-0" />
                           <span>미쉐린 가이드 추천</span>
                         </div>
                       ) : isBlueRibbon ? (
                         <div className="flex items-center text-[11.5px] font-bold text-blue-400">
-                          <span className="mr-1.5 text-xs">🎀</span>
+                          <span className="mr-1.5 text-[9px] bg-blue-500/20 text-blue-400 border border-blue-500/35 px-1 py-[0.5px] rounded font-black shrink-0">리본</span>
                           <span>블루리본 서베이 수록</span>
                         </div>
                       ) : (

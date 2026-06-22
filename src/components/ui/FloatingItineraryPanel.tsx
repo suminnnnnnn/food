@@ -1107,7 +1107,7 @@ export default function FloatingItineraryPanel({
                 <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0 itn-scrollbar">
                   {recommendedRestaurants.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                      <span className="text-xs" style={{ color: 'var(--itn-text-muted)' }}>지도의 코스 스팟을 선택하면<br/>그 주변의 추천 맛집이 활성화됩니다 ✨</span>
+                      <span className="text-xs" style={{ color: 'var(--itn-text-muted)' }}>지도의 코스 스팟을 선택하면<br/>그 주변의 추천 맛집이 활성화됩니다</span>
                     </div>
                   ) : (
                     recommendedRestaurants.map(({ restaurant, distance, type }) => (

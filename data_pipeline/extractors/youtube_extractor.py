@@ -245,7 +245,7 @@ def verify_video_with_gemini(restaurant_name: str, address: str, video_info: dic
     channel_title = video_info.get("channel_title", "") or ""
     
     prompt = f"""
-당신은 대한민국 최고의 식당 리뷰 검증 및 매칭 정합성 판정 AI입니다.
+당신은 대한민국 최고의 식당 리뷰 검증 및 매칭 정합성 판정 AI이자 맛집 가이드 에디터입니다.
 기존 맛집 데이터베이스에 있는 맛집에 대해 유튜브에서 자동으로 검색된 추천 영상 후보가 전달되었습니다. 
 이 영상이 실제 해당 맛집(동일한 상호 및 지점/지역)을 방문하여 직접 소개/리뷰한 영상이 맞는지 정합성을 심사해 주세요.
 
@@ -263,15 +263,19 @@ def verify_video_with_gemini(restaurant_name: str, address: str, video_info: dic
    - 단지 지역명이 겹치거나, 다른 맛집 리스트를 소개하는 모음집 영상에 식당이 아주 짧게 스치듯 지나가는 경우 신뢰도가 낮습니다.
    - 프랜차이즈의 경우, 해당 지점(예: '송현불고기 나주점')이 맞는지 주소 정보를 통해 면밀히 확인하세요. 만약 다른 지점(예: '송현불고기 광주점')의 영상이라면 승인할 수 없습니다.
 2. 영상이 최종 승인(is_valid: true)될 수 있으려면 신뢰도가 70점 이상이어야 합니다.
-3. 승인 시, 영상과 식당의 특징을 담은 강렬하고 힙한 매력 키워드 3개(이모지 포함)를 'keywords'에 창작해 주세요.
-4. 분석 이유를 'reason'에 한 줄로 명확히 작성하세요.
+3. 승인 시(is_valid가 true일 때):
+   - "summary": 해당 유튜브 영상에서 다룬 맛집에 대한 평가 내용(맛, 분위기, 추천 메뉴 등 영상에서의 평가 요지)을 바탕으로 친근하고 명확한 한국어 요약 설명글을 작성해줘 (2~3줄 내외, 최대 150자 내외).
+   - "tags": 영상에서 나타난 식당에 어울리는 분위기나 목적 관련 추천 해시태그 목록을 3~5개 내외의 배열로 작성해줘 (예: ["데이트", "가족외식", "가성비", "인스타감성", "조용한"]). '#' 기호는 제외할 것.
+4. 승인이 안 될 경우(is_valid가 false일 때) summary는 빈 문자열(""), tags는 빈 배열([])로 반환하십시오.
+5. 분석 이유를 'reason'에 한 줄로 명확히 작성하세요.
 
 반드시 아래 JSON 형식으로만 응답해야 하며, 마크다운 백틱(```json) 등 불필요한 텍스트를 절대 섞지 마십시오.
 {{
   "is_valid": true 또는 false,
   "confidence_score": 0에서 100 사이의 숫자,
   "reason": "최종 검수 판정 사유 및 매칭 판단 근거에 대한 짧은 요약",
-  "keywords": ["🔥 키워드1", "💸 키워드2", "🥩 키워드3"]
+  "summary": "영상 기반 맛집 평가 요약글 또는 빈 문자열",
+  "tags": ["태그1", "태그2", "태그3"]
 }}
 """
     try:
@@ -281,11 +285,11 @@ def verify_video_with_gemini(restaurant_name: str, address: str, video_info: dic
             generation_config={"response_mime_type": "application/json"}
         )
         result = json.loads(response.text.strip())
-        logger.info(f"[Gemini AI Review] Result: is_valid={result.get('is_valid')}, score={result.get('confidence_score')}, reason={result.get('reason')}")
+        logger.info(f"[Gemini AI Review] Result: is_valid={result.get('is_valid')}, score={result.get('confidence_score')}, reason={result.get('reason')}, summary={result.get('summary')}, tags={result.get('tags')}")
         return result
     except Exception as e:
         logger.error(f"[Gemini AI Review] Error running Gemini review: {e}")
-        return {"is_valid": False, "confidence_score": 0, "reason": f"AI 심사 중 오류 발생: {e}"}
+        return {"is_valid": False, "confidence_score": 0, "reason": f"AI 심사 중 오류 발생: {e}", "summary": "", "tags": []}
 
 def get_best_youtube_video(query: str, restaurant_name: str, sigungu: str, api_key: str = None, limit: int = 5):
     """

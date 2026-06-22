@@ -8,8 +8,16 @@ from dotenv import load_dotenv
 # 현재 디렉토리 및 상위 경로 추가
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from loaders.supabase_loader import supabase, upsert_youtube_channel, upsert_youtube_video, link_restaurant_video
+from loaders.supabase_loader import (
+    supabase, 
+    upsert_youtube_channel, 
+    upsert_youtube_video, 
+    link_restaurant_video,
+    update_restaurant_summary_and_tags,
+    upsert_embedding
+)
 from extractors.youtube_extractor import get_best_youtube_video
+from loaders.embedding_generator import generate_context_string, generate_embedding
 
 # 로그 설정
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -142,12 +150,33 @@ def sync_videos(limit: int, restaurant_id: str = None, force: bool = False, quer
                 continue
                 
             # 매핑 연결
-            ai_reason = best_video.get("ai_review", {}).get("reason", "AI 검수 승인됨")
+            ai_review = best_video.get("ai_review", {})
+            ai_reason = ai_review.get("reason", "AI 검수 승인됨")
             success = link_restaurant_video(rest_id, video_db_id, quote=ai_reason)
 
             if success:
                 logger.info(f"Successfully linked '{name}' to video '{best_video['title']}'")
                 processed_count += 1
+                
+                # 맛집 리뷰 기반 요약글 및 분위기 태그 업데이트
+                summary = ai_review.get("summary", "")
+                tags = ai_review.get("tags", [])
+                
+                if summary or tags:
+                    logger.info(f"Updating restaurant summary and tags for '{name}'...")
+                    updated_rest = update_restaurant_summary_and_tags(rest_id, summary, tags)
+                    
+                    if updated_rest:
+                        # 신규 요약글/태그가 반영된 임베딩(Vector) 갱신
+                        try:
+                            context = generate_context_string(updated_rest)
+                            logger.info(f"Regenerating embedding for '{name}' with context: {context}")
+                            import asyncio
+                            embedding = asyncio.run(generate_embedding(context))
+                            upsert_embedding(rest_id, embedding, context)
+                            logger.info(f"Successfully updated embedding for '{name}'")
+                        except Exception as emb_err:
+                            logger.error(f"Failed to update embedding for '{name}': {emb_err}")
             else:
                 logger.error(f"Failed to link restaurant '{name}' to video.")
                 

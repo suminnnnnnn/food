@@ -11,7 +11,7 @@ export async function getRestaurantsInBounds(
   let query = supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info, description_summary,
       restaurant_videos (
         quote, mention_time, keywords,
         videos (
@@ -122,6 +122,7 @@ export async function getRestaurantsInBounds(
       reservation: row.reservation || '',
       business_hours: row.business_hours || '',
       menu_info: row.menu_info || '',
+      description_summary: row.description_summary || '',
     };
   });
 }
@@ -130,7 +131,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
   const { data, error } = await supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info, description_summary,
       restaurant_videos (
         quote, mention_time, keywords,
         videos (
@@ -229,6 +230,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
     reservation: data.reservation || '',
     business_hours: data.business_hours || '',
     menu_info: data.menu_info || '',
+    description_summary: data.description_summary || '',
   };
 }
 
@@ -238,7 +240,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
   const { data, error } = await supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info, description_summary,
       restaurant_videos (
         quote, mention_time, keywords,
         videos (
@@ -334,6 +336,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
       reservation: row.reservation || '',
       business_hours: row.business_hours || '',
       menu_info: row.menu_info || '',
+      description_summary: row.description_summary || '',
     };
   });
 }
@@ -357,4 +360,76 @@ export async function getDiscoverVideos(): Promise<any[]> {
     throw error;
   }
   return data || [];
+}
+
+/**
+ * 관련 맛집 추천: 같은 크리에이터의 다른 식당 + 같은 카테고리 주변 식당
+ */
+export async function getRelatedRestaurants(
+  restaurantId: string,
+  channelIds: string[],
+  category: string,
+  limit: number = 6
+): Promise<{ id: string; name: string; category: string; address: string; thumbnail?: string }[]> {
+  const results: Map<string, { id: string; name: string; category: string; address: string; thumbnail?: string }> = new Map();
+
+  // 1. 같은 크리에이터의 다른 식당 (채널 ID 기반)
+  if (channelIds.length > 0) {
+    const { data: creatorData } = await supabase
+      .from('restaurant_videos')
+      .select(`
+        restaurants ( id, name, category, road_address, address ),
+        videos!inner ( thumbnail_url, channels!inner ( id ) )
+      `)
+      .in('videos.channels.id', channelIds)
+      .neq('restaurant_id', restaurantId)
+      .limit(limit * 2);
+
+    if (creatorData) {
+      for (const rv of creatorData as any[]) {
+        const r = rv.restaurants;
+        if (r && !results.has(r.id)) {
+          results.set(r.id, {
+            id: r.id,
+            name: r.name,
+            category: r.category || '',
+            address: r.road_address || r.address || '',
+            thumbnail: rv.videos?.thumbnail_url || undefined,
+          });
+        }
+        if (results.size >= limit) break;
+      }
+    }
+  }
+
+  // 2. 같은 카테고리 식당 (부족분 채우기)
+  if (results.size < limit && category) {
+    const { data: catData } = await supabase
+      .from('restaurants')
+      .select(`
+        id, name, category, road_address, address,
+        restaurant_videos ( videos ( thumbnail_url ) )
+      `)
+      .eq('category', category)
+      .neq('id', restaurantId)
+      .limit(limit - results.size + 2);
+
+    if (catData) {
+      for (const r of catData as any[]) {
+        if (!results.has(r.id)) {
+          const thumb = r.restaurant_videos?.[0]?.videos?.thumbnail_url;
+          results.set(r.id, {
+            id: r.id,
+            name: r.name,
+            category: r.category || '',
+            address: r.road_address || r.address || '',
+            thumbnail: thumb || undefined,
+          });
+        }
+        if (results.size >= limit) break;
+      }
+    }
+  }
+
+  return Array.from(results.values()).slice(0, limit);
 }

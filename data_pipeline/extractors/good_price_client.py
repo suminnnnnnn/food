@@ -13,7 +13,7 @@ async def extract_gov_good_price_data(session: aiohttp.ClientSession, key: str, 
     행정안전부 전국 착한가격업소 표준 API를 호출하여 target_sido, target_sigungu에 해당하는 식당과 정형 메뉴/가격 데이터를 추출합니다.
     """
     from urllib.parse import unquote
-    service_key = unquote(key) if "%" in key else key
+    service_key = unquote(key) if key and "%" in key else key
     
     results = []
     page = 1

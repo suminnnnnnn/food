@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { getRestaurantById } from '@/lib/supabase/restaurants';
+import { getRestaurantById, getRelatedRestaurants } from '@/lib/supabase/restaurants';
 import { notFound } from 'next/navigation';
 import RestaurantDetailClient from './RestaurantDetailClient';
 
@@ -68,7 +68,24 @@ export default async function RestaurantDetailPage({ params }: Props) {
     notFound();
   }
 
-  // 3. Schema.org JSON-LD 구조화 데이터 정의
+  // 관련 맛집 추천 데이터 fetch (같은 크리에이터 or 같은 카테고리)
+  const channelIds = restaurant.videos
+    ?.map(v => v.youtuber?.id)
+    .filter((id): id is string => !!id) || [];
+  
+  let relatedRestaurants: { id: string; name: string; category: string; address: string; thumbnail?: string }[] = [];
+  try {
+    relatedRestaurants = await getRelatedRestaurants(
+      restaurant.id,
+      channelIds,
+      restaurant.category,
+      6
+    );
+  } catch (e) {
+    console.error('Failed to fetch related restaurants:', e);
+  }
+
+  // Schema.org JSON-LD 구조화 데이터 정의
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Restaurant',
@@ -98,7 +115,7 @@ export default async function RestaurantDetailPage({ params }: Props) {
       />
       
       {/* 프리미엄 클라이언트 인터랙션 뷰 서빙 */}
-      <RestaurantDetailClient restaurant={restaurant} />
+      <RestaurantDetailClient restaurant={restaurant} relatedRestaurants={relatedRestaurants} />
     </main>
   );
 }

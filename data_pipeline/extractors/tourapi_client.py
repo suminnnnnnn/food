@@ -14,7 +14,7 @@ async def fetch_tour_api_sync_list(session: aiohttp.ClientSession, page_no: int,
     """
     # TOUR_API_KEY might be url-encoded already, unquote it to pass safely if needed, or just pass as is.
     params = {
-        "serviceKey": unquote(TOUR_API_KEY) if "%" in TOUR_API_KEY else TOUR_API_KEY,
+        "serviceKey": unquote(TOUR_API_KEY) if TOUR_API_KEY and "%" in TOUR_API_KEY else TOUR_API_KEY,
         "numOfRows": num_of_rows,
         "pageNo": page_no,
         "MobileOS": "ETC",
@@ -38,7 +38,7 @@ async def fetch_tour_api_sync_list(session: aiohttp.ClientSession, page_no: int,
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=2, max=10))
 async def fetch_tour_api_detail_intro(session: aiohttp.ClientSession, content_id: str, content_type_id: str = "39"):
     params = {
-        "serviceKey": unquote(TOUR_API_KEY) if "%" in TOUR_API_KEY else TOUR_API_KEY,
+        "serviceKey": unquote(TOUR_API_KEY) if TOUR_API_KEY and "%" in TOUR_API_KEY else TOUR_API_KEY,
         "MobileOS": "ETC",
         "MobileApp": "ModooMatjip",
         "_type": "json",
@@ -72,7 +72,7 @@ async def fetch_naju_tour_data(session: aiohttp.ClientSession, page_no: int = 1,
     """
     url = "https://apis.data.go.kr/B551011/KorService2/areaBasedList2"
     params = {
-        "serviceKey": unquote(TOUR_API_KEY) if "%" in TOUR_API_KEY else TOUR_API_KEY,
+        "serviceKey": unquote(TOUR_API_KEY) if TOUR_API_KEY and "%" in TOUR_API_KEY else TOUR_API_KEY,
         "numOfRows": num_of_rows,
         "pageNo": page_no,
         "MobileOS": "ETC",

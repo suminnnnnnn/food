@@ -250,7 +250,7 @@ ${matchedCandidates.length > 0
    - 매칭되는 기존 식당이 전혀 없다면, "new_restaurant"으로 분류하고 'matched_restaurant_id'를 null로 설정하세요.
 3. 영상이 최종 승인(is_valid: true)될 수 있으려면 신뢰도가 70점 이상이어야 합니다.
 4. 승인 시, 영상과 식당의 특징을 담은 강렬하고 힙한 매력 키워드 3개(이모지 포함)를 'keywords'에 창작해 주세요.
-5. 영상 내 정보(제목/설명)를 분석하여 다음 5가지 방문 꿀팁 정보가 있다면 추출하고 없으면 "정보 없음"으로 기록하세요:
+5. 식당 기본 정보, 유튜브 영상 설명 텍스트, 그리고 구글 검색(Google Search) 결과를 활용하여 다음 5가지 방문 정보를 추출해 주세요. 정보가 없다면 구글 검색을 활용해서 채워 넣고, 그래도 조사가 불가능할 때만 "정보 없음"으로 기록하세요:
    - 대표 메뉴 및 가격 (예: 짚불구이 28,000원)
    - 주차 가능 여부 및 방법 (예: 발렛 가능, 건물 지하 주차 2시간 지원)
    - 예약 가능 여부 및 플랫폼 (예: 캐치테이블 예약 필수, 네이버 예약 가능)
@@ -258,7 +258,8 @@ ${matchedCandidates.length > 0
    - 영업시간 및 휴무일 (예: 매일 11:30 - 22:00, 월요일 휴무)
 6. 유튜버의 생생한 시그니처 꿀팁 요약: 영상의 제목과 상세 설명을 바탕으로, 유튜버가 이 식당에서 강조한 실전 방문 꿀팁(추천 주문 조합, 웨이팅 대처법, 예약 꿀팁 등)을 생생한 유튜버의 관점에서 한줄평으로 요약하여 'quote' 필드에 작성해 주세요. (예: "주말엔 11시 전 오픈런 필수, 시그니처 짚불구이에 비빔국수 조합이 베스트!")
 
-반드시 아래 JSON 형식으로만 응답해야 하며, 마크다운 백틱(\`\`\`) 등 불필요한 텍스트를 절대 섞지 마십시오.
+반드시 다른 설명 없이 아래 JSON 형식으로만 응답해야 하며, 마크다운 백틱(\`\`\`json ... \`\`\`)을 포함해서 출력하세요.
+\`\`\`json
 {
   "is_valid": true 또는 false,
   "confidence_score": 0에서 100 사이의 숫자,
@@ -274,6 +275,7 @@ ${matchedCandidates.length > 0
   "resolve_type": "existing_video_mapping" 또는 "new_restaurant",
   "matched_restaurant_id": "매칭된 기존 식당의 UUID 문자열 (해당 없을 시 null)"
 }
+\`\`\`
 `;
 
     let aiResult: any = { is_valid: false, confidence_score: 0, resolve_type: 'new_restaurant', matched_restaurant_id: null };
@@ -297,9 +299,9 @@ ${matchedCandidates.length > 0
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
+          tools: [{ googleSearch: {} }],
           generationConfig: {
-            temperature: 0.2,
-            responseMimeType: "application/json"
+            temperature: 0.0
           }
         })
       });
@@ -312,8 +314,9 @@ ${matchedCandidates.length > 0
       const rawText = geminiData.candidates[0].content.parts[0].text;
       
       try {
-        const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-        aiResult = JSON.parse(jsonStr);
+        const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```/) || rawText.match(/```\s*([\s\S]*?)\s*```/);
+        const jsonStr = jsonMatch ? jsonMatch[1] : rawText;
+        aiResult = JSON.parse(jsonStr.trim());
       } catch (e) {
         console.error("Failed to parse Gemini response raw text:", rawText);
         throw new Error("Invalid LLM response format during review");

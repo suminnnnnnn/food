@@ -7,7 +7,7 @@ const targetRestaurants = [
   { name: '도동집', address: '서울 용산구 후암로 48' },
   { name: '오근내7닭갈비', address: '서울 중구 한강대로 413' },
   { name: '일미장어', address: '서울 용산구 후암로57길 35-15' },
-  { name: '서부고려족발', address: '서울 중구 청파로 439-1' },
+  { name: '서부족발', address: '서울 중구 청파로 425' },
   { name: '명동칼국수', address: '서울 중구 한강대로 405' },
   { name: '서울역철도떡볶이', address: '서울 용산구 청파로93길 18-1' },
   { name: '충무칼국수', address: '서울 용산구 한강대로104길 84' },
