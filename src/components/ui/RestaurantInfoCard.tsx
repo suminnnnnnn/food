@@ -1,6 +1,7 @@
 import { Restaurant } from '@/types';
+import { getRestaurantRatings } from '@/lib/constants/ratings';
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
-import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronRight, Eye, CreditCard, Layers, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink } from 'lucide-react';
+import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronRight, Eye, CreditCard, Layers, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { MichelinIcon, BlueRibbonIcon } from '@/components/icons/CustomIcons';
 import { openExternal } from '@/lib/external-link';
@@ -96,24 +97,331 @@ const formatViewCount = (count: number) => {
   return count.toString();
 };
 
+
 // DB의 menu_info 필드를 파싱하여 배열로 반환하는 헬퍼
 interface MenuItem {
   name: string;
   price?: string;
+  description?: string;
 }
 
-const parseSingleMenuItem = (item: string): MenuItem => {
-  const match = item.match(/^(.*?)\s*[:\s]\s*([\d,]+\s*원?)$/);
-  if (match) {
-    const name = match[1].trim();
-    let price = match[2].trim();
-    if (!price.endsWith('원')) {
-      const numPrice = Number(price.replace(/,/g, ''));
-      price = isNaN(numPrice) ? price : `${numPrice.toLocaleString()}원`;
-    }
-    return { name, price };
+const checkAvailability = (value: string | null | undefined): boolean => {
+  if (!value || value === '정보 없음' || value.trim() === '') return false;
+  const cleanVal = value.trim();
+  
+  // Strip out negative expressions so they don't trigger positive matches like '가능' inside '불가능'
+  const temp = cleanVal
+    .replace(/불가능/g, '')
+    .replace(/불가/g, '')
+    .replace(/없음/g, '')
+    .replace(/미지원/g, '')
+    .replace(/미제공/g, '')
+    .replace(/금지/g, '');
+    
+  const hasPositiveException = /가능|지원|제공|이용/.test(temp);
+  const hasNegation = /불가|없음|불가능|금지|미지원|미제공/.test(cleanVal);
+  
+  if (hasNegation && !hasPositiveException) {
+    return false;
   }
-  return { name: item };
+  return true;
+};
+
+interface OpenStatus {
+  status: 'open' | 'closed' | 'break' | 'unknown';
+  label: string;
+  colorClass: string;
+}
+
+const getStoreOpenStatus = (hoursText?: string | null): OpenStatus => {
+  if (!hoursText || hoursText === '정보 없음' || hoursText.trim() === '') {
+    return { status: 'unknown', label: '영업 정보 없음', colorClass: 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20' };
+  }
+
+  try {
+    const now = new Date();
+    const kstOffset = 9 * 60;
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const kstDate = new Date(utc + (3600000 * 9));
+    
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    const currentDay = dayNames[kstDate.getDay()];
+    const currentHour = kstDate.getHours();
+    const currentMin = kstDate.getMinutes();
+    const currentTime = currentHour * 60 + currentMin;
+
+    // 1. 휴무일 판별
+    const holidayRegex = new RegExp(`(${currentDay}요일\\s*정기?\\s*휴무|${currentDay}요일\\s*휴무|매주\\s*${currentDay}요일|${currentDay}\\s*휴무)`);
+    if (holidayRegex.test(hoursText) && !hoursText.includes(`${currentDay}요일: 1`) && !hoursText.includes(`${currentDay}요일 1`)) {
+      return { status: 'closed', label: '정기 휴무일', colorClass: 'text-red-400 bg-red-500/10 border border-red-500/20' };
+    }
+
+    // 2. 영업시간 파싱
+    const timeRegex = /(\d{2}):(\d{2})/g;
+    const times: { time: number; str: string }[] = [];
+    let match;
+    while ((match = timeRegex.exec(hoursText)) !== null) {
+      times.push({
+        time: parseInt(match[1], 10) * 60 + parseInt(match[2], 10),
+        str: match[0]
+      });
+    }
+
+    if (times.length >= 2) {
+      let openTime = times[0].time;
+      let closeTime = times[1].time;
+      
+      const isWeekend = kstDate.getDay() === 0 || kstDate.getDay() === 6;
+      if (hoursText.includes('평일') && hoursText.includes('주말') && times.length >= 4) {
+        if (isWeekend) {
+          openTime = times[2].time;
+          closeTime = times[3].time;
+        } else {
+          openTime = times[0].time;
+          closeTime = times[1].time;
+        }
+      }
+
+      let breakStart = -1;
+      let breakEnd = -1;
+      const breakMatch = hoursText.match(/(?:브레이크\s*타임|브레이크타임)\s*(\d{2}):(\d{2})\s*[-~–]\s*(\d{2}):(\d{2})/);
+      if (breakMatch) {
+        breakStart = parseInt(breakMatch[1], 10) * 60 + parseInt(breakMatch[2], 10);
+        breakEnd = parseInt(breakMatch[3], 10) * 60 + parseInt(breakMatch[4], 10);
+      }
+
+      let isOpenRange = false;
+      if (closeTime < openTime) {
+        isOpenRange = currentTime >= openTime || currentTime < closeTime;
+      } else {
+        isOpenRange = currentTime >= openTime && currentTime < closeTime;
+      }
+
+      if (isOpenRange) {
+        if (breakStart !== -1 && breakEnd !== -1) {
+          if (currentTime >= breakStart && currentTime < breakEnd) {
+            return { 
+              status: 'break', 
+              label: `브레이크 타임 (${Math.floor(breakStart/60)}:${String(breakStart%60).padStart(2,'0')}~${Math.floor(breakEnd/60)}:${String(breakEnd%60).padStart(2,'0')})`, 
+              colorClass: 'text-orange-400 bg-orange-500/10 border border-orange-500/20' 
+            };
+          }
+        }
+        
+        const lastOrderTime = closeTime - 30;
+        if (currentTime >= lastOrderTime && currentTime < closeTime) {
+          return { status: 'open', label: '영업 중 (곧 마감)', colorClass: 'text-amber-400 bg-amber-500/10 border border-amber-500/20 animate-pulse' };
+        }
+
+        return { status: 'open', label: '영업 중', colorClass: 'text-green-400 bg-green-500/10 border border-green-500/20' };
+      } else {
+        return { status: 'closed', label: '영업 종료', colorClass: 'text-zinc-400 bg-zinc-500/5 border border-zinc-500/10' };
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing business hours status:', e);
+  }
+
+  return { status: 'unknown', label: '영업 정보 있음', colorClass: 'text-green-400/90 bg-green-500/10 border border-green-500/20' };
+};
+
+const splitHoursIntoLines = (hoursText: string): string[] => {
+  const rawLines = hoursText.split('\n');
+  const lines: string[] = [];
+  
+  for (const rawLine of rawLines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) continue;
+    
+    if (trimmed.includes(',') && !trimmed.includes('\n')) {
+      let parenDepth = 0;
+      let current = '';
+      const subLines: string[] = [];
+      for (let i = 0; i < trimmed.length; i++) {
+        const char = trimmed[i];
+        if (char === '(' || char === '[') {
+          parenDepth++;
+          current += char;
+        } else if (char === ')' || char === ']') {
+          parenDepth = Math.max(0, parenDepth - 1);
+          current += char;
+        } else if (char === ',' && parenDepth === 0) {
+          if (current.trim()) {
+            subLines.push(current.trim());
+          }
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      if (current.trim()) {
+        subLines.push(current.trim());
+      }
+      lines.push(...subLines);
+    } else {
+      lines.push(trimmed);
+    }
+  }
+  return lines;
+};
+
+const getTodayHoursLine = (lines: string[]): { todayLine: string; todayIndex: number } => {
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const kstDate = new Date(utc + (3600000 * 9));
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  const currentDay = dayNames[kstDate.getDay()];
+  const isWeekend = kstDate.getDay() === 0 || kstDate.getDay() === 6;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const regex = new RegExp(`(${currentDay}요일|\\b${currentDay}\\b|^${currentDay}[\\s~-]|[^a-zA-Z0-9가-힣]${currentDay}[\\s~-])`);
+    if (regex.test(line)) {
+      const rangeMatch = line.match(/([월화수목금토일])\s*[~-]\s*([월화수목금토일])/);
+      if (rangeMatch) {
+        const startDay = rangeMatch[1];
+        const endDay = rangeMatch[2];
+        const startIndex = dayNames.indexOf(startDay);
+        const endIndex = dayNames.indexOf(endDay);
+        const todayIndex = kstDate.getDay();
+        
+        let inRange = false;
+        if (startIndex <= endIndex) {
+          inRange = todayIndex >= startIndex && todayIndex <= endIndex;
+        } else {
+          inRange = todayIndex >= startIndex || todayIndex <= endIndex;
+        }
+        if (inRange) {
+          return { todayLine: line, todayIndex: i };
+        }
+      } else {
+        return { todayLine: line, todayIndex: i };
+      }
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const rangeMatch = line.match(/([월화수목금토일])\s*[~-]\s*([월화수목금토일])/);
+    if (rangeMatch) {
+      const startDay = rangeMatch[1];
+      const endDay = rangeMatch[2];
+      const startIndex = dayNames.indexOf(startDay);
+      const endIndex = dayNames.indexOf(endDay);
+      const todayIndex = kstDate.getDay();
+      
+      let inRange = false;
+      if (startIndex <= endIndex) {
+        inRange = todayIndex >= startIndex && todayIndex <= endIndex;
+      } else {
+        inRange = todayIndex >= startIndex || todayIndex <= endIndex;
+      }
+      if (inRange) {
+        return { todayLine: line, todayIndex: i };
+      }
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isWeekend && line.includes('주말')) {
+      return { todayLine: line, todayIndex: i };
+    }
+    if (!isWeekend && line.includes('평일')) {
+      return { todayLine: line, todayIndex: i };
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.includes('매일')) {
+      return { todayLine: line, todayIndex: i };
+    }
+  }
+
+  return { todayLine: lines[0] || '정보 없음', todayIndex: 0 };
+};
+
+const getCleanTodayLine = (line: string): string => {
+  return line.replace(/\s*\([^)]*(?:브레이크|쉬는시간|라스트|order|LO)[^)]*\)/gi, '').trim();
+};
+
+const splitMenuItems = (str: string): string[] => {
+  const items: string[] = [];
+  let current = '';
+  let parenDepth = 0;
+  
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (char === '(' || char === '[') {
+      parenDepth++;
+      current += char;
+    } else if (char === ')' || char === ']') {
+      parenDepth = Math.max(0, parenDepth - 1);
+      current += char;
+    } else if ((char === ',' || char === '/' || char === '\n') && parenDepth === 0) {
+      const isThousandsSeparator = char === ',' && i > 0 && i < str.length - 1 && /\d/.test(str[i-1]) && /\d/.test(str[i+1]);
+      if (isThousandsSeparator) {
+        current += char;
+      } else {
+        if (current.trim()) {
+          items.push(current.trim());
+        }
+        current = '';
+      }
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim()) {
+    items.push(current.trim());
+  }
+  return items;
+};
+
+const parseSingleMenuItem = (item: string): MenuItem => {
+  const cleanItem = item.trim();
+  
+  const cleanDescStr = (desc?: string | null) => {
+    if (!desc) return undefined;
+    let d = desc.trim();
+    if (d.endsWith('.')) d = d.slice(0, -1);
+    if (d.startsWith('(') && d.endsWith(')')) d = d.slice(1, -1);
+    d = d.trim();
+    return d ? `(${d})` : undefined;
+  };
+  
+  if (cleanItem.includes(':')) {
+    const parts = cleanItem.split(':');
+    const rawName = parts[0].trim();
+    const right = parts.slice(1).join(':').trim();
+    
+    const match = right.match(/^((?:\d{1,3}(?:,\d{3})+|\d+)\s*원?(?:\s*~\s*(?:\d{1,3}(?:,\d{3})+|\d+)\s*원?)?)(?:\s*[.\s(]+(.*?)\)?)?$/);
+    if (match) {
+      const price = match[1].trim();
+      const desc = match[2]?.trim();
+      return {
+        name: rawName,
+        price,
+        description: cleanDescStr(desc)
+      };
+    }
+    return { name: rawName, price: right };
+  }
+  
+  const match = cleanItem.match(/^(.*?)\s+((?:\d{1,3}(?:,\d{3})+|\d+)\s*원?)(?:\s*[.\s(]+(.*?)\)?)?$/);
+  if (match) {
+    const nameOnly = match[1].trim();
+    const price = match[2].trim();
+    const desc = match[3]?.trim();
+    return {
+      name: nameOnly,
+      price: price.endsWith('원') ? price : `${Number(price.replace(/,/g, '')).toLocaleString()}원`,
+      description: cleanDescStr(desc)
+    };
+  }
+  
+  return { name: cleanItem };
 };
 
 const parseMenuInfo = (menuInfo?: string | null): MenuItem[] => {
@@ -136,11 +444,10 @@ const parseMenuInfo = (menuInfo?: string | null): MenuItem[] => {
   } catch (e) {
     console.warn("Failed to parse menu_info as JSON:", e);
   }
-  // 공공데이터에서 넘어오는 각종 구분자(<br>, <br/>, 쉼표 등) 처리
+  
   const cleaned = menuInfo.replace(/<br\s*\/?>/gi, '\n');
-  return cleaned
-    .split('\n')
-    .flatMap(line => line.split(','))
+  const rawItems = splitMenuItems(cleaned);
+  return rawItems
     .map(item => item.trim())
     .filter(item => item.length > 0 && item !== '없음')
     .map(parseSingleMenuItem);
@@ -173,6 +480,8 @@ interface RestaurantInfoCardProps {
   onAddToPlanning?: (restaurant: Restaurant) => void;
   onInsertToPlanningRoute?: (restaurant: Restaurant) => void;
   onRequestVideoSubmit?: (restaurant: Restaurant) => void;
+  windowWidth?: number;
+  sidebarWidth?: number;
 }
 
 
@@ -186,7 +495,9 @@ export default function RestaurantInfoCard({
   isRecommendedRouteItem = false,
   onAddToPlanning,
   onInsertToPlanningRoute,
-  onRequestVideoSubmit
+  onRequestVideoSubmit,
+  windowWidth = 1200,
+  sidebarWidth = 420
 }: RestaurantInfoCardProps) {
   const openNaverDeeplink = (name: string, address?: string) => {
     const query = name + ' ' + (address ? address.split(' ').slice(0, 2).join(' ') : '');
@@ -202,7 +513,7 @@ export default function RestaurantInfoCard({
         window.open(`https://m.map.naver.com/search2/search.naver?query=${encodedQuery}`, '_blank', 'noopener,noreferrer');
       }, 1500);
     } else {
-      openExternal(`https://map.naver.com/v5/search/${encodedQuery}`, { reason: 'naver_map_review' });
+      openExternal(`https://map.naver.com/p/search/${encodedQuery}`, { reason: 'naver_map_review' });
     }
   };
 
@@ -230,6 +541,28 @@ export default function RestaurantInfoCard({
       openExternal(pcUrl, { reason: 'kakao_map_review' });
     }
   };
+
+  const openKakaoRouteDeeplink = (name: string, kakaoPlaceId?: string, lat?: number, lng?: number) => {
+    if (typeof window === 'undefined') return;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      const appUrl = kakaoPlaceId ? `kakaomap://route?ep=${kakaoPlaceId}&by=CAR` : `kakaomap://route?ep=${lat},${lng}&by=CAR`;
+      window.location.href = appUrl;
+      setTimeout(() => {
+        const webUrl = kakaoPlaceId ? `https://map.kakao.com/link/to/${kakaoPlaceId}` : `https://map.kakao.com/link/to/${encodeURIComponent(name)},${lat},${lng}`;
+        window.open(webUrl, '_blank', 'noopener,noreferrer');
+      }, 1500);
+    } else {
+      const pcUrl = kakaoPlaceId ? `https://map.kakao.com/link/to/${kakaoPlaceId}` : `https://map.kakao.com/link/to/${encodeURIComponent(name)},${lat},${lng}`;
+      openExternal(pcUrl, { reason: 'kakao_navi' });
+    }
+  };
+
+  // 반응형 너비 및 위치 연산 (기본값 설정 포함)
+  const detailWidth = sidebarWidth;
+  const detailLeft = 24 + sidebarWidth + 8; // left-6 (24px) + sidebar + gap(8px)
+  const detailShift = -(detailLeft - 24); // collapses to left-6 (24px)
+  const hideShift = -(detailLeft + detailWidth + 100); // dynamic offscreen hiding
 
   const [isMobileDevice, setIsMobileDevice] = useState(false);
 
@@ -320,6 +653,9 @@ export default function RestaurantInfoCard({
   // 미디어 재생 및 에러 제어 상태
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [embedError, setEmbedError] = useState(false);
+  const [isHoursExpanded, setIsHoursExpanded] = useState(false);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+  const [showRouteModal, setShowRouteModal] = useState(false);
   const playerInstanceRef = useRef<any>(null);
 
   // 식당이 바뀌면 재생 상태 및 비디오 세션 초기화
@@ -329,6 +665,9 @@ export default function RestaurantInfoCard({
     setEmbedError(false);
     setIsBookmarkHovered(false);
     setIsShareHovered(false);
+    setIsHoursExpanded(false);
+    setIsSummaryExpanded(false);
+    setShowRouteModal(false);
   }, [restaurant?.id]);
 
   // 유튜브 Iframe Player API 동적 로딩 및 재생 제어
@@ -435,9 +774,10 @@ export default function RestaurantInfoCard({
   const menuList = parseMenuInfo(restaurant?.menu_info);
   const businessHours = parseBusinessHours(restaurant?.business_hours);
   const hasPhone = !!restaurant?.phone;
-  const hasParking = !!restaurant?.parking && restaurant.parking !== '주차 불가';
-  const hasReservation = !!restaurant?.reservation && restaurant.reservation !== '예약 불가';
-  const hasPackaging = !!restaurant?.packaging && restaurant.packaging !== '포장 불가';
+  const hasParking = checkAvailability(restaurant?.parking);
+  const hasReservation = checkAvailability(restaurant?.reservation);
+  const hasPackaging = checkAvailability(restaurant?.packaging);
+  const openStatus = getStoreOpenStatus(restaurant?.business_hours || '');
 
   const getTagStyle = (source: string) => {
     switch (source) {
@@ -470,25 +810,25 @@ export default function RestaurantInfoCard({
     }
 
     return (
-      <>
+      <div className="flex flex-col h-full relative bg-brand-charcoal select-none">
         {/* 모바일 전용 드래그 핸들 */}
         <div className="w-full flex justify-center pt-3 pb-1 md:hidden shrink-0">
           <div className="w-12 h-1.5 bg-white/10 rounded-full"></div>
         </div>
 
-        {/* 뒤로가기 / 닫기 액션 버튼 */}
+        {/* 모바일 전용 닫기 액션 버튼 */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 md:right-auto md:left-4 p-2.5 bg-black/50 hover:bg-black/75 md:bg-white/5 md:hover:bg-white/10 backdrop-blur-md rounded-full text-white border border-white/10 shadow-xl transition-all z-45 group cursor-pointer"
+          className="absolute top-4 right-4 p-2.5 bg-black/50 hover:bg-black/75 backdrop-blur-md rounded-full text-white border border-white/10 shadow-xl transition-all z-45 cursor-pointer md:hidden"
         >
-          <X size={18} className="md:hidden" />
-          <ArrowLeft size={18} className="hidden md:block group-hover:-translate-x-0.5 transition-transform" />
+          <X size={18} />
         </button>
 
-        <div className="overflow-y-auto hide-scrollbar pb-8 flex-1">
+        {/* Scrollable Container */}
+        <div className="overflow-y-auto hide-scrollbar flex-1 pb-8">
           {/* 유튜브 플레이어 및 썸네일 영역 */}
-          {restaurant.videos && restaurant.videos.length > 0 && (
-            <div className="relative w-full bg-black shrink-0 aspect-video rounded-t-[28px] md:rounded-t-none overflow-hidden">
+          {restaurant.videos && restaurant.videos.length > 0 ? (
+            <div className="relative w-full bg-black shrink-0 aspect-video rounded-t-[28px] md:rounded-t-none overflow-hidden z-20">
               <div className="relative w-full h-full flex justify-center items-center">
                 {!isPlayingVideo ? (
                   <>
@@ -514,15 +854,6 @@ export default function RestaurantInfoCard({
                         <Play size={24} className="ml-1 text-white fill-current" />
                       </motion.div>
                     </div>
-
-                    {activeVideo?.is_short && (
-                      <div className="absolute bottom-4 right-4 bg-zinc-950/60 backdrop-blur-md text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-white/10 shadow-lg z-20 flex items-center gap-1 select-none">
-                        <Play size={8} fill="url(#red-orange-grad)" stroke="url(#red-orange-grad)" />
-                        <span className="bg-gradient-to-r from-red-500 to-brand-orange bg-clip-text text-transparent font-black">
-                          SHORTS
-                        </span>
-                      </div>
-                    )}
                   </>
                 ) : (
                   <div className="relative w-full h-full">
@@ -545,9 +876,7 @@ export default function RestaurantInfoCard({
                 )}
               </div>
             </div>
-          )}
-
-          {(!restaurant.videos || restaurant.videos.length === 0) && (
+          ) : (
             <div className="relative w-full py-12 bg-[#121214] border-b border-white/5 flex flex-col justify-center items-center text-center shrink-0 px-6">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500/10 to-orange-500/10 border border-orange-500/20 flex items-center justify-center mb-3 shadow-inner">
                 <PlaySquare size={22} className="text-orange-400" />
@@ -564,136 +893,282 @@ export default function RestaurantInfoCard({
             </div>
           )}
 
-          <div className="p-6 md:p-8 space-y-5 text-white">
-            {/* 식당 기본 타이틀 및 카테고리 정보 */}
-            <div className="space-y-1">
-              <div className="flex justify-between items-center gap-4 min-w-0">
-                <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight truncate">
+          <div className="p-5 md:p-6 space-y-4 text-white">
+            {/* Unified Profile Card (Profile, AI briefing, Facility info merged) */}
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 relative overflow-hidden space-y-4">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/8 rounded-full filter blur-2xl -z-10" />
+
+              {/* Row 1: Name */}
+              <div className="flex justify-between items-start gap-4 min-w-0">
+                <h3 className="text-xl md:text-2xl font-black text-white tracking-tight leading-tight truncate">
                   {restaurant.name}
                 </h3>
+              </div>
 
-                {/* 맛집명 우측 실시간 액션 버튼 (원형 뱃지 백그라운드 분할형 디자인 리뉴얼) */}
-                <div className="flex items-center gap-1.5 bg-white/[0.02] border border-white/5 rounded-2xl p-1 shrink-0">
-                  {/* 1. 즐겨찾기 (북마크로 실시간 토글) */}
-                  <button
-                    onClick={() => {
-                      if (toggleFavorite) {
-                        toggleFavorite(restaurant.id);
+              {/* Row 2: Category */}
+              <div className="flex items-center flex-wrap gap-2 text-[12px] font-semibold text-zinc-400 select-none">
+                {restaurant.category && (
+                  <span>{getFormattedCategory(restaurant.category)}</span>
+                )}
+              </div>
+
+              {/* Row 2.5: Quick Action Buttons (전화, 즐겨찾기, 공유하기, 길찾기) */}
+              <div className="grid grid-cols-4 gap-2 pt-1 pb-1">
+                {/* 전화 */}
+                <button
+                  onClick={() => {
+                    if (restaurant.phone && restaurant.phone !== '정보 없음' && restaurant.phone.trim() !== '') {
+                      window.location.href = `tel:${restaurant.phone}`;
+                    } else {
+                      alert('등록된 전화번호가 없습니다.');
+                    }
+                  }}
+                  className="flex flex-col items-center justify-center py-2 bg-zinc-800/40 hover:bg-zinc-800/80 border border-white/5 rounded-xl transition-all gap-1 cursor-pointer group"
+                >
+                  <Phone size={14} className="text-zinc-400 group-hover:text-white transition-colors" />
+                  <span className="text-[10px] font-bold text-zinc-400 group-hover:text-white transition-colors">전화</span>
+                </button>
+
+                {/* 즐겨찾기 */}
+                <button
+                  onClick={() => toggleFavorite && toggleFavorite(restaurant.id)}
+                  onMouseEnter={() => setIsBookmarkHovered(true)}
+                  onMouseLeave={() => setIsBookmarkHovered(false)}
+                  className={`flex flex-col items-center justify-center py-2 border rounded-xl transition-all gap-1 cursor-pointer group ${
+                    (favorites.includes(restaurant.id) || isBookmarkHovered)
+                      ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)]'
+                      : 'bg-zinc-800/40 hover:bg-zinc-800/80 border-white/5 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Star 
+                    size={14} 
+                    stroke={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 'url(#red-orange-grad)' : 'currentColor'}
+                    fill={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 'url(#red-orange-grad)' : 'none'} 
+                    strokeWidth={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 2.5 : 2}
+                  />
+                  <span className="text-[10px] font-bold">즐겨찾기</span>
+                </button>
+
+                {/* 공유하기 */}
+                <button
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({
+                        title: restaurant.name,
+                        text: `[모두의 맛집] ${restaurant.name} - ${restaurant.category}`,
+                        url: window.location.href,
+                      }).catch(() => {});
+                    } else {
+                      navigator.clipboard.writeText(window.location.href);
+                      alert('맛집 링크가 클립보드에 복사되었습니다.');
+                    }
+                  }}
+                  onMouseEnter={() => setIsShareHovered(true)}
+                  onMouseLeave={() => setIsShareHovered(false)}
+                  className={`flex flex-col items-center justify-center py-2 border rounded-xl transition-all gap-1 cursor-pointer group ${
+                    isShareHovered
+                      ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)]'
+                      : 'bg-zinc-800/40 hover:bg-zinc-800/80 border-white/5 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Share2 
+                    size={14} 
+                    stroke={isShareHovered ? 'url(#red-orange-grad)' : 'currentColor'}
+                    fill={isShareHovered ? 'url(#red-orange-grad)' : 'none'}
+                    strokeWidth={isShareHovered ? 2.5 : 2}
+                  />
+                  <span className="text-[10px] font-bold">공유하기</span>
+                </button>
+
+                {/* 길찾기 */}
+                <button
+                  onClick={() => setShowRouteModal(true)}
+                  className="flex flex-col items-center justify-center py-2 bg-zinc-800/40 hover:bg-zinc-800/80 border border-white/5 rounded-xl transition-all gap-1 cursor-pointer group"
+                >
+                  <Navigation size={14} className="text-zinc-400 group-hover:text-white transition-colors" />
+                  <span className="text-[10px] font-bold text-zinc-400 group-hover:text-white transition-colors">길찾기</span>
+                </button>
+              </div>
+
+              {/* Row 6: Facilities List */}
+              <div className="flex flex-col gap-2.5 pt-3 border-t border-zinc-800 text-[12px] font-medium text-zinc-300">
+                {/* Hours */}
+                <div className="flex items-start gap-2.5">
+                  <Clock size={13} className="text-orange-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    {businessHours ? (() => {
+                      const lines = splitHoursIntoLines(businessHours);
+                      const { todayLine, todayIndex } = getTodayHoursLine(lines);
+                      const hasMultipleLines = lines.length > 1 || todayLine.includes('브레이크') || todayLine.includes('쉬는시간');
+                      const cleanTodayLine = getCleanTodayLine(todayLine);
+
+                      // Helper to render inline sleek badge
+                      const renderStatusBadge = () => {
+                        let textColor = 'text-zinc-500';
+                        let dotBg = 'bg-zinc-500';
+                        
+                        if (openStatus.status === 'open') {
+                          textColor = 'text-green-400';
+                          dotBg = 'bg-green-400';
+                        } else if (openStatus.status === 'break') {
+                          textColor = 'text-orange-400';
+                          dotBg = 'bg-orange-400';
+                        } else if (openStatus.status === 'closed') {
+                          textColor = 'text-red-400';
+                          dotBg = 'bg-red-400';
+                        }
+
+                        let cleanLabel = openStatus.label;
+                        if (cleanLabel.includes('브레이크 타임')) {
+                          cleanLabel = '브레이크 타임';
+                        }
+
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-zinc-800/40 border border-zinc-700/30 ${textColor} select-none shrink-0 ml-1.5`}>
+                            <span className={`w-1 h-1 rounded-full ${dotBg} ${openStatus.status === 'open' ? 'animate-pulse' : ''}`} />
+                            {cleanLabel}
+                          </span>
+                        );
+                      };
+
+                      if (hasMultipleLines) {
+                        return (
+                          <div className="flex flex-col gap-1 w-full">
+                            <div
+                              onClick={() => setIsHoursExpanded(!isHoursExpanded)}
+                              className="flex items-center justify-between w-full cursor-pointer group"
+                            >
+                              <div className="flex items-center flex-wrap gap-1 min-w-0">
+                                <span className={`text-[12px] leading-relaxed transition-colors ${isHoursExpanded ? 'font-black text-white' : 'font-bold text-zinc-200'}`}>
+                                  {isHoursExpanded ? todayLine : cleanTodayLine}
+                                </span>
+                                {!isHoursExpanded && renderStatusBadge()}
+                              </div>
+                              <div className="text-zinc-500 group-hover:text-white transition-colors p-0.5 shrink-0 ml-1">
+                                {isHoursExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                              </div>
+                            </div>
+                            <AnimatePresence initial={false}>
+                              {isHoursExpanded && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="flex flex-col gap-1 mt-1 pl-2 border-l border-zinc-700 overflow-hidden"
+                                >
+                                  {lines.map((line, idx) => (
+                                    <div key={idx} className="flex items-center flex-wrap gap-1 min-w-0">
+                                      <span className={`text-[11px] leading-relaxed ${idx === todayIndex ? 'font-black text-white' : 'font-semibold text-zinc-400'}`}>
+                                        {line}
+                                      </span>
+                                      {idx === todayIndex && renderStatusBadge()}
+                                    </div>
+                                  ))}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
                       }
-                    }}
-                    onMouseEnter={() => setIsBookmarkHovered(true)}
-                    onMouseLeave={() => setIsBookmarkHovered(false)}
-                    className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-300 cursor-pointer group relative ${
-                      (favorites.includes(restaurant.id) || isBookmarkHovered)
-                        ? 'bg-white/[0.04] border border-red-500/35 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.25)]'
-                        : 'bg-zinc-900/80 hover:bg-zinc-800/80 text-zinc-400 hover:text-white border border-white/5'
-                    }`}
-                    title="즐겨찾기 추가"
-                  >
-                    <Star 
-                      size={14} 
-                      stroke={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 'url(#red-orange-grad)' : 'currentColor'}
-                      fill={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 'url(#red-orange-grad)' : 'none'} 
-                      strokeWidth={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 2.5 : 2}
-                      className="transition-transform duration-300 group-hover:scale-110"
-                    />
-                  </button>
-                  
+                      return (
+                        <div className="flex items-center flex-wrap gap-1 min-w-0">
+                          <span className="text-[12px] font-bold text-zinc-200 block">{cleanTodayLine}</span>
+                          {renderStatusBadge()}
+                        </div>
+                      );
+                    })() : <span className="text-[12px] font-bold text-zinc-400 block">영업시간 정보 없음</span>}
+                  </div>
+                </div>
 
+                {/* Parking */}
+                {restaurant.parking && restaurant.parking !== '정보 없음' && (
+                  <div className="flex items-start gap-2.5">
+                    <Car size={13} className="text-orange-400 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[12px] font-bold text-zinc-200">주차 {hasParking ? '가능' : '불가'}</span>
+                      <span className="text-zinc-500 text-[11px] font-semibold ml-1.5">({restaurant.parking})</span>
+                    </div>
+                  </div>
+                )}
 
-                  {/* 3. 공유하기 (공유 로고) */}
-                  <button
-                    onClick={() => {
-                      if (navigator.share) {
-                        navigator.share({
-                          title: restaurant.name,
-                          text: `[모두의 맛집] ${restaurant.name} - ${restaurant.category}`,
-                          url: window.location.href,
-                        }).catch(() => {});
-                      } else {
-                        navigator.clipboard.writeText(window.location.href);
-                        alert('맛집 링크가 클립보드되었습니다!');
-                      }
-                    }}
-                    onMouseEnter={() => setIsShareHovered(true)}
-                    onMouseLeave={() => setIsShareHovered(false)}
-                    className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-300 cursor-pointer group shadow-sm ${
-                      isShareHovered
-                        ? 'bg-white/[0.04] border border-red-500/35 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.25)]'
-                        : 'bg-zinc-900/80 hover:bg-zinc-800/80 text-zinc-400 hover:text-white border border-white/5'
-                    }`}
-                    title="공유하기"
-                  >
-                    <Share2 
-                      size={14} 
-                      stroke={isShareHovered ? 'url(#red-orange-grad)' : 'currentColor'}
-                      fill={isShareHovered ? 'url(#red-orange-grad)' : 'none'}
-                      strokeWidth={isShareHovered ? 2.5 : 2}
-                      className="transition-transform duration-300 group-hover:scale-110" 
-                    />
-                  </button>
+                {/* Reservation / Packaging */}
+                <div className="flex items-start gap-2.5">
+                  <CalendarCheck size={13} className="text-orange-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[12px] font-bold text-zinc-200">
+                      예약 {hasReservation ? '가능' : '불가'} · 포장 {hasPackaging ? '가능' : '불가'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div className="flex items-start gap-2.5">
+                  <MapPin size={13} className="text-orange-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[12px] font-bold text-zinc-200 leading-normal">{restaurant.address}</span>
+                    <button
+                      onClick={() => handleCopy(restaurant.address, 'address')}
+                      className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer shrink-0"
+                      title="주소 복사"
+                    >
+                      {copiedAddress ? <Check size={11} className="text-brand-orange" /> : <Copy size={11} />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* 카테고리 정보는 타이틀 아래로 독립 분리 */}
-              {restaurant.category && (() => {
-                const formattedCategory = getFormattedCategory(restaurant.category);
-                if (!formattedCategory) return null;
-                return (
-                  <div className="flex items-center pt-1">
-                    <span className="inline-flex items-center bg-white/[0.04] border border-white/10 px-2.5 py-0.5 rounded-md text-[11px] font-bold text-zinc-300 tracking-wide">
-                      {formattedCategory}
-                    </span>
+              {/* Row 7: AI 꿀팁 (Gemini 추천) */}
+              {restaurant.description_summary && (
+                <div className="pt-3 border-t border-zinc-800 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-orange-400" />
+                    <span className="text-[12px] font-black text-zinc-200">AI 꿀팁 (Gemini 추천)</span>
                   </div>
-                );
-              })()}
-
-              {/* 주소 정보 영역은 하단 기본정보 섹션으로 이동됨 */}
-              
-              {isPlanningMode && isRecommendedRouteItem && (
-                <button
-                  onClick={() => {
-                    if (onInsertToPlanningRoute) {
-                      onInsertToPlanningRoute(restaurant);
-                    }
-                  }}
-                  className="w-full mt-3 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 active:scale-[0.98] transition-all shadow-[0_4px_15px_rgba(239,68,68,0.25)] flex items-center justify-center gap-1.5 cursor-pointer z-10 relative"
-                >
-                  <Plus size={12} />
-                  <span>경로 중간에 경유지로 추가하기 ✨</span>
-                </button>
+                  <div className="text-[12px] text-zinc-300 font-medium leading-relaxed bg-zinc-800/40 border border-zinc-700/30 rounded-xl p-3 whitespace-pre-wrap select-text">
+                    {restaurant.description_summary}
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* [음식 카테고리 하단] 크리에이터 스토리 가로 아바타 슬라이더 배치 */}
+            {/* planning mode route button */}
+            {isPlanningMode && isRecommendedRouteItem && (
+              <button
+                onClick={() => onInsertToPlanningRoute && onInsertToPlanningRoute(restaurant)}
+                className="w-full py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-600 to-orange-500 hover:brightness-110 active:scale-[0.98] transition-all shadow-[0_4px_15px_rgba(239,68,68,0.25)] flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Plus size={12} />
+                <span>경로 중간에 경유지로 추가하기</span>
+              </button>
+            )}
+
+            {/* Creator Story Carousel */}
             {sortedVideos && sortedVideos.length > 0 && (
-              <div className="bg-white/5 border border-white/5 rounded-2xl p-4.5 shadow-md relative overflow-hidden group/story">
-                {/* 상단 타이틀 + 제보 버튼 영역 (겹침 방지) */}
+              <div className="bg-white/5 border border-white/5 rounded-2xl p-4 shadow-md relative overflow-hidden group/story">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-[11px] font-extrabold text-zinc-400 tracking-tight select-none">리뷰 크리에이터</span>
+                  <span className="text-[10.5px] font-extrabold text-zinc-400 tracking-tight select-none">리뷰 크리에이터</span>
                   <button
                     onClick={() => onRequestVideoSubmit && onRequestVideoSubmit(restaurant)}
                     className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full cursor-pointer transition-colors z-20"
                   >
                     <Plus size={10} className="text-brand-orange" />
-                    <span className="text-[10px] font-bold text-white/90">영상 제보</span>
+                    <span className="text-[9.5px] font-bold text-white/90">영상 제보</span>
                   </button>
                 </div>
 
-                {/* 드래그 슬라이더 컨테이너: overflow-hidden으로 스크롤바 노출을 원천 배제 */}
                 <div 
                   ref={containerRef}
                   onWheel={handleStoryWheel}
-                  className="-mx-4.5 w-[calc(100%+2.25rem)] overflow-hidden px-4.5 py-1.5 mb-0 z-10 relative items-start cursor-grab active:cursor-grabbing select-none"
+                  className="-mx-4 w-[calc(100%+2rem)] overflow-hidden px-4 py-1 z-10 relative items-start cursor-grab active:cursor-grabbing select-none"
                 >
                   <motion.div
                     ref={trackRef}
+                    style={{ x: storyX }}
                     drag="x"
                     dragConstraints={dragConstraints}
                     dragElastic={0.15}
-                    dragTransition={{ power: 0.2, bounceStiffness: 300, bounceDamping: 25 }}
-                    style={{ x: storyX }}
-                    className="flex flex-nowrap gap-4.5 w-max"
+                    className="flex flex-nowrap gap-4 w-max"
                   >
                     {sortedVideos.map((vid, idx) => {
                       const isActive = activeVideoIndex === idx;
@@ -707,12 +1182,11 @@ export default function RestaurantInfoCard({
                           }}
                           className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group select-none"
                         >
-                          {/* 프로필 서클: 고정 크기(w,h) 명시로 어떤 브라우저에서도 찌그러지지 않도록 완벽한 원형 유지 */}
-                          <div className={`relative w-[60px] h-[60px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_12px_rgba(255,75,0,0.45)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
-                            <div className="w-[55px] h-[55px] bg-[#121214] rounded-full flex items-center justify-center shrink-0">
+                          <div className={`relative w-[54px] h-[54px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_10px_rgba(255,75,0,0.4)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
+                            <div className="w-[50px] h-[50px] bg-[#121214] rounded-full flex items-center justify-center shrink-0">
                               <img 
                                 src={vid.youtuber.profile_image} 
-                                className="w-[50px] h-[50px] rounded-full object-cover shrink-0 shadow-inner" 
+                                className="w-[46px] h-[46px] rounded-full object-cover shrink-0 shadow-inner" 
                                 alt={vid.youtuber.name}
                                 draggable={false}
                                 onError={(e) => {
@@ -720,16 +1194,13 @@ export default function RestaurantInfoCard({
                                 }}
                               />
                             </div>
-
-                            {/* 개선형 조회수 초소형 알약 뱃지 오버레이 */}
                             {vid.view_count !== undefined && vid.view_count !== null && (
-                              <div className="absolute bottom-[-2px] right-[-4px] bg-white/[0.12] backdrop-blur-[4px] border border-white/15 px-2 py-[1.5px] rounded-full text-[8.5px] font-black text-white leading-none shadow-md z-20 whitespace-nowrap">
+                              <div className="absolute bottom-[-2px] right-[-4px] bg-white/[0.12] backdrop-blur-[4px] border border-white/15 px-1.5 py-[1px] rounded-full text-[8px] font-black text-white leading-none shadow-md z-20 whitespace-nowrap">
                                 {formatViewCount(vid.view_count)}
                               </div>
                             )}
                           </div>
-
-                          <span className={`block text-[10.5px] max-w-[76px] truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
+                          <span className={`block text-[10px] max-w-[68px] truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
                             {vid.youtuber.name}
                           </span>
                         </div>
@@ -737,210 +1208,59 @@ export default function RestaurantInfoCard({
                     })}
                   </motion.div>
                 </div>
-
-                {/* 🌟 선택된 크리에이터 한줄평 요약 */}
-                <AnimatePresence mode="wait">
-                  {activeVideo && activeVideo.quote && (
-                    <motion.div
-                      key={activeVideo.id}
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -5 }}
-                      transition={{ duration: 0.2 }}
-                      className="mt-3.5 p-3.5 bg-zinc-900/40 border border-white/5 border-l-2 border-l-brand-orange rounded-r-xl text-[12px] font-medium text-zinc-300 leading-relaxed relative overflow-hidden"
-                    >
-                      <div className="flex items-center gap-1.5 mb-1.5 text-[9.5px] font-black text-brand-orange-light tracking-wider uppercase">
-                        <span>{activeVideo.youtuber.name} Tip</span>
-                      </div>
-                      <p className="italic font-semibold pl-0.5 text-zinc-200">
-                        "{activeVideo.quote}"
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             )}
 
-            {/* ✨ AI 방문 꿀팁 및 요약 섹션 */}
-            {(restaurant.description_summary || 
-              (restaurant.parking && restaurant.parking !== '정보 없음' && restaurant.parking !== '주차 불가') || 
-              (restaurant.business_hours && restaurant.business_hours !== '정보 없음') || 
-              (restaurant.reservation && restaurant.reservation !== '정보 없음' && restaurant.reservation !== '예약 불가') || 
-              (restaurant.packaging && restaurant.packaging !== '정보 없음' && restaurant.packaging !== '포장 불가')) && (
-              <div className="mt-5 p-4 rounded-2xl bg-zinc-900/60 border border-brand-orange/20 shadow-inner">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-black text-brand-orange-light tracking-tight flex items-center gap-1">
-                    <Sparkles size={14} className="text-brand-orange animate-pulse" />
-                    AI 한눈에 보는 요약 & 방문 꿀팁
-                  </span>
-                </div>
-                <div className="space-y-3 flex flex-col">
-                  {restaurant.description_summary && (
-                    <div className="p-3 bg-white/[0.03] border border-white/5 rounded-xl text-[12.5px] font-bold text-zinc-200 leading-relaxed whitespace-pre-wrap">
-                      {restaurant.description_summary}
-                    </div>
-                  )}
-                  {restaurant.parking && restaurant.parking !== '정보 없음' && restaurant.parking !== '주차 불가' && (
-                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
-                      <span className="shrink-0 text-blue-400 mt-0.5">🚗</span>
-                      <span className="leading-snug">주차: {restaurant.parking}</span>
-                    </div>
-                  )}
-                  {restaurant.reservation && restaurant.reservation !== '정보 없음' && restaurant.reservation !== '예약 불가' && (
-                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
-                      <span className="shrink-0 text-purple-400 mt-0.5">📅</span>
-                      <span className="leading-snug">예약: {restaurant.reservation}</span>
-                    </div>
-                  )}
-                  {restaurant.packaging && restaurant.packaging !== '정보 없음' && restaurant.packaging !== '포장 불가' && (
-                    <div className="flex gap-2.5 items-start text-[12.5px] font-medium text-zinc-300">
-                      <span className="shrink-0 text-orange-400 mt-0.5">🥡</span>
-                      <span className="leading-snug">포장: {restaurant.packaging}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 기본정보 (주소, 영업시간, 전화번호 등) - 네이버지도 스타일 */}
-            <div className="space-y-4 py-2 border-t border-white/5 mt-4">
-              
-              {/* 주소 */}
-              <div className="flex items-start gap-3">
-                <div className="pt-0.5">
-                  <MapPin size={16} className="text-zinc-400 shrink-0" />
+            {/* Representative menu section */}
+            {menuList.length > 0 && (
+              <div className="bg-white/[0.02] border border-white/10 rounded-[24px] p-5 space-y-3 shadow-xl relative overflow-hidden">
+                <div className="flex items-center gap-2 mb-1 shrink-0">
+                  <Utensils size={14} className="text-brand-orange" />
+                  <span className="text-[13px] font-black text-white tracking-tight">대표 메뉴 & 가격</span>
                 </div>
                 <div className="flex flex-col gap-1 w-full">
-                  <div className="flex items-center flex-wrap gap-1.5">
-                    <span className="text-[13.5px] font-medium text-white/90">{restaurant.address}</span>
-                    <button
-                      onClick={() => handleCopy(restaurant.address, 'address')}
-                      className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer ml-1"
-                      title="주소 복사"
-                    >
-                      {copiedAddress ? <Check size={13} className="text-brand-orange" /> : <Copy size={13} />}
-                    </button>
-                  </div>
-                  {restaurant.road_address && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-1.5 py-[1px] border border-white/10 rounded text-[9px] text-zinc-400">지번</span>
-                      <span className="text-[11px] text-zinc-400">{restaurant.road_address}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 영업시간 */}
-              {businessHours && (
-                <div className="flex items-start gap-3">
-                  <div className="pt-0.5">
-                    <Clock size={16} className="text-zinc-400 shrink-0" />
-                  </div>
-                  <div className="flex flex-col gap-1 w-full">
-                    <span className="text-[13.5px] font-medium text-white/90 whitespace-pre-line leading-relaxed">
-                      {businessHours}
-                    </span>
-                    <a href="#" className="text-[11px] text-blue-400 hover:text-blue-300 mt-1 inline-block">
-                      영업시간 수정 제안하기
-                    </a>
-                  </div>
-                </div>
-              )}
-
-              {/* 전화번호 */}
-              {hasPhone && (
-                <div className="flex items-center gap-3">
-                  <Phone size={16} className="text-zinc-400 shrink-0" />
-                  <div className="flex items-center gap-2">
-                    <a href={`tel:${restaurant.phone}`} className="text-[13.5px] font-medium text-white/90 hover:text-blue-400 transition-colors">
-                      {restaurant.phone}
-                    </a>
-                    <button
-                      onClick={() => handleCopy(restaurant.phone || '', 'phone')}
-                      className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer flex items-center ml-1"
-                      title="전화번호 복사"
-                    >
-                      {copiedPhone ? <Check size={13} className="text-brand-orange" /> : <Copy size={13} />}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* 부가 정보 (주차, 포장, 예약) */}
-              {(hasParking || hasPackaging || hasReservation) && (
-                <div className="flex items-start gap-3 pt-1">
-                  <div className="pt-0.5">
-                    <Info size={16} className="text-zinc-400 shrink-0" />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {hasParking && (
-                      <span className="text-[13.5px] font-medium text-white/90">
-                        주차 가능
-                      </span>
-                    )}
-                    {(hasParking && hasPackaging) && <span className="text-zinc-600 text-[13.5px]">·</span>}
-                    {hasPackaging && (
-                      <span className="text-[13.5px] font-medium text-white/90">
-                        포장 가능
-                      </span>
-                    )}
-                    {((hasParking || hasPackaging) && hasReservation) && <span className="text-zinc-600 text-[13.5px]">·</span>}
-                    {hasReservation && (
-                      <span className="text-[13.5px] font-medium text-white/90">
-                        예약 가능
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 대표 메뉴 정보 */}
-            {menuList.length > 0 && (
-              <div className="bg-[#1b1b1e] border border-white/5 rounded-2xl p-4.5 space-y-3 shadow-md relative overflow-hidden">
-                <div className="flex items-center gap-1.5 mb-2 shrink-0">
-                  <Utensils size={14} className="text-brand-orange" />
-                  <span className="text-[12px] font-black text-white/90 uppercase tracking-wider">메뉴 안내</span>
-                </div>
-                <div className="flex flex-col gap-2.5 relative z-10 w-full px-1">
-                  {menuList.map((menu, index) => (
-                    <div 
-                      key={index}
-                      className="flex items-baseline justify-between gap-2 py-0.5 group/item transition-colors hover:text-white"
-                    >
-                      <span className="text-[13px] font-bold text-white/80 max-w-[70%] truncate group-hover/item:text-white transition-colors">
-                        {menu.name}
-                      </span>
-                      {menu.price && (
-                        <div className="flex-1 border-b border-dashed border-white/10 h-[1px] min-w-[12px] self-end mb-[4px]" />
-                      )}
-                      {menu.price && (
-                        <span className="text-[13px] font-extrabold text-brand-orange-light shrink-0">
-                          {menu.price}
+                  {menuList.map((menu, index) => {
+                    const isSignature = index < 2;
+                    return (
+                      <div key={index} className={`flex items-baseline gap-1.5 py-2 ${index < menuList.length - 1 ? 'border-b border-zinc-800/60' : ''}`}>
+                        {isSignature && (
+                          <span className="shrink-0 px-1.5 py-[1px] bg-orange-500/15 text-orange-400 text-[9px] font-black rounded tracking-tight border border-orange-500/20">
+                            대표
+                          </span>
+                        )}
+                        <span className={`font-bold text-zinc-100 ${isSignature ? 'text-[13px]' : 'text-[12px] text-zinc-300'}`}>
+                          {menu.name}
                         </span>
-                      )}
-                    </div>
-                  ))}
+                        {menu.description && (
+                          <span className="text-[9.5px] text-zinc-500 font-medium">{menu.description}</span>
+                        )}
+                        <div className="flex-1 border-b border-dashed border-zinc-700/50 mx-1.5 min-w-[8px] h-3" />
+                        {menu.price && (
+                          <span className={`font-black text-orange-400 shrink-0 ${isSignature ? 'text-[13px]' : 'text-[12px]'}`}>
+                            {menu.price}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="pt-2 flex items-center gap-1 border-t border-white/5 mt-2">
-                  <Info size={10} className="text-zinc-500" />
-                  <p className="text-[9px] text-zinc-500 font-bold">실제 정보와 다를 수 있습니다.</p>
+                <div className="pt-2.5 flex items-center gap-1.5 border-t border-white/5 mt-1">
+                  <Info size={10} className="text-zinc-500 shrink-0" />
+                  <p className="text-[9px] text-zinc-500 font-extrabold">실제 메뉴 구성 및 가격은 매장 상황에 따라 다를 수 있습니다.</p>
                 </div>
               </div>
             )}
 
-            {/* 플랫폼별 상세정보 후기 링크 카드 (가장 하단 배치 및 설명 제거로 미니멀화) */}
+            {/* Platform links */}
             <div className="grid grid-cols-2 gap-3 pt-1 shrink-0">
-              {/* 네이버 지도 바로가기 카드 */}
               <div 
                 onClick={() => openNaverDeeplink(restaurant.name, restaurant.address)}
-                className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-green-500/30 rounded-2xl p-3.5 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+                className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-green-500/30 rounded-2xl p-3 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
               >
                 <div className="absolute -right-6 -bottom-6 w-12 h-12 bg-green-500/10 rounded-full blur-xl group-hover:bg-green-500/20 transition-all duration-300" />
                 <div className="flex items-center gap-2 relative z-10">
-                  {/* 네이버 지도 파비콘 적용 */}
                   <img 
-                    src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAYAAAByDd+UAAACk0lEQVR4AbWVA6wkQRBA+2wzzsU6MzrbFydn27ZtMzjbtm3bto26fZk/ld7MZr2bvMx2dXW9qR6ZKl1qRoTpKmlMZ8nowjii9WElUbi9FDX9/zUxfWWfGSivXBgTZz4uQoOoo0wzXf+J6eNj5F9JMVMk5dw/knK6MHbizPeSAaHEoWT1TGu5aNonFRz0W8xkRwT8R0icefLIDyYN3llreWea/qGIaIcUt9DugDxQaQRCFiHzF/4NhHanQtZ0lpVhC0m2ZFpQY9rdXzfGvEfMtQ9DqN1pEVhx/Ku4v7pTPwvCBovfaWzM1u9JHatUuwwq5Bbn2rGIAm43CO2fGfvBK+QGsu/aDvKEGy+okG2wZBQGj3Dzjc9e4bR33LmeRyWokG2wZBQBFf7+91ePSFV47IWYBW/BloYntGRaZMm1Z3ZxDipW4ZLXYEvDEM74MpdElVFg9R0/YbqVh+X8hy/uUIXkmXVvWMObyJFO+tM9qJAEM/3HR0vmERbdsQf8hCMu+vK2OSBlPXW4CUM/FnM/nGMBIgqYPRcEIdsHZQ5v8MXmcdQYQvJUyMmuerslrOeQbWWBKzNHj4g5vAWJw6lZisaYJ8+Wbro6LCwhmLX3b7BQZSdWOoKLI71cWATkAkLtLrwOr1dIabbeLsfZemRXOnqwpNol68MVKmyJR3a5oZhrVRTGflLyDx5vEPnniS4vNEtvTs4+RDEV3SzkcDvvH/1/q45KyY/ti3+lQimVuaLbKcXFI71ROV/UQrp0jgWqO7KUXh6kAaQeWaRCxbC1N/NODiRT7uXqxAnGRahbeyfbyUBC4tpdvIRgbqSvZu6le2gLGXMyzMddCGydK+QGYkw8YUKuE9eTzvS6JVJoP6ORyuA/h5JhrOurT/kAAAAASUVORK5CYII=" 
+                    src="/naver_map_logo.png?v=3" 
                     alt="Naver Map Logo" 
                     className="w-4 h-4 rounded shadow-sm object-contain"
                   />
@@ -969,7 +1289,8 @@ export default function RestaurantInfoCard({
             </div>
           </div>
         </div>
-      </>
+
+      </div>
     );
   };
 
@@ -1014,15 +1335,155 @@ export default function RestaurantInfoCard({
       {/* 데스크탑 좌측 상세 패널 */}
       <motion.div
         animate={{ 
-          x: restaurant ? (isSidebarCollapsed ? -428 : 0) : -500, 
+          x: restaurant ? (isSidebarCollapsed ? detailShift : 0) : hideShift, 
           opacity: restaurant ? 1 : 0 
         }}
         transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-        style={{ pointerEvents: restaurant ? 'auto' : 'none' }}
-        className="hidden md:flex absolute top-6 left-[452px] bottom-6 w-[420px] z-30 flex-col bg-zinc-950/70 border border-white/10 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] overflow-hidden"
+        style={{ 
+          pointerEvents: restaurant ? 'auto' : 'none',
+          left: detailLeft,
+          width: detailWidth
+        }}
+        className="hidden md:flex absolute top-6 bottom-6 z-30 flex-col bg-zinc-950/70 border border-white/10 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] overflow-hidden"
       >
         {!isMobileDevice && restaurant && renderContent()}
       </motion.div>
+
+      {/* Route selection modal */}
+      <AnimatePresence>
+        {showRouteModal && restaurant && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowRouteModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            {/* Modal Body */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-5 text-white z-10"
+            >
+              <div className="space-y-1.5 text-center">
+                <div className="w-10 h-10 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Navigation size={18} />
+                </div>
+                <h3 className="text-base font-black tracking-tight">길찾기 앱 선택</h3>
+                <p className="text-zinc-400 text-xs font-semibold">출발지: 현재 위치 · 도착지: {restaurant.name}</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {/* 네이버 지도 */}
+                <button
+                  onClick={() => {
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    if (isMobile) {
+                      const appUrl = `nmap://route/car?dlat=${restaurant.lat}&dlng=${restaurant.lng}&dname=${encodeURIComponent(restaurant.name)}&appname=modoo-matjip`;
+                      window.location.href = appUrl;
+                      setTimeout(() => {
+                        const webUrl = `https://map.naver.com/p/directions/-/${restaurant.lat},${restaurant.lng},${encodeURIComponent(restaurant.name)}/-/car`;
+                        window.open(webUrl, '_blank', 'noopener,noreferrer');
+                      }, 1500);
+                    } else {
+                      const pcUrl = `https://map.naver.com/p/directions/-/${restaurant.lat},${restaurant.lng},${encodeURIComponent(restaurant.name)}/-/car`;
+                      openExternal(pcUrl, { reason: 'naver_map_route' });
+                    }
+                    setShowRouteModal(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-green-500/30 rounded-2xl transition-all group text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src="/naver_map_logo.png?v=3" 
+                      alt="Naver" className="w-5 h-5 rounded object-contain shrink-0" 
+                    />
+                    <span className="text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors">네이버 지도</span>
+                  </div>
+                  <ChevronRight size={14} className="text-zinc-500 group-hover:text-white transition-colors shrink-0" />
+                </button>
+
+                {/* 카카오맵 */}
+                <button
+                  onClick={() => {
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    if (isMobile) {
+                      const appUrl = restaurant.kakao_place_id 
+                        ? `kakaomap://route?ep=${restaurant.kakao_place_id}&by=CAR` 
+                        : `kakaomap://route?ep=${restaurant.lat},${restaurant.lng}&by=CAR`;
+                      window.location.href = appUrl;
+                      setTimeout(() => {
+                        const webUrl = restaurant.kakao_place_id 
+                          ? `https://map.kakao.com/link/to/${restaurant.kakao_place_id}`
+                          : `https://map.kakao.com/link/to/${encodeURIComponent(restaurant.name)},${restaurant.lat},${restaurant.lng}`;
+                        window.open(webUrl, '_blank', 'noopener,noreferrer');
+                      }, 1500);
+                    } else {
+                      const pcUrl = restaurant.kakao_place_id 
+                        ? `https://map.kakao.com/link/to/${restaurant.kakao_place_id}`
+                        : `https://map.kakao.com/link/to/${encodeURIComponent(restaurant.name)},${restaurant.lat},${restaurant.lng}`;
+                      openExternal(pcUrl, { reason: 'kakao_navi' });
+                    }
+                    setShowRouteModal(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-yellow-500/30 rounded-2xl transition-all group text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAOVBMVEVHcEwAdv//5wD/5AD74gAAfP/64QD64QD64QD74gC4wIOApbw+i+ejtZvv3CJaldjTzlwlhfLc0kuK1weQAAAACnRSTlMA////Fv//+bQX9hPeKgAAALpJREFUKJF901sSgyAMBVBIBHlKcf+LLYYWCYL5ccZjLoFBIazZ9aR2Y4WwM6llhVmjEV0mQinsksVNOqack8ObG4KTUpWS6oMjoiMibvrHo1mpoRP9hTJkekRkCDUPgNIDMKRUX95BuL5aYXoixaoD4JzE1oGU97OB+FbGfb4eggb/UxnhcbZ1zmK+WYdaE+bbeqRl5YlTpNNJXSPD0soaGWqUoW8cMDpkyC4tMtvfr+a2xnLlt/Xv8AWzshIVTzb8eQAAAABJRU5ErkJggg==" 
+                      alt="Kakao" className="w-5 h-5 rounded object-contain shrink-0" 
+                    />
+                    <span className="text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors">카카오맵</span>
+                  </div>
+                  <ChevronRight size={14} className="text-zinc-500 group-hover:text-white transition-colors shrink-0" />
+                </button>
+
+                {/* 티맵 */}
+                <button
+                  onClick={() => {
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    if (isMobile) {
+                      const appUrl = `tmap://route?rGoName=${encodeURIComponent(restaurant.name)}&rGoX=${restaurant.lng}&rGoY=${restaurant.lat}`;
+                      window.location.href = appUrl;
+                      setTimeout(() => {
+                        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                        const webUrl = isIOS 
+                          ? 'https://apps.apple.com/kr/app/tmap-%EB%84%A4%EB%B9%84%EA%B2%8C%EC%9D%B4%EC%85%98-%EC%A7%80%EB%8F%84/id431294717'
+                          : 'https://play.google.com/store/apps/details?id=com.skt.tmap.ku';
+                        window.open(webUrl, '_blank', 'noopener,noreferrer');
+                      }, 1500);
+                    } else {
+                      alert('티맵 앱 길찾기는 모바일 기기에서만 지원합니다. PC에서는 네이버 또는 카카오 지도를 이용해주세요.');
+                    }
+                    setShowRouteModal(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-blue-500/30 rounded-2xl transition-all group text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src="/tmap_logo.png?v=3" 
+                      alt="Tmap" className="w-5 h-5 rounded object-contain shrink-0" 
+                    />
+                    <span className="text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors">티맵 (TMAP)</span>
+                  </div>
+                  <ChevronRight size={14} className="text-zinc-500 group-hover:text-white transition-colors shrink-0" />
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowRouteModal(false)}
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 active:scale-[0.98] transition-all text-white font-bold rounded-2xl text-[12px] cursor-pointer"
+              >
+                닫기
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

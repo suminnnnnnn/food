@@ -37,6 +37,8 @@ interface Props {
   // 노션 및 실시간 공동 편집 추가 프롭
   onUpdateItinerary?: (updated: Itinerary) => void;
   onResetCustomWaypoints?: () => void;
+  windowWidth?: number;
+  sidebarWidth?: number;
 }
 
 export default function FloatingItineraryPanel({
@@ -63,7 +65,9 @@ export default function FloatingItineraryPanel({
   favorites,
   restaurants,
   onUpdateItinerary,
-  onResetCustomWaypoints
+  onResetCustomWaypoints,
+  windowWidth = 1200,
+  sidebarWidth = 420
 }: Props) {
   // 아코디언 상태 관리 (기본적으로 첫번째 Day는 펼쳐진 상태로 세팅)
   const [expandedDays, setExpandedDays] = useState<Record<number, boolean>>({ 1: true });
@@ -79,6 +83,15 @@ export default function FloatingItineraryPanel({
   const [showManualInputId, setShowManualInputId] = useState<string | null>(null);
   const [manualDuration, setManualDuration] = useState<string>('');
   const [isParsingLink, setIsParsingLink] = useState<boolean>(false);
+
+  const isMobile = windowWidth < 768;
+
+  // 반응형 너비 계산
+  const panelWidth = isMobile
+    ? windowWidth - 32 // margins: left-4, right-4
+    : isSearchingMode
+    ? Math.min(windowWidth - 48, 840)
+    : Math.min(windowWidth - 48, sidebarWidth);
 
   // 카카오맵 팝업 길찾기 오픈
   const openKakaoMapRoute = (dayNum: number, prevItem: ItineraryItem, currentItem: ItineraryItem) => {
@@ -535,13 +548,18 @@ export default function FloatingItineraryPanel({
   return (
     <motion.div
       initial={{ opacity: 0, x: -400, y: 0, width: 420 }}
-      animate={{ opacity: 1, x: 0, y: 0, width: isSearchingMode ? 840 : 420 }}
+      animate={{ opacity: 1, x: 0, y: 0, width: panelWidth }}
       exit={{ opacity: 0, x: -400 }}
       transition={{ type: 'spring', damping: 25, stiffness: 220 }}
       onDragOver={(e) => e.preventDefault()}
       onClick={() => showMoreMenu && setShowMoreMenu(false)}
-      className="absolute left-6 top-6 bottom-6 itn-glass-panel rounded-3xl z-40 p-5 flex flex-col min-h-0 overflow-hidden"
-      style={{ boxShadow: 'var(--itn-shadow-lg)' }}
+      className={`absolute itn-glass-panel rounded-3xl z-40 p-5 flex flex-col min-h-0 overflow-hidden ${
+        isMobile ? 'left-4 right-4 top-4 bottom-24' : 'left-6 top-6 bottom-6'
+      }`}
+      style={{ 
+        boxShadow: 'var(--itn-shadow-lg)',
+        width: isMobile ? undefined : panelWidth
+      }}
     >
       {/* 공유 성공 미니 토스트 알림 */}
       <AnimatePresence>
@@ -704,9 +722,9 @@ export default function FloatingItineraryPanel({
       </div>
 
       {/* 본문 피드 영역 (검색모드 시 듀얼 컬럼 배치) */}
-      <div className="flex-1 flex gap-6 min-h-0 mt-4 overflow-hidden">
+      <div className={`flex-1 flex min-h-0 mt-4 overflow-hidden ${isMobile ? 'flex-col gap-4' : 'gap-6'}`}>
         {/* 좌측 또는 전체: 통합 아코디언 타임라인 뷰 영역 (모든 Day 노출) */}
-        <div className="w-[380px] flex flex-col min-h-0 overflow-hidden shrink-0">
+        <div className={`${isMobile ? 'w-full' : 'w-[380px]'} flex flex-col min-h-0 overflow-hidden shrink-0 ${isMobile && isSearchingMode ? 'hidden' : ''}`}>
           <div className="flex-1 overflow-y-auto pr-1 space-y-3 relative min-h-0 itn-scrollbar">
             {itinerary.days.map((dayData) => {
               const isExpanded = !!expandedDays[dayData.day];
@@ -1089,7 +1107,7 @@ export default function FloatingItineraryPanel({
                 <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0 itn-scrollbar">
                   {recommendedRestaurants.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                      <span className="text-xs" style={{ color: 'var(--itn-text-muted)' }}>지도의 코스 스팟을 선택하면<br/>그 주변의 추천 맛집이 활성화됩니다 ✨</span>
+                      <span className="text-xs" style={{ color: 'var(--itn-text-muted)' }}>지도의 코스 스팟을 선택하면<br/>그 주변의 추천 맛집이 활성화됩니다</span>
                     </div>
                   ) : (
                     recommendedRestaurants.map(({ restaurant, distance, type }) => (

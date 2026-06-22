@@ -35,6 +35,7 @@ export interface EnrichedVideo {
   quote: string;
   keywords: string[];
   view_count: number;
+  is_short: boolean;
 }
 
 /**
@@ -52,13 +53,14 @@ async function getGeminiEmbedding(text: string): Promise<number[]> {
     return defaultVector();
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1/models/embedding-001:embedContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${GEMINI_API_KEY}`;
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        content: { parts: [{ text }] }
+        content: { parts: [{ text }] },
+        outputDimensionality: 768
       })
     });
 
@@ -106,7 +108,8 @@ export async function getKakaoPlaceInfo(query: string): Promise<any | null> {
         address: place.address_name,
         road_address: place.road_address_name || null,
         lat: parseFloat(place.y),
-        lng: parseFloat(place.x)
+        lng: parseFloat(place.x),
+        phone: place.phone || ''
       };
     }
   } catch (error) {
@@ -156,8 +159,12 @@ export async function getPopularYouTubeVideo(restaurantName: string, region: str
     return null;
   }
 
+  const cleanName = restaurantName
+    .replace(/\s*([가-힣\d]+점|[가-힣\d]+관|원조[가-힣]+)\s*$/, '')
+    .trim();
+
   // 1차 쿼리: "[식당명] + [지역명] + 맛집"
-  let query = `${restaurantName} ${region} 맛집`;
+  let query = `${cleanName} ${region} 맛집`;
   console.log(`[YouTube Search] 1차 최적 검색 쿼리 빌딩: "${query}"`);
   
   let searchUrl = `https://www.googleapis.com/youtube/v3/search?key=${YOUTUBE_API_KEY}&q=${encodeURIComponent(query)}&part=snippet&order=viewCount&type=video&maxResults=5`; // 넉넉히 5개 수집
@@ -168,7 +175,7 @@ export async function getPopularYouTubeVideo(restaurantName: string, region: str
     
     // 만약 결과가 없으면 2차 쿼리: "[식당명] + 맛집" 으로 완화
     if (!data.items || data.items.length === 0) {
-      query = `${restaurantName} 맛집`;
+      query = `${cleanName} 맛집`;
       console.log(`[YouTube Search] 결과가 없어 2차 완화 쿼리 검색: "${query}"`);
       searchUrl = `https://www.googleapis.com/youtube/v3/search?key=${YOUTUBE_API_KEY}&q=${encodeURIComponent(query)}&part=snippet&order=viewCount&type=video&maxResults=5`;
       res = await fetch(searchUrl);
@@ -188,30 +195,14 @@ export async function getPopularYouTubeVideo(restaurantName: string, region: str
     const detailsData = await detailsRes.json();
     
     if (detailsData.items && detailsData.items.length > 0) {
-      // 🛡️ 필터링 조건: 1. 임베드 가능해야 함 2. 쇼츠가 아니어야 함 (60초 이상 & 제목/설명란에 shorts 키워드 배제)
+      // 🛡️ 필터링 조건: 1. 임베드 가능해야 함 (쇼츠 차단 제거)
       const validVideos = detailsData.items.filter((v: any) => {
         const isEmbeddable = v.status?.embeddable === true;
-        const duration = v.contentDetails?.duration || '';
-        
-        // 재생 시간이 60초 미만인지 체크
-        const isShortsTime = isShortsDuration(duration);
-        
-        // 제목이나 태그에 shorts 명시 여부 체크
-        const titleLower = (v.snippet?.title || '').toLowerCase();
-        const descLower = (v.snippet?.description || '').toLowerCase();
-        const hasShortsKeyword = titleLower.includes('shorts') || descLower.includes('shorts') || titleLower.includes('쇼츠') || descLower.includes('쇼츠');
-        
-        const isActuallyShorts = isShortsTime || hasShortsKeyword;
-        
-        if (isActuallyShorts) {
-          console.log(`   🚫 [쇼츠 차단] "${v.snippet?.title}" 영상은 쇼츠로 감지되어 제외되었습니다. (재생시간: ${duration})`);
-        }
-        
-        return isEmbeddable && !isActuallyShorts;
+        return isEmbeddable;
       });
       
       if (validVideos.length === 0) {
-        console.log(`[YouTube Search] 필터링 조건(쇼츠 제외, 임베드 허용)을 충족하는 정식 영상이 없습니다.`);
+        console.log(`[YouTube Search] 필터링 조건(임베드 허용)을 충족하는 영상이 없습니다.`);
         return null;
       }
 
@@ -225,6 +216,18 @@ export async function getPopularYouTubeVideo(restaurantName: string, region: str
       const bestVideo = validVideos[0];
       const channelId = bestVideo.snippet.channelId;
       
+      // 쇼츠 여부 판별 (재생시간이 60초 미만이거나 제목/설명란에 shorts 키워드가 있는 경우)
+      const duration = bestVideo.contentDetails?.duration || '';
+      const isShortsTime = isShortsDuration(duration);
+      const titleLower = (bestVideo.snippet?.title || '').toLowerCase();
+      const descLower = (bestVideo.snippet?.description || '').toLowerCase();
+      const hasShortsKeyword = titleLower.includes('shorts') || descLower.includes('shorts') || titleLower.includes('쇼츠') || descLower.includes('쇼츠');
+      const isShort = isShortsTime || hasShortsKeyword;
+
+      if (isShort) {
+        console.log(`   ℹ️ [쇼츠 감지] "${bestVideo.snippet?.title}" 영상은 쇼츠로 감지되었습니다.`);
+      }
+
       // 채널 프로필 조회
       let channelProfileUrl = '';
       try {
@@ -247,7 +250,8 @@ export async function getPopularYouTubeVideo(restaurantName: string, region: str
         channel_name: bestVideo.snippet.channelTitle,
         channel_profile_url: channelProfileUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(bestVideo.snippet.channelTitle)}&background=ff5e00&color=fff&bold=true&size=128&rounded=true`,
         view_count: parseInt(bestVideo.statistics?.viewCount || '0', 10),
-        description: bestVideo.snippet.description || ''
+        description: bestVideo.snippet.description || '',
+        is_short: isShort
       };
     }
   } catch (err) {
@@ -272,7 +276,7 @@ export async function enrichDataWithGemini(
 
   const prompt = `
 당신은 대한민국 최고의 푸드 데이터 인텔리전스 AI 에이전트입니다.
-제시된 식당 정보와 관련 유튜브 영상 설명 텍스트를 바탕으로, 해당 식당의 전화번호, 주차 가능 여부, 포장 여부, 예약 방식, 운영 시간, 주요 시그니처 메뉴 정보를 구조화하여 상세히 추출해 주세요.
+제시된 식당 정보, 유튜브 영상 설명 텍스트, 그리고 필요시 구글 검색(Google Search) 결과를 바탕으로, 해당 식당의 실시간 전화번호, 주차 가능 여부, 포장 여부, 예약 방식, 운영 시간, 주요 시그니처 메뉴 정보를 구조화하여 상세히 추출해 주세요.
 
 [식당 기본 정보]
 - 식당명: ${restaurantName}
@@ -283,13 +287,14 @@ export async function enrichDataWithGemini(
 - 유튜버 채널: ${video.channel_name}
 - 영상 설명란 본문: ${video.description}
 
-[🔥 엄격한 추출 및 거짓정보 방지 가이드라인]
-1. **메뉴 및 가격 절대 창작 금지**: 절대로 영상 정보에 등장하지 않는 허구의 메뉴 이름이나 가격을 지어내지 마십시오. 실제로 영상 설명글이나 제목에서 확인할 수 있는 시그니처 메뉴 명과 가격만 기재해야 하며, 확인이 불가능하다면 추측하지 말고 솔직하게 "정보 없음"으로 표기하십시오.
-2. **신뢰성 있는 정보 보강**: 전화번호, 주차 정보, 포장 정보, 예약 방식은 제시된 설명란 또는 실제 웹 정보를 바탕으로 파악하여 적되, 불확실하거나 근거가 없는 경우 억지로 작성하지 말고 "정보 없음"으로 기록하십시오.
-3. **유튜버 꿀팁 요약(quote)의 정밀화**: 유튜버가 영상 설명글이나 본문에서 직접 추천하고 강조한 실전 방문 꿀팁(대표적인 메뉴 주문 조합, 피해야 할 대기 시간대, 주차 요령 등 실질적인 팁)을 유튜버 특유의 생생한 어조로 한 줄 요약해 주세요. (예: "주말엔 11시 전 오픈런 필수, 시그니처 짚불구이에 비빔국수 조합이 베스트!")
+[🔥 엄격한 추출 및 검색 활용 가이드라인]
+1. **정확한 정보 수집**: 전화번호, 영업시간, 대표메뉴 정보가 유튜브 설명란에 나와있지 않다면, 제공된 구글 검색(Google Search) 기능을 통해 실제 가게 정보를 직접 검색 및 확인하여 정확히 작성하세요.
+2. **메뉴 및 가격 기재**: 대표적인 시그니처 메뉴명과 가격을 정확히 조사하여 기재하고, 확인이 전혀 불가능한 경우에만 "정보 없음"으로 표기하십시오.
+3. **유튜버 꿀팁 요약(quote)의 정밀화**: 유튜버가 영상 설명글이나 본문에서 직접 추천하고 강조한 실전 방문 꿀팁(대표적인 메뉴 주문 조합, 피해야 할 대기 시간대, 주차 요령 등 실질적인 팁)을 유튜버 특유의 생세계 한 줄 요약해 주세요. (예: "주말엔 11시 전 오픈런 필수, 시그니처 짚불구이에 비빔국수 조합이 베스트!")
 4. **키워드 태그(keywords)**: 이 식당과 영상의 특징을 압축하는 이모지 포함 태그 3개(예: "🔥 노포감성", "🥩 연탄구이", "💸 가성비")를 창작해 주세요.
 
-반드시 다른 군더더기 텍스트 없이 아래 JSON 템플릿의 형태로만 정확히 응답해 주세요.
+반드시 다른 설명 없이 아래 JSON 템플릿의 형태로만 정확히 응답해 주세요. 마크다운 백틱(\`\`\`json ... \`\`\`)을 포함해서 출력하세요.
+\`\`\`json
 {
   "phone": "전화번호",
   "parking": "주차 정보",
@@ -300,6 +305,7 @@ export async function enrichDataWithGemini(
   "quote": "유튜버가 직접 강조한 실전 방문 및 주문 꿀팁 요약",
   "keywords": ["🔥 태그1", "💸 태그2", "🥩 태그3"]
 }
+\`\`\`
 `;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -309,9 +315,9 @@ export async function enrichDataWithGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ googleSearch: {} }],
         generationConfig: {
-          temperature: 0.2,
-          responseMimeType: "application/json"
+          temperature: 0.0
         }
       })
     });
@@ -319,7 +325,10 @@ export async function enrichDataWithGemini(
     if (response.ok) {
       const data = await response.json();
       const rawText = data.candidates[0].content.parts[0].text;
-      const parsed = JSON.parse(rawText.trim());
+      
+      const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```/) || rawText.match(/```\s*([\s\S]*?)\s*```/);
+      const jsonStr = jsonMatch ? jsonMatch[1] : rawText;
+      const parsed = JSON.parse(jsonStr.trim());
       
       return {
         restaurant: {
@@ -336,6 +345,7 @@ export async function enrichDataWithGemini(
         }
       };
     }
+    console.warn(`[Gemini AI] API 응답 에러. Status: ${response.status}`);
   } catch (error) {
     console.error("Gemini AI 정보 보강 API 호출 에러:", error);
   }
@@ -409,7 +419,7 @@ export async function enrichRestaurantByName(restaurantName: string, initialAddr
   
   const finalRestaurant: EnrichedRestaurant = {
     ...place,
-    phone: aiEnrichment?.restaurant?.phone || "정보 없음",
+    phone: aiEnrichment?.restaurant?.phone || place.phone || "정보 없음",
     parking: aiEnrichment?.restaurant?.parking || "정보 없음",
     packaging: aiEnrichment?.restaurant?.packaging || "정보 없음",
     reservation: aiEnrichment?.restaurant?.reservation || "정보 없음",
@@ -426,7 +436,8 @@ export async function enrichRestaurantByName(restaurantName: string, initialAddr
     channel_profile_url: ytVideo.channel_profile_url,
     quote: aiEnrichment?.video?.quote || "유튜브가 추천하는 리얼 맛집",
     keywords: aiEnrichment?.video?.keywords || [],
-    view_count: ytVideo.view_count
+    view_count: ytVideo.view_count,
+    is_short: ytVideo.is_short
   };
 
   return { restaurant: finalRestaurant, video: finalVideo };
@@ -454,7 +465,7 @@ export async function saveEnrichedDataToDB(data: { restaurant: EnrichedRestauran
       throw new Error(`채널 Upsert 실패: ${chErr?.message}`);
     }
 
-    // 2. 유튜브 비디오 Upsert
+    // 2. 유튜브 비디오 Upsert (is_short 추가)
     const { data: dbVideo, error: vidErr } = await supabaseAdmin
       .from('videos')
       .upsert({
@@ -462,7 +473,8 @@ export async function saveEnrichedDataToDB(data: { restaurant: EnrichedRestauran
         youtube_video_id: video.youtube_video_id,
         title: video.title,
         thumbnail_url: video.thumbnail_url,
-        view_count: video.view_count
+        view_count: video.view_count,
+        is_short: video.is_short
       }, { onConflict: 'youtube_video_id' })
       .select('id').single();
 

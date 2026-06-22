@@ -6,7 +6,8 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:seed": "tsx --env-file=.env.local scripts/seed_by_enricher.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
@@ -31,6 +32,7 @@
     "eslint-config-next": "16.2.4",
     "kakao.maps.d.ts": "^0.1.40",
     "tailwindcss": "^4",
+    "tsx": "^4.19.0",
     "typescript": "^5"
   }
 }

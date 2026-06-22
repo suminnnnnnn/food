@@ -173,3 +173,16 @@ def link_restaurant_video(restaurant_id: str, video_id: str, quote: str = None, 
     supabase.table('restaurant_videos').insert(data).execute()
     return True
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+def update_restaurant_summary_and_tags(restaurant_id: str, summary: str, tags: list[str]):
+    """
+    식당의 한눈에 보는 요약(description_summary) 및 분위기 태그(tags)를 업데이트합니다.
+    """
+    data = {
+        "description_summary": summary,
+        "tags": tags
+    }
+    res = supabase.table('restaurants').update(data).eq('id', restaurant_id).execute()
+    return res.data[0] if res.data else None
+
+

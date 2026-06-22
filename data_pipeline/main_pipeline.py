@@ -11,7 +11,6 @@ from transformers.geo_utils import parse_coordinates
 from transformers.kakao_resolution import resolve_kakao_place_id
 from transformers.ontology import map_category
 from transformers.menu_parser import parse_menu_to_json
-from transformers.summary_generator import generate_store_summary
 from loaders.embedding_generator import generate_context_string, generate_embedding
 from loaders.supabase_loader import upsert_restaurant, upsert_embedding, soft_delete_restaurant_by_address
 from config import GEMINI_CALL_DELAY, BATCH_SIZE, BATCH_COOLDOWN
@@ -81,12 +80,9 @@ async def process_store_data(session: aiohttp.ClientSession, item_data: dict, so
         if parsed_menu:
             menu_info_str = json.dumps(parsed_menu, ensure_ascii=False)
 
-    # 4. LLM 요약글 및 분위기 태그 생성
-    raw_desc = item_data.get("description_raw", "")
-    summary_input_menu = raw_menu if raw_menu else item_data.get("menu_info", "")
-    summary_res = await generate_store_summary(name, category, address, summary_input_menu, raw_desc)
-    description_summary = summary_res.get("summary", "")
-    tags = summary_res.get("tags", [])
+    # 4. 요약글 및 태그 초기화 (유튜브 동기화 파이프라인에서 생성할 예정)
+    description_summary = ""
+    tags = []
 
     # 5. DB 적재 레코드 구축
     db_record = {

@@ -218,33 +218,62 @@ body {
 /* =========================================
    지도 위 그리기 영역 혁신 애니메이션 효과
    ========================================= */
-/* 지도 위 흐르는 레이저 빔 효과 (빨간색 윗선) */
+/* 지도 위 우아하게 일렁이는 네온 링 효과 (빨간색 윗선) */
 svg path[stroke="#ff3b30"] {
-  stroke-dasharray: 12, 12;
-  animation: svg-laser-flow 8s linear infinite !important;
+  animation: svg-glow-pulse 2s ease-in-out infinite alternate !important;
+  filter: drop-shadow(0 0 4px rgba(255, 111, 0, 0.8));
 }
 
 /* 지도 위 숨쉬는 펄싱 네온 글로우 효과 (주황색 밑선) */
 svg path[stroke="#FF6F00"] {
-  animation: svg-glow-pulse 3s ease-in-out infinite alternate !important;
-}
-
-@keyframes svg-laser-flow {
-  0% {
-    stroke-dashoffset: 0;
-  }
-  100% {
-    stroke-dashoffset: -240;
-  }
+  animation: svg-glow-pulse 2s ease-in-out infinite alternate !important;
+  filter: drop-shadow(0 0 7px rgba(255, 111, 0, 0.65));
 }
 
 @keyframes svg-glow-pulse {
   0% {
     stroke-width: 5.5px;
-    stroke-opacity: 0.16;
+    stroke-opacity: 0.22;
   }
   100% {
-    stroke-width: 9.5px;
-    stroke-opacity: 0.36;
+    stroke-width: 10px;
+    stroke-opacity: 0.48;
   }
+}
+
+/* =========================================
+   현 위치 파란색 펄싱 도트 애니메이션
+   ========================================= */
+@keyframes locate-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.locate-pulse-ring {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(59, 130, 246, 0.4); /* Blue-500 semi-transparent */
+  border-radius: 50%;
+  animation: locate-pulse 2s infinite ease-out;
+}
+
+.locate-dot {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  background-color: #3b82f6; /* Blue-500 */
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
 }

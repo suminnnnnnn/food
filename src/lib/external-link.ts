@@ -14,33 +14,13 @@
  *  await openExternal('https://example.com', { reason: 'affiliate_click' });
  */
 
-// AIT 환경 감지: web-framework가 주입하는 전역 또는 user-agent로 판별
-function isInAIT(): boolean {
-  if (typeof window === 'undefined') return false;
-  // AIT SDK가 런타임에 주입하는 전역 객체로 판별 (정확한 키는 SDK 버전에 따라 다름)
-  // 우선 user-agent 기반 fallback도 함께 둠
-  const ua = window.navigator.userAgent || '';
-  return (
-    /toss/i.test(ua) ||
-    // @ts-expect-error: AIT SDK가 주입할 수 있는 전역
-    typeof window.AppsInToss !== 'undefined'
-  );
-}
-
 interface OpenOptions {
   /** 분석/로깅용 사유 식별자 (예: 'affiliate_click', 'creator_youtube') */
   reason?: string;
 }
 
 /**
- * 외부 URL을 환경에 맞는 방식으로 열기.
- * - AIT WebView: AIT 제공 브라우저 API (출시 시 정확한 함수명으로 교체 필요)
- * - 일반 웹: window.open(url, '_blank', 'noopener,noreferrer')
- *
- * [TODO] AIT SDK 정확한 함수명 확정 후 교체:
- *   - 가능성 1: import { openBrowser } from '@apps-in-toss/web-framework'
- *   - 가능성 2: AppsInToss.openExternalBrowser(url)
- *   현재는 안전한 fallback으로 location.href 사용.
+ * 외부 URL을 새 창으로 열기.
  */
 export async function openExternal(
   url: string,
@@ -58,15 +38,23 @@ export async function openExternal(
     }
   }
 
-  if (isInAIT()) {
-    // AIT WebView 환경 (Toss 인앱 브라우저 호환을 위한 폴백)
-    window.location.href = url;
-  } else {
-    // 일반 웹 브라우저 환경
-    const w = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!w) {
-      // 팝업 차단 시 fallback
+  // 일반 웹 브라우저 환경
+  const isToss = typeof navigator !== 'undefined' && /Toss/i.test(navigator.userAgent);
+  const w = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!w) {
+    if (isToss) {
+      // Toss WebView 환경에서는 window.open이 허용되지 않으므로 현재 창에서 리다이렉트하여 앱이 가로채도록 처리합니다.
       window.location.href = url;
+    } else {
+      // 일반 브라우저에서 팝업이 차단된 경우, 현재 탭의 상태를 잃지 않기 위해
+      // 강제 리다이렉트하는 대신 동적 anchor 클릭을 시도하여 안전하게 새 창/탭으로 열기를 재시도합니다.
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   }
 }

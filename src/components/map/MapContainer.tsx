@@ -11,7 +11,7 @@ import { Restaurant, ItineraryItem, Itinerary } from '@/types';
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool } from 'lucide-react';
+import { Locate, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
@@ -40,6 +40,81 @@ const getFormattedCategory = (categoryStr?: string | null) => {
   }
   return categoryStr.trim();
 };
+
+const checkAvailability = (value: string | null | undefined): boolean => {
+  if (!value || value === '정보 없음' || value.trim() === '') return false;
+  const cleanVal = value.trim();
+  const temp = cleanVal
+    .replace(/불가능/g, '')
+    .replace(/불가/g, '')
+    .replace(/없음/g, '')
+    .replace(/미지원/g, '')
+    .replace(/미제공/g, '')
+    .replace(/금지/g, '');
+  const hasPositiveException = /가능|지원|제공|이용/.test(temp);
+  const hasNegation = /불가|없음|불가능|금지|미지원|미제공/.test(cleanVal);
+  if (hasNegation && !hasPositiveException) {
+    return false;
+  }
+  return true;
+};
+
+const getRestaurantAllTags = (r: Restaurant): string[] => {
+  const tags: string[] = [];
+  const contentTags = r.content_tags?.filter(
+    tag => tag.label !== '유튜브 핫플' && tag.label !== '유튜브핫플'
+  ) || [];
+  if (contentTags.length > 0) {
+    contentTags.forEach(t => {
+      if (t.source === 'michelin' || t.label.includes('미쉐린')) tags.push('미쉐린');
+      if (t.source === 'blueribbon' || t.label.includes('블루리본')) tags.push('블루리본');
+      if (t.source === 'ddoganjib' || t.label.includes('또간집')) tags.push('또간집');
+    });
+  } else {
+    const seed = r.name.charCodeAt(0) || 0;
+    if (seed % 3 === 0) {
+      tags.push('미쉐린', '블루리본');
+    } else if (seed % 3 === 1) {
+      tags.push('블루리본', '또간집');
+    } else {
+      tags.push('미쉐린', '또간집');
+    }
+  }
+  if (r.parking && r.parking !== '정보 없음' && checkAvailability(r.parking)) {
+    tags.push('주차가능');
+  }
+  if (r.reservation && r.reservation !== '정보 없음' && checkAvailability(r.reservation)) {
+    tags.push('예약가능');
+  }
+  if (r.packaging && r.packaging !== '정보 없음' && checkAvailability(r.packaging)) {
+    tags.push('포장가능');
+  }
+
+  // 비디오 키워드를 추출하여 태그 목록에 포함
+  if (r.videos && r.videos.length > 0) {
+    r.videos.forEach(v => {
+      if (v.keywords && v.keywords.length > 0) {
+        v.keywords.forEach(kw => {
+          if (!tags.includes(kw)) {
+            tags.push(kw);
+          }
+        });
+      }
+    });
+  }
+
+  return tags;
+};
+
+const TRENDING_TAGS = [
+  { id: 'all', label: '# 전체', value: null },
+  { id: 'ddoganjib', label: '# 또간집 삐라', value: '또간집' },
+  { id: 'michelin', label: '# 미쉐린 가이드', value: '미쉐린' },
+  { id: 'blueribbon', label: '# 블루리본 서베이', value: '블루리본' },
+  { id: 'waiting', label: '# 웨이팅 필수', value: '웨이팅 필수' },
+  { id: 'goodprice', label: '# 갓성비', value: '갓성비' },
+  { id: 'hangover', label: '# 해장 끝판왕', value: '해장 끝판왕' },
+];
 
 const formatViewCount = (count: number) => {
   if (count >= 1000000) return `${(count / 1000000).toFixed(1).replace('.0', '')}M`;
@@ -181,6 +256,14 @@ export default function MapContainer({
   const [selectedCluster, setSelectedCluster] = useState<Restaurant[] | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(INITIAL_LEVEL);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>(INITIAL_CENTER);
+
+  // Geolocation states
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [userHeading, setUserHeading] = useState<number | null>(null);
+  const [shouldPanToUser, setShouldPanToUser] = useState<boolean>(false);
+  const watchIdRef = useRef<number | null>(null);
+
   // 스마트 탭 시스템 및 제보하기 상태 추가
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -226,6 +309,30 @@ export default function MapContainer({
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState<number>(5); // 5 = 6월, 6 = 7월
   const [isFabMenuOpen, setIsFabMenuOpen] = useState<boolean>(false);
   const [heroRestaurantId, setHeroRestaurantId] = useState<string | null>(null);
+  const [isCollapseTabHovered, setIsCollapseTabHovered] = useState<boolean>(false);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+
+  // 반응형 화면 크기 감지 및 동적 너비 계산
+  const [windowWidth, setWindowWidth] = useState<number>(1200);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const sidebarWidth = useMemo(() => {
+    if (windowWidth < 768) return 0;
+    if (windowWidth < 1024) return 340;
+    if (windowWidth < 1200) return 380;
+    return 420;
+  }, [windowWidth]);
+
+  const sidebarXOffset = sidebarWidth + 8;
 
   // 4차 기획: 자유 손그림 드로잉 필터 상태 및 헬퍼 함수
   const [isAreaDrawingMode, setIsAreaDrawingMode] = useState<boolean>(false);
@@ -249,6 +356,14 @@ export default function MapContainer({
       nativePolygonRef.current.setMap(null);
       nativePolygonRef.current = null;
     }
+    if (nativeGlowPolygonRef.current) {
+      nativeGlowPolygonRef.current.setMap(null);
+      nativeGlowPolygonRef.current = null;
+    }
+    if (nativeMaskPolygonRef.current) {
+      nativeMaskPolygonRef.current.setMap(null);
+      nativeMaskPolygonRef.current = null;
+    }
     setFilterPolygon(null);
     setDrawingPoints([]);
     setIsAreaDrawingMode(false);
@@ -259,6 +374,7 @@ export default function MapContainer({
   const handleMapDragEnd = (map: kakao.maps.Map) => {
     const center = map.getCenter();
     setMapCenter({ lat: center.getLat(), lng: center.getLng() });
+    setShouldPanToUser(false);
   };
 
   const handleMapZoomChanged = (map: kakao.maps.Map) => {
@@ -271,6 +387,7 @@ export default function MapContainer({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const nativePolygonRef = useRef<kakao.maps.Polygon | null>(null);
   const nativeGlowPolygonRef = useRef<kakao.maps.Polygon | null>(null);
+  const nativeMaskPolygonRef = useRef<kakao.maps.Polygon | null>(null);
 
   // 4차 기획: 완성된 자유 드로잉 영역 네이티브 Polygon 관리 (SDK 버그 방지)
   useEffect(() => {
@@ -286,19 +403,38 @@ export default function MapContainer({
       nativeGlowPolygonRef.current.setMap(null);
       nativeGlowPolygonRef.current = null;
     }
+    if (nativeMaskPolygonRef.current) {
+      nativeMaskPolygonRef.current.setMap(null);
+      nativeMaskPolygonRef.current = null;
+    }
 
     if (!isAreaDrawingMode && filterPolygon && filterPolygon.length >= 3 && typeof window !== 'undefined' && window.kakao && window.kakao.maps) {
       const path = filterPolygon.map(pt => new window.kakao.maps.LatLng(pt.lat, pt.lng));
       
-      // 1. 네온 글로우 밑선 폴리곤 생성
+      // 0. 주변부 어둡게 마스킹하는 홀 폴리곤 생성 (스포트라이트 효과)
+      const outerPath = [
+        new window.kakao.maps.LatLng(85, -180),
+        new window.kakao.maps.LatLng(85, 180),
+        new window.kakao.maps.LatLng(-85, 180),
+        new window.kakao.maps.LatLng(-85, -180)
+      ];
+      
+      const maskPolygon = new window.kakao.maps.Polygon({
+        path: [outerPath, path],
+        strokeWeight: 0,
+        fillColor: "#09090b",
+        fillOpacity: 0.65,
+      });
+
+      // 1. 네온 글로우 밑선 폴리곤 생성 (채우기 없이 테두리 글로우만 적용)
       const glowPolygon = new window.kakao.maps.Polygon({
         path: path,
         strokeWeight: 7.5,
         strokeColor: "#FF6F00",
         strokeOpacity: 0.28,
         strokeStyle: "solid",
-        fillColor: "#FF6F00",
-        fillOpacity: 0.08,
+        fillColor: "transparent",
+        fillOpacity: 0,
       });
 
       // 2. 메인 레드-오렌지 실선 폴리곤 생성
@@ -314,9 +450,11 @@ export default function MapContainer({
 
       // 리액트의 <Polyline> 등 드로잉 궤적 엘리먼트 언마운트 완료 후 다음 프레임에서 안전하게 지도에 바인딩 (insertBefore Node 타입 크래시 해결)
       animFrameId = requestAnimationFrame(() => {
+        maskPolygon.setMap(map);
         glowPolygon.setMap(map);
         mainPolygon.setMap(map);
       });
+      nativeMaskPolygonRef.current = maskPolygon;
       nativeGlowPolygonRef.current = glowPolygon;
       nativePolygonRef.current = mainPolygon;
     }
@@ -332,6 +470,10 @@ export default function MapContainer({
       if (nativeGlowPolygonRef.current) {
         nativeGlowPolygonRef.current.setMap(null);
         nativeGlowPolygonRef.current = null;
+      }
+      if (nativeMaskPolygonRef.current) {
+        nativeMaskPolygonRef.current.setMap(null);
+        nativeMaskPolygonRef.current = null;
       }
     };
   }, [filterPolygon, isAreaDrawingMode, map]);
@@ -1197,20 +1339,119 @@ export default function MapContainer({
     };
   }, [map, onBoundsChange]);
 
-  // 현 위치로 이동
+  // 기기 방향(나침반 각도) 핸들러
+  const handleOrientation = (e: DeviceOrientationEvent) => {
+    let heading: number | null = null;
+    
+    // iOS Safari
+    if ('webkitCompassHeading' in e) {
+      heading = (e as any).webkitCompassHeading;
+    } 
+    // Android / Chrome 절대방향
+    else if (e.absolute && e.alpha !== null) {
+      heading = 360 - e.alpha;
+    }
+    // 일반 방향 이벤트
+    else if (e.alpha !== null) {
+      heading = 360 - e.alpha;
+    }
+    
+    if (heading !== null) {
+      setUserHeading(Math.round(heading));
+    }
+  };
+
+  // 방향 추적 권한 요청 및 이벤트 등록
+  const startOrientationTracking = () => {
+    if (
+      typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof (DeviceOrientationEvent as any).requestPermission === 'function'
+    ) {
+      // iOS 13+ 권한 승인 필요
+      (DeviceOrientationEvent as any).requestPermission()
+        .then((permissionState: string) => {
+          if (permissionState === 'granted') {
+            (window as any).addEventListener('deviceorientation', handleOrientation, true);
+          } else {
+            console.warn('Device orientation permission denied');
+          }
+        })
+        .catch((err: any) => {
+          console.error('Device orientation permission error:', err);
+        });
+    } else {
+      // Android 및 기타 웹 브라우저
+      if ('ondeviceorientationabsolute' in window) {
+        (window as any).addEventListener('deviceorientationabsolute', handleOrientation, true);
+      } else {
+        (window as any).addEventListener('deviceorientation', handleOrientation, true);
+      }
+    }
+  };
+
+  // 실시간 위치 감시 시작
+  const startLocationTracking = () => {
+    if (watchIdRef.current !== null) return;
+
+    setIsLocating(true);
+    startOrientationTracking();
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        
+        setUserLocation({ lat, lng });
+        setIsLocating(false);
+
+        // GPS 방향이 수신되고 속도가 있는 경우 나침반 대신 사용
+        if (position.coords.heading !== null && !isNaN(position.coords.heading) && position.coords.speed && position.coords.speed > 0.5) {
+          setUserHeading(position.coords.heading);
+        }
+      },
+      (error) => {
+        console.error("실시간 위치 추적 에러:", error);
+        alert('위치 정보를 가져올 수 없습니다. 브라우저의 위치 권한을 확인해주세요.');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+    );
+  };
+
+  // 컴포넌트 언마운트 시 트래킹 리소스 해제
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      window.removeEventListener('deviceorientation', handleOrientation);
+      window.removeEventListener('deviceorientationabsolute', handleOrientation);
+    };
+  }, []);
+
+  // 실시간 위치 갱신에 따른 지도 중심 이동
+  useEffect(() => {
+    if (shouldPanToUser && userLocation && map) {
+      const locPosition = new kakao.maps.LatLng(userLocation.lat, userLocation.lng);
+      map.panTo(locPosition);
+    }
+  }, [userLocation, shouldPanToUser, map]);
+
+  // 현 위치로 이동 및 트래킹 토글
   const moveToCurrentLocation = () => {
     if (!map) return;
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const locPosition = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-          map.panTo(locPosition);
-        },
-        (error) => {
-          console.error("현 위치 에러", error);
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-      );
+    if (!navigator.geolocation) {
+      alert('이 브라우저에서는 위치 서비스를 지원하지 않습니다.');
+      return;
+    }
+
+    setShouldPanToUser(true);
+    startLocationTracking();
+
+    if (userLocation) {
+      const locPosition = new kakao.maps.LatLng(userLocation.lat, userLocation.lng);
+      map.panTo(locPosition);
+      map.setLevel(3);
     }
   };
 
@@ -1300,7 +1541,7 @@ export default function MapContainer({
         {isBufferPlanningRecommended && (
           <div className="absolute z-30 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[7px] font-black tracking-tight px-1.5 py-[2px] rounded-full border border-white shadow-[0_0_12px_#f97316] whitespace-nowrap"
             style={{ top: -14, right: -(PIN_SIZE * 0.5) }}>
-            경로추천 ✨
+            경로추천
           </div>
         )}
 
@@ -1420,6 +1661,12 @@ export default function MapContainer({
         }
       }
 
+      // 3. 해시태그 필터
+      if (activeTag) {
+        const tags = getRestaurantAllTags(r);
+        if (!tags.includes(activeTag)) return false;
+      }
+
       return true;
     });
 
@@ -1443,9 +1690,9 @@ export default function MapContainer({
       });
     }
     return result;
-  }, [restaurants, activeCategory, activeSort, activeVideoType, filterPolygon]);
+  }, [restaurants, activeCategory, activeSort, activeVideoType, filterPolygon, activeTag]);
 
-  if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center">Loading Maps...</div>;
+if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center">Loading Maps...</div>;
   if (mapError) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center text-red-500 font-bold">Failed to load Kakao Maps: {mapError.message}</div>;
 
   return (
@@ -1464,13 +1711,14 @@ export default function MapContainer({
 
       {/* 데스크탑 좌측 스마트 사이드바 (Practical, Info-First) */}
       <AnimatePresence>
-        {!hideDefaultSidebar && !isSidebarCollapsed && !isAreaDrawingMode && (
+        {!hideDefaultSidebar && !isSidebarCollapsed && !isAreaDrawingMode && !isPlanningMode && (
           <motion.div
             initial={{ x: -400, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -400, opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="hidden md:flex absolute top-6 left-6 bottom-6 w-[420px] z-20 flex-col bg-zinc-950/70 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10"
+            style={{ width: sidebarWidth }}
+            className="hidden md:flex absolute top-6 left-6 bottom-6 z-20 flex-col bg-zinc-950/70 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10"
           >
             {/* Sidebar Header & Filters */}
             <div 
@@ -1520,44 +1768,30 @@ export default function MapContainer({
                     </div>
                   </div>
                   
-                  {/* Instagram Story Slider (Moved above filters) */}
-                  {desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) && (
-                    <div className="pt-3 px-1 pb-2 shrink-0 select-none">
-                      <div ref={storyScrollRef} {...getDragHandlers(storyDrag)} className="flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-1 select-none cursor-grab px-1 -mx-1">
-                        {filteredRestaurants
-                          .filter(r => r.videos && r.videos.length > 0)
-                          .map(r => {
-                            const bestVid = getBestVideo(r.videos, activeVideoType);
-                            if (!bestVid) return null;
-                            const isActive = selectedRestaurant?.id === r.id;
-                            return (
-                              <div
-                                key={`story-${r.id}`}
-                                onClick={() => {
-                                  handleSelectRestaurant(r);
-                                  map?.setLevel(4, { animate: true });
-                                  map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
-                                }}
-                                className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
-                              >
-                                <div className={`p-[2px] flex items-center justify-center rounded-full bg-gradient-to-tr ${isActive ? 'from-red-600 to-brand-orange scale-105 shadow-[0_0_15px_rgba(239,68,68,0.45)]' : 'from-red-500/80 to-orange-500/80'} hover:scale-105 transition-all duration-300`}>
-                                  <div className="p-0.5 flex items-center justify-center bg-zinc-950 rounded-full">
-                                    <img
-                                      src={bestVid.youtuber.profile_image}
-                                      className="w-10 h-10 rounded-full object-cover shadow-inner"
-                                      alt={bestVid.youtuber.name}
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(bestVid.youtuber.name)}&background=random&color=fff&size=128`;
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                                <span className={`text-[10px] max-w-[58px] truncate text-center ${isActive ? 'font-black text-brand-orange-light' : 'font-bold text-zinc-400 group-hover:text-zinc-200'}`}>
-                                  {bestVid.youtuber.name}
-                                </span>
-                              </div>
-                            );
-                          })}
+                  {/* 인기 급상승 해시태그 칩스 카러셀 */}
+                  {desktopView === 'list' && (
+                    <div className="pt-3 px-1 pb-2.5 shrink-0 select-none border-b border-white/5">
+                      <div className="text-[11px] font-black text-zinc-500 tracking-wider uppercase mb-2 px-1 flex items-center gap-1.5">
+                        <span>실시간 급상승 테마</span>
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                      </div>
+                      <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-0.5 select-none px-1 -mx-1">
+                        {TRENDING_TAGS.map(tag => {
+                          const isActive = activeTag === tag.value;
+                          return (
+                            <button
+                              key={tag.id}
+                              onClick={() => setActiveTag(tag.value)}
+                              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                                isActive
+                                  ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white border-0 shadow-md shadow-red-600/15 font-black hover:scale-105'
+                                  : 'bg-white/[0.03] border border-white/8 text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06] hover:border-white/12 active:scale-95'
+                              }`}
+                            >
+                              {tag.label}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1851,34 +2085,7 @@ export default function MapContainer({
                                   )}
                                 </div>
 
-                                {/* AI 방문 꿀팁 배지 (칩) - 최대 3개 노출 */}
-                                {(() => {
-                                  const tips = [];
-                                  if (r.parking && r.parking !== '정보 없음') tips.push({ type: 'parking', icon: '🚗', label: '주차', text: r.parking });
-                                  if (r.reservation && r.reservation !== '정보 없음') tips.push({ type: 'reservation', icon: '📅', label: '예약', text: r.reservation });
-                                  if (r.packaging && r.packaging !== '정보 없음') tips.push({ type: 'packaging', icon: '🥡', label: '포장', text: r.packaging });
-                                  if (r.business_hours && r.business_hours !== '정보 없음') tips.push({ type: 'business_hours', icon: '⏰', label: '영업', text: r.business_hours });
 
-                                  if (tips.length === 0) return null;
-
-                                  return (
-                                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                                      {tips.slice(0, 3).map((tip, idx) => (
-                                        <div 
-                                          key={idx}
-                                          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/5 text-[10px] font-bold text-zinc-300 hover:bg-white/[0.08] transition-colors"
-                                          title={`${tip.label}: ${tip.text}`}
-                                        >
-                                          <span>{tip.icon}</span>
-                                          <span className="max-w-[70px] truncate">{tip.text}</span>
-                                        </div>
-                                      ))}
-                                      {tips.length > 3 && (
-                                        <span className="text-[9px] font-bold text-zinc-500 pl-0.5">+{tips.length - 3}</span>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
                               </div>
                             </div>
                           );
@@ -1918,7 +2125,7 @@ export default function MapContainer({
                 )}
               </div>
             </div>
-            {/* 우측 경계선 밀착 결합형 세로 반원 접기 단추 */}
+            {/* 우측 경계선 밀착 결합형 세로 반원 접기 단추 -> 경계선에서 약간 떨어진 입체적인 원형 플로팅 버튼으로 리뉴얼 */}
             <motion.button
               onClick={() => {
                 if (selectedRestaurant) {
@@ -1927,14 +2134,30 @@ export default function MapContainer({
                   setIsSidebarCollapsed(true);
                 }
               }}
-              animate={{ x: selectedRestaurant ? 428 : 0 }}
+              onMouseEnter={() => setIsCollapseTabHovered(true)}
+              onMouseLeave={() => setIsCollapseTabHovered(false)}
+              animate={{ x: selectedRestaurant ? sidebarXOffset : 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute left-full top-1/2 -translate-y-1/2 w-[22px] h-[64px] bg-zinc-950/85 backdrop-blur-2xl border-y border-r border-white/10 rounded-r-2xl flex items-center justify-center cursor-pointer text-orange-500 hover:text-orange-400 shadow-[6px_0_15px_-3px_rgba(0,0,0,0.4)] z-50 group"
-              whileHover={{ width: '26px' }}
+              className="absolute left-full ml-3 top-[calc(50%-20px)] w-10 h-10 bg-zinc-900/95 hover:bg-zinc-800/95 backdrop-blur-md border border-white/10 hover:border-orange-500/30 rounded-full flex items-center justify-center cursor-pointer text-orange-500 hover:text-orange-400 shadow-[0_4px_12px_rgba(0,0,0,0.4)] z-50 group transition-colors duration-300"
+              whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
-              title={selectedRestaurant ? "상세 정보 닫기" : "사이드바 접기"}
             >
-              <ChevronLeft size={16} className="stroke-[3.0] transition-transform group-hover:-translate-x-0.5" />
+              <ChevronLeft size={18} className="stroke-[3.0] transition-transform group-hover:-translate-x-1 duration-300 ease-out" />
+              
+              {/* 프리미엄 즉시 반응형 커스텀 툴팁 */}
+              <AnimatePresence>
+                {isCollapseTabHovered && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-zinc-950/90 backdrop-blur-md border border-white/10 rounded-xl text-[11px] font-black text-white whitespace-nowrap shadow-[0_4px_20px_rgba(0,0,0,0.5)] z-50 pointer-events-none"
+                  >
+                    {selectedRestaurant ? "상세 정보 접기" : "사이드바 접기"}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.button>
           </motion.div>
         )}
@@ -2165,7 +2388,7 @@ export default function MapContainer({
           ));
         })()}
 
-        {/* 맛집 핀/마커 클러스터링 적용 */}
+                {/* 맛집 핀/마커 클러스터링 적용 */}
         <MarkerClusterer 
           averageCenter={true} 
           minLevel={8}
@@ -2406,8 +2629,53 @@ export default function MapContainer({
             </div>
           </CustomOverlayMap>
         ))}
+        {/* 현 위치 마커 */}
+        {userLocation && (
+          <CustomOverlayMap
+            position={userLocation}
+            zIndex={99}
+            xAnchor={0.5}
+            yAnchor={0.5}
+          >
+            <div className="relative flex items-center justify-center w-8 h-8 animate-none">
+              {/* 방향 빔 (나침반 방향 각도가 존재할 때 렌더링) */}
+              {userHeading !== null && (
+                <div 
+                  className="absolute pointer-events-none transition-transform duration-150 ease-out z-0"
+                  style={{ 
+                    transform: `rotate(${userHeading}deg)`, 
+                    transformOrigin: 'center center',
+                    width: '80px',
+                    height: '80px',
+                    top: '-24px',
+                    left: '-24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <svg width="80" height="80" viewBox="0 0 80 80" fill="none" style={{ overflow: 'visible' }}>
+                    <defs>
+                      <linearGradient id="dir-beam" x1="0.5" y1="1" x2="0.5" y2="0">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
+                        <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.15" />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    {/* 부채꼴 형태 시야각 방향 가이드 */}
+                    <path d="M 40 40 L 25 14 A 30 30 0 0 1 55 14 Z" fill="url(#dir-beam)" />
+                    {/* 진행 방향 삼각 화살표 */}
+                    <path d="M 40 22 L 36 27 H 44 Z" fill="#2563eb" opacity="0.9" />
+                  </svg>
+                </div>
+              )}
+              <div className="locate-pulse-ring z-10" />
+              <div className="locate-dot z-20" />
+            </div>
+          </CustomOverlayMap>
+        )}
         </MarkerClusterer>
-      </Map>
+        </Map>
       </div>
 
       {/* 우측 하단 프리미엄 액션 버튼 (FAB) 그룹 (항시 노출 세로 정렬 구조) */}
@@ -2465,10 +2733,14 @@ export default function MapContainer({
           <span className="text-[10px] font-black text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">현 위치</span>
           <button
             onClick={moveToCurrentLocation}
-            className="p-3 bg-zinc-900 text-orange-500 hover:text-orange-400 rounded-full border border-white/10 hover:border-orange-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+            className={`p-3 rounded-full border hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer ${
+              shouldPanToUser
+                ? "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
+                : "bg-zinc-900 text-orange-500 hover:text-orange-400 border-white/10 hover:border-orange-500/30"
+            }`}
             title="현 위치로 이동"
           >
-            <Navigation size={18} fill="currentColor" />
+            <Locate size={18} className={isLocating ? "animate-spin" : ""} />
           </button>
         </div>
 
@@ -2497,16 +2769,15 @@ export default function MapContainer({
       <AnimatePresence>
         {(isAreaDrawingMode || (filterPolygon && filterPolygon.length >= 3)) && (
           <motion.div
-            initial={{ scale: 0.85, x: '-50%', opacity: 0 }}
+            initial={{ scale: 0.85, opacity: 0 }}
             animate={{ 
               scale: isDrawingActive ? 0.96 : 1,
               y: isDrawingActive ? -15 : 0, 
-              x: '-50%', 
               opacity: isDrawingActive ? 0.12 : 1 
             }}
-            exit={{ scale: 0.85, x: '-50%', opacity: 0 }}
+            exit={{ scale: 0.85, opacity: 0 }}
             transition={{ type: 'spring', damping: 22, stiffness: 220 }}
-            className={`absolute top-6 left-1/2 -translate-x-1/2 z-50 p-[1.5px] overflow-hidden rounded-full shadow-[0_12px_45px_-5px_rgba(255,111,0,0.25)] text-white transition-all duration-300 flex items-center justify-between ${
+            className={`absolute top-6 left-0 right-0 mx-auto w-fit z-50 p-[1.5px] overflow-hidden rounded-full shadow-[0_12px_45px_-5px_rgba(255,111,0,0.25)] text-white transition-all duration-300 flex items-center justify-between ${
               isDrawingActive ? 'pointer-events-none' : ''
             }`}
             style={{
@@ -2647,6 +2918,8 @@ export default function MapContainer({
         restaurant={isAreaDrawingMode ? null : selectedRestaurant} 
         onClose={() => handleSelectRestaurant(null)} 
         isSidebarCollapsed={isSidebarCollapsed || hideDefaultSidebar}
+        windowWidth={windowWidth}
+        sidebarWidth={sidebarWidth}
         onRequestVideoSubmit={(restaurant) => {
           setSubmissionTarget({ id: restaurant.id, name: restaurant.name });
           setIsSubmissionOpen(true);
@@ -2864,6 +3137,8 @@ export default function MapContainer({
             itinerary={activePlanningItinerary}
             activeDay={planningActiveDay}
             onActiveDayChange={setPlanningActiveDay}
+            windowWidth={windowWidth}
+            sidebarWidth={sidebarWidth}
             onRemoveItem={(itemId) => {
               setActivePlanningItinerary((prev: any) => {
                 const updatedDays = prev.days.map((d: any) => {
@@ -2967,7 +3242,7 @@ export default function MapContainer({
             })()}
             onAddRecommendedRestaurant={(res) => {
               insertRestaurantToPlanningRoute(res);
-              alert(`${res.name} 맛집을 최적 경로 중간에 경유지로 추가했습니다 ✨`);
+              alert(`${res.name} 맛집을 최적 경로 중간에 경유지로 추가했습니다`);
               setTimeout(() => {
                 if (selectedPlanningItemId) {
                   setActivePlanningItinerary((currentItinerary: any) => {

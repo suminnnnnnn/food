@@ -3,9 +3,7 @@
 /**
  * GlobalErrorHandler
  *
- * AIT WebView가 흰 화면이 되는 사고를 추적하는 최상단 에러 캐처입니다.
- * Place 프로토타입의 검증된 패턴을 계승하되, AIT WebView 환경에서
- * 더 강하게 동작하도록 확장합니다.
+ * 흰 화면이 되는 사고를 추적하는 최상단 에러 캐처입니다.
  *
  * - window.onerror: 동기 JS 에러
  * - unhandledrejection: Promise reject 미처리

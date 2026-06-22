@@ -72,3 +72,7 @@ _workspace/
 # Temporary development artifacts
 /*.txt
 /*.png
+/scratch/
+/data_pipeline/test_*
+/data_pipeline/uv.exe
+/data_pipeline/uvx.exe
