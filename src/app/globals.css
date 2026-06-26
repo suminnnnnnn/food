@@ -277,3 +277,38 @@ svg path[stroke="#FF6F00"] {
   border-radius: 50%;
   box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
 }
+
+/* =========================================
+   포털형 레이아웃 커스텀 스타일
+   ========================================= */
+.portal-sidebar-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.portal-sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.portal-sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+}
+.portal-sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.16);
+}
+
+/* =========================================
+   검색창 활성화 시 테두리 애니메이션 효과
+   ========================================= */
+@keyframes borderGlow {
+  0% {
+    border-color: rgba(255, 111, 0, 0.4);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 4px rgba(255, 111, 0, 0.15);
+  }
+  50% {
+    border-color: rgba(255, 60, 48, 0.8);
+    box-shadow: 0 4px 24px rgba(255, 111, 0, 0.12), 0 0 12px rgba(255, 60, 48, 0.35);
+  }
+  100% {
+    border-color: rgba(255, 111, 0, 0.4);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 4px rgba(255, 111, 0, 0.15);
+  }
+}

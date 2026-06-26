@@ -810,7 +810,57 @@ export default function RestaurantInfoCard({
     }
 
     return (
-      <div className="flex flex-col h-full relative bg-brand-charcoal select-none">
+      <div className="flex flex-col h-full relative bg-brand-charcoal md:bg-white select-none">
+        {/* 데스크탑 전용 상단 툴바 (네이버 지도 스타일) */}
+        <div className="hidden md:flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 select-none">
+          <button 
+            onClick={onClose}
+            className="p-1.5 hover:bg-slate-100 rounded-full text-slate-600 transition-colors cursor-pointer"
+            title="뒤로가기/닫기"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          
+          <div className="flex items-center gap-2">
+            {/* 즐겨찾기 */}
+            <button
+              onClick={() => toggleFavorite && toggleFavorite(restaurant.id)}
+              className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                favorites.includes(restaurant.id)
+                  ? 'text-orange-500 hover:bg-orange-50'
+                  : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+              }`}
+              title="즐겨찾기"
+            >
+              <Star 
+                size={18} 
+                fill={favorites.includes(restaurant.id) ? 'currentColor' : 'none'} 
+              />
+            </button>
+            
+            {/* 공유하기 */}
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+                alert('맛집 링크가 클립보드에 복사되었습니다.');
+              }}
+              className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              title="공유하기"
+            >
+              <Share2 size={18} />
+            </button>
+            
+            {/* 닫기 X */}
+            <button 
+              onClick={onClose}
+              className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              title="닫기"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
         {/* 모바일 전용 드래그 핸들 */}
         <div className="w-full flex justify-center pt-3 pb-1 md:hidden shrink-0">
           <div className="w-12 h-1.5 bg-white/10 rounded-full"></div>
@@ -825,7 +875,7 @@ export default function RestaurantInfoCard({
         </button>
 
         {/* Scrollable Container */}
-        <div className="overflow-y-auto hide-scrollbar flex-1 pb-8">
+        <div className="overflow-y-auto hide-scrollbar flex-1 pb-8 md:bg-white text-white md:text-slate-800">
           {/* 유튜브 플레이어 및 썸네일 영역 */}
           {restaurant.videos && restaurant.videos.length > 0 ? (
             <div className="relative w-full bg-black shrink-0 aspect-video rounded-t-[28px] md:rounded-t-none overflow-hidden z-20">
@@ -893,20 +943,27 @@ export default function RestaurantInfoCard({
             </div>
           )}
 
-          <div className="p-5 md:p-6 space-y-4 text-white">
+          <div className="p-5 md:p-6 space-y-4 text-white md:text-slate-800">
             {/* Unified Profile Card (Profile, AI briefing, Facility info merged) */}
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 relative overflow-hidden space-y-4">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/8 rounded-full filter blur-2xl -z-10" />
+            <div className="bg-zinc-900/80 md:bg-slate-50 border border-zinc-800 md:border-slate-200/60 rounded-3xl p-5 relative overflow-hidden space-y-4 shadow-sm">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/8 md:bg-orange-500/5 rounded-full filter blur-2xl -z-10" />
+
+              {/* place+ Badge */}
+              <div className="flex select-none">
+                <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white text-[9.5px] font-black tracking-wider leading-none">
+                  place+
+                </span>
+              </div>
 
               {/* Row 1: Name */}
               <div className="flex justify-between items-start gap-4 min-w-0">
-                <h3 className="text-xl md:text-2xl font-black text-white tracking-tight leading-tight truncate">
+                <h3 className="text-[22px] md:text-[26px] font-black text-white md:text-slate-900 tracking-tight leading-tight truncate">
                   {restaurant.name}
                 </h3>
               </div>
 
               {/* Row 2: Category */}
-              <div className="flex items-center flex-wrap gap-2 text-[12px] font-semibold text-zinc-400 select-none">
+              <div className="flex items-center flex-wrap gap-2 text-[15px] font-semibold text-zinc-400 md:text-slate-500 select-none">
                 {restaurant.category && (
                   <span>{getFormattedCategory(restaurant.category)}</span>
                 )}
@@ -923,10 +980,10 @@ export default function RestaurantInfoCard({
                       alert('등록된 전화번호가 없습니다.');
                     }
                   }}
-                  className="flex flex-col items-center justify-center py-2 bg-zinc-800/40 hover:bg-zinc-800/80 border border-white/5 rounded-xl transition-all gap-1 cursor-pointer group"
+                  className="flex flex-col items-center justify-center py-2 bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border border-white/5 md:border-slate-200 rounded-xl transition-all gap-1 cursor-pointer group"
                 >
-                  <Phone size={14} className="text-zinc-400 group-hover:text-white transition-colors" />
-                  <span className="text-[10px] font-bold text-zinc-400 group-hover:text-white transition-colors">전화</span>
+                  <Phone size={14} className="text-zinc-400 md:text-slate-500 group-hover:text-white md:group-hover:text-slate-800 transition-colors" />
+                  <span className="text-sm font-bold text-zinc-400 md:text-slate-500 group-hover:text-white md:group-hover:text-slate-800 transition-colors">전화</span>
                 </button>
 
                 {/* 즐겨찾기 */}
@@ -936,8 +993,8 @@ export default function RestaurantInfoCard({
                   onMouseLeave={() => setIsBookmarkHovered(false)}
                   className={`flex flex-col items-center justify-center py-2 border rounded-xl transition-all gap-1 cursor-pointer group ${
                     (favorites.includes(restaurant.id) || isBookmarkHovered)
-                      ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)]'
-                      : 'bg-zinc-800/40 hover:bg-zinc-800/80 border-white/5 text-zinc-400 hover:text-white'
+                      ? 'bg-red-500/10 border-red-500/30 md:border-red-500/20 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)] md:shadow-none'
+                      : 'bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border-white/5 md:border-slate-200 text-zinc-400 md:text-slate-500 hover:text-white md:hover:text-slate-800'
                   }`}
                 >
                   <Star 
@@ -946,7 +1003,7 @@ export default function RestaurantInfoCard({
                     fill={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 'url(#red-orange-grad)' : 'none'} 
                     strokeWidth={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 2.5 : 2}
                   />
-                  <span className="text-[10px] font-bold">즐겨찾기</span>
+                  <span className="text-sm font-bold">즐겨찾기</span>
                 </button>
 
                 {/* 공유하기 */}
@@ -967,8 +1024,8 @@ export default function RestaurantInfoCard({
                   onMouseLeave={() => setIsShareHovered(false)}
                   className={`flex flex-col items-center justify-center py-2 border rounded-xl transition-all gap-1 cursor-pointer group ${
                     isShareHovered
-                      ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)]'
-                      : 'bg-zinc-800/40 hover:bg-zinc-800/80 border-white/5 text-zinc-400 hover:text-white'
+                      ? 'bg-red-500/10 border-red-500/30 md:border-red-500/20 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)] md:shadow-none'
+                      : 'bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border-white/5 md:border-slate-200 text-zinc-400 md:text-slate-500 hover:text-white md:hover:text-slate-800'
                   }`}
                 >
                   <Share2 
@@ -977,24 +1034,24 @@ export default function RestaurantInfoCard({
                     fill={isShareHovered ? 'url(#red-orange-grad)' : 'none'}
                     strokeWidth={isShareHovered ? 2.5 : 2}
                   />
-                  <span className="text-[10px] font-bold">공유하기</span>
+                  <span className="text-sm font-bold">공유하기</span>
                 </button>
 
                 {/* 길찾기 */}
                 <button
                   onClick={() => setShowRouteModal(true)}
-                  className="flex flex-col items-center justify-center py-2 bg-zinc-800/40 hover:bg-zinc-800/80 border border-white/5 rounded-xl transition-all gap-1 cursor-pointer group"
+                  className="flex flex-col items-center justify-center py-2 bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border border-white/5 md:border-slate-200 rounded-xl transition-all gap-1 cursor-pointer group"
                 >
-                  <Navigation size={14} className="text-zinc-400 group-hover:text-white transition-colors" />
-                  <span className="text-[10px] font-bold text-zinc-400 group-hover:text-white transition-colors">길찾기</span>
+                  <Navigation size={14} className="text-zinc-400 md:text-slate-500 group-hover:text-white md:group-hover:text-slate-800 transition-colors" />
+                  <span className="text-sm font-bold text-zinc-400 md:text-slate-500 group-hover:text-white md:group-hover:text-slate-800 transition-colors">길찾기</span>
                 </button>
               </div>
 
               {/* Row 6: Facilities List */}
-              <div className="flex flex-col gap-2.5 pt-3 border-t border-zinc-800 text-[12px] font-medium text-zinc-300">
+              <div className="flex flex-col gap-2.5 pt-3 border-t border-zinc-800 md:border-slate-200 text-sm font-medium text-zinc-300 md:text-slate-600">
                 {/* Hours */}
                 <div className="flex items-start gap-2.5">
-                  <Clock size={13} className="text-orange-400 shrink-0 mt-0.5" />
+                  <Clock size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     {businessHours ? (() => {
                       const lines = splitHoursIntoLines(businessHours);
@@ -1004,27 +1061,31 @@ export default function RestaurantInfoCard({
 
                       // Helper to render inline sleek badge
                       const renderStatusBadge = () => {
-                        let textColor = 'text-zinc-500';
-                        let dotBg = 'bg-zinc-500';
+                        let textColor = 'text-zinc-500 md:text-slate-400';
+                        let dotBg = 'bg-zinc-500 md:bg-slate-400';
+                        let badgeBg = 'bg-zinc-800/40 md:bg-slate-100 border-zinc-700/30 md:border-slate-200';
                         
                         if (openStatus.status === 'open') {
-                          textColor = 'text-green-400';
-                          dotBg = 'bg-green-400';
+                          textColor = 'text-green-400 md:text-green-600';
+                          dotBg = 'bg-green-400 md:bg-green-500';
+                          badgeBg = 'bg-zinc-800/40 md:bg-green-50 border-zinc-700/30 md:border-green-100';
                         } else if (openStatus.status === 'break') {
-                          textColor = 'text-orange-400';
-                          dotBg = 'bg-orange-400';
+                          textColor = 'text-orange-400 md:text-orange-600';
+                          dotBg = 'bg-orange-400 md:bg-orange-500';
+                          badgeBg = 'bg-zinc-800/40 md:bg-orange-50 border-zinc-700/30 md:border-orange-100';
                         } else if (openStatus.status === 'closed') {
-                          textColor = 'text-red-400';
-                          dotBg = 'bg-red-400';
+                          textColor = 'text-red-400 md:text-red-600';
+                          dotBg = 'bg-red-400 md:bg-red-500';
+                          badgeBg = 'bg-zinc-800/40 md:bg-red-50 border-zinc-700/30 md:border-red-100';
                         }
 
                         let cleanLabel = openStatus.label;
                         if (cleanLabel.includes('브레이크 타임')) {
-                          cleanLabel = '브레이크 타임';
+                          cleanLabel = '브레이크';
                         }
 
                         return (
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-zinc-800/40 border border-zinc-700/30 ${textColor} select-none shrink-0 ml-1.5`}>
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold border ${badgeBg} ${textColor} select-none shrink-0 ml-1.5`}>
                             <span className={`w-1 h-1 rounded-full ${dotBg} ${openStatus.status === 'open' ? 'animate-pulse' : ''}`} />
                             {cleanLabel}
                           </span>
@@ -1039,12 +1100,12 @@ export default function RestaurantInfoCard({
                               className="flex items-center justify-between w-full cursor-pointer group"
                             >
                               <div className="flex items-center flex-wrap gap-1 min-w-0">
-                                <span className={`text-[12px] leading-relaxed transition-colors ${isHoursExpanded ? 'font-black text-white' : 'font-bold text-zinc-200'}`}>
+                                <span className={`text-[16px] leading-relaxed transition-colors ${isHoursExpanded ? 'font-black text-white md:text-slate-900' : 'font-bold text-zinc-200 md:text-slate-700'}`}>
                                   {isHoursExpanded ? todayLine : cleanTodayLine}
                                 </span>
                                 {!isHoursExpanded && renderStatusBadge()}
                               </div>
-                              <div className="text-zinc-500 group-hover:text-white transition-colors p-0.5 shrink-0 ml-1">
+                              <div className="text-zinc-500 md:text-slate-400 group-hover:text-white md:group-hover:text-slate-700 transition-colors p-0.5 shrink-0 ml-1">
                                 {isHoursExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                               </div>
                             </div>
@@ -1055,11 +1116,11 @@ export default function RestaurantInfoCard({
                                   animate={{ opacity: 1, height: 'auto' }}
                                   exit={{ opacity: 0, height: 0 }}
                                   transition={{ duration: 0.2 }}
-                                  className="flex flex-col gap-1 mt-1 pl-2 border-l border-zinc-700 overflow-hidden"
+                                  className="flex flex-col gap-1 mt-1 pl-2 border-l border-zinc-700 md:border-slate-200 overflow-hidden"
                                 >
                                   {lines.map((line, idx) => (
                                     <div key={idx} className="flex items-center flex-wrap gap-1 min-w-0">
-                                      <span className={`text-[11px] leading-relaxed ${idx === todayIndex ? 'font-black text-white' : 'font-semibold text-zinc-400'}`}>
+                                      <span className={`text-[15px] leading-relaxed ${idx === todayIndex ? 'font-black text-white md:text-slate-900' : 'font-semibold text-zinc-400 md:text-slate-500'}`}>
                                         {line}
                                       </span>
                                       {idx === todayIndex && renderStatusBadge()}
@@ -1073,30 +1134,30 @@ export default function RestaurantInfoCard({
                       }
                       return (
                         <div className="flex items-center flex-wrap gap-1 min-w-0">
-                          <span className="text-[12px] font-bold text-zinc-200 block">{cleanTodayLine}</span>
+                          <span className="text-[16px] font-bold text-zinc-200 md:text-slate-700 block">{cleanTodayLine}</span>
                           {renderStatusBadge()}
                         </div>
                       );
-                    })() : <span className="text-[12px] font-bold text-zinc-400 block">영업시간 정보 없음</span>}
+                    })() : <span className="text-[16px] font-bold text-zinc-400 md:text-slate-400 block">영업시간 정보 없음</span>}
                   </div>
                 </div>
 
                 {/* Parking */}
                 {restaurant.parking && restaurant.parking !== '정보 없음' && (
                   <div className="flex items-start gap-2.5">
-                    <Car size={13} className="text-orange-400 shrink-0 mt-0.5" />
+                    <Car size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <span className="text-[12px] font-bold text-zinc-200">주차 {hasParking ? '가능' : '불가'}</span>
-                      <span className="text-zinc-500 text-[11px] font-semibold ml-1.5">({restaurant.parking})</span>
+                      <span className="text-[16px] font-bold text-zinc-200 md:text-slate-700">주차 {hasParking ? '가능' : '불가'}</span>
+                      <span className="text-zinc-500 md:text-slate-400 text-[15px] font-semibold ml-1.5">( {restaurant.parking} )</span>
                     </div>
                   </div>
                 )}
 
                 {/* Reservation / Packaging */}
                 <div className="flex items-start gap-2.5">
-                  <CalendarCheck size={13} className="text-orange-400 shrink-0 mt-0.5" />
+                  <CalendarCheck size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <span className="text-[12px] font-bold text-zinc-200">
+                    <span className="text-[16px] font-bold text-zinc-200 md:text-slate-700">
                       예약 {hasReservation ? '가능' : '불가'} · 포장 {hasPackaging ? '가능' : '불가'}
                     </span>
                   </div>
@@ -1104,12 +1165,12 @@ export default function RestaurantInfoCard({
 
                 {/* Address */}
                 <div className="flex items-start gap-2.5">
-                  <MapPin size={13} className="text-orange-400 shrink-0 mt-0.5" />
+                  <MapPin size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[12px] font-bold text-zinc-200 leading-normal">{restaurant.address}</span>
+                    <span className="text-[16px] font-bold text-zinc-200 md:text-slate-700 leading-normal">{restaurant.address}</span>
                     <button
                       onClick={() => handleCopy(restaurant.address, 'address')}
-                      className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer shrink-0"
+                      className="flex items-center gap-1 text-zinc-500 md:text-slate-400 hover:text-zinc-300 md:hover:text-slate-600 transition-colors cursor-pointer shrink-0"
                       title="주소 복사"
                     >
                       {copiedAddress ? <Check size={11} className="text-brand-orange" /> : <Copy size={11} />}
@@ -1120,12 +1181,12 @@ export default function RestaurantInfoCard({
 
               {/* Row 7: AI 꿀팁 (Gemini 추천) */}
               {restaurant.description_summary && (
-                <div className="pt-3 border-t border-zinc-800 space-y-2">
+                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <Sparkles size={13} className="text-orange-400" />
-                    <span className="text-[12px] font-black text-zinc-200">AI 꿀팁 (Gemini 추천)</span>
+                    <Sparkles size={13} className="text-orange-400 md:text-orange-500" />
+                    <span className="text-[16px] font-black text-zinc-200 md:text-slate-800">AI 꿀팁 (Gemini 추천)</span>
                   </div>
-                  <div className="text-[12px] text-zinc-300 font-medium leading-relaxed bg-zinc-800/40 border border-zinc-700/30 rounded-xl p-3 whitespace-pre-wrap select-text">
+                  <div className="text-[16px] text-zinc-300 md:text-slate-600 font-medium leading-relaxed bg-zinc-800/40 md:bg-orange-500/5 border border-zinc-700/30 md:border-orange-500/10 rounded-xl p-3 whitespace-pre-wrap select-text">
                     {restaurant.description_summary}
                   </div>
                 </div>
@@ -1145,15 +1206,15 @@ export default function RestaurantInfoCard({
 
             {/* Creator Story Carousel */}
             {sortedVideos && sortedVideos.length > 0 && (
-              <div className="bg-white/5 border border-white/5 rounded-2xl p-4 shadow-md relative overflow-hidden group/story">
+              <div className="bg-white/5 md:bg-slate-50 border border-white/5 md:border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden group/story">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-[10.5px] font-extrabold text-zinc-400 tracking-tight select-none">리뷰 크리에이터</span>
+                  <span className="text-[10.5px] font-extrabold text-zinc-400 md:text-slate-500 tracking-tight select-none">리뷰 크리에이터</span>
                   <button
                     onClick={() => onRequestVideoSubmit && onRequestVideoSubmit(restaurant)}
-                    className="flex items-center gap-1 px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full cursor-pointer transition-colors z-20"
+                    className="flex items-center gap-1 px-2.5 py-1 bg-white/5 md:bg-white hover:bg-white/10 md:hover:bg-slate-100 border border-white/10 md:border-slate-200 rounded-full cursor-pointer transition-colors z-20"
                   >
                     <Plus size={10} className="text-brand-orange" />
-                    <span className="text-[9.5px] font-bold text-white/90">영상 제보</span>
+                    <span className="text-[9.5px] font-bold text-white/90 md:text-slate-600">영상 제보</span>
                   </button>
                 </div>
 
@@ -1182,8 +1243,8 @@ export default function RestaurantInfoCard({
                           }}
                           className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group select-none"
                         >
-                          <div className={`relative w-[54px] h-[54px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_10px_rgba(255,75,0,0.4)]' : 'bg-white/10 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
-                            <div className="w-[50px] h-[50px] bg-[#121214] rounded-full flex items-center justify-center shrink-0">
+                          <div className={`relative w-[54px] h-[54px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_10px_rgba(255,75,0,0.4)]' : 'bg-white/10 md:bg-slate-200 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
+                            <div className="w-[50px] h-[50px] bg-[#121214] md:bg-white rounded-full flex items-center justify-center shrink-0">
                               <img 
                                 src={vid.youtuber.profile_image} 
                                 className="w-[46px] h-[46px] rounded-full object-cover shrink-0 shadow-inner" 
@@ -1195,12 +1256,12 @@ export default function RestaurantInfoCard({
                               />
                             </div>
                             {vid.view_count !== undefined && vid.view_count !== null && (
-                              <div className="absolute bottom-[-2px] right-[-4px] bg-white/[0.12] backdrop-blur-[4px] border border-white/15 px-1.5 py-[1px] rounded-full text-[8px] font-black text-white leading-none shadow-md z-20 whitespace-nowrap">
+                              <div className="absolute bottom-[-2px] right-[-4px] bg-white/[0.12] md:bg-slate-100/90 backdrop-blur-[4px] border border-white/15 md:border-slate-200 px-1.5 py-[1px] rounded-full text-[8px] font-black text-white md:text-slate-700 leading-none shadow-md z-20 whitespace-nowrap">
                                 {formatViewCount(vid.view_count)}
                               </div>
                             )}
                           </div>
-                          <span className={`block text-[10px] max-w-[68px] truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 group-hover:text-white/70'}`}>
+                          <span className={`block text-[10px] max-w-[68px] truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 md:text-slate-500 group-hover:text-white/70 md:group-hover:text-slate-800'}`}>
                             {vid.youtuber.name}
                           </span>
                         </div>
@@ -1213,30 +1274,30 @@ export default function RestaurantInfoCard({
 
             {/* Representative menu section */}
             {menuList.length > 0 && (
-              <div className="bg-white/[0.02] border border-white/10 rounded-[24px] p-5 space-y-3 shadow-xl relative overflow-hidden">
+              <div className="bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
                 <div className="flex items-center gap-2 mb-1 shrink-0">
                   <Utensils size={14} className="text-brand-orange" />
-                  <span className="text-[13px] font-black text-white tracking-tight">대표 메뉴 & 가격</span>
+                  <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">대표 메뉴 & 가격</span>
                 </div>
                 <div className="flex flex-col gap-1 w-full">
                   {menuList.map((menu, index) => {
                     const isSignature = index < 2;
                     return (
-                      <div key={index} className={`flex items-baseline gap-1.5 py-2 ${index < menuList.length - 1 ? 'border-b border-zinc-800/60' : ''}`}>
+                      <div key={index} className={`flex items-baseline gap-1.5 py-2 ${index < menuList.length - 1 ? 'border-b border-zinc-800/60 md:border-slate-200' : ''}`}>
                         {isSignature && (
-                          <span className="shrink-0 px-1.5 py-[1px] bg-orange-500/15 text-orange-400 text-[9px] font-black rounded tracking-tight border border-orange-500/20">
+                          <span className="shrink-0 px-1.5 py-[1px] bg-orange-500/15 text-orange-400 md:text-orange-600 text-[9px] font-black rounded tracking-tight border border-orange-500/20">
                             대표
                           </span>
                         )}
-                        <span className={`font-bold text-zinc-100 ${isSignature ? 'text-[13px]' : 'text-[12px] text-zinc-300'}`}>
+                        <span className={`font-bold text-zinc-100 md:text-slate-700 ${isSignature ? 'text-[13px]' : 'text-[12px] text-zinc-300 md:text-slate-500'}`}>
                           {menu.name}
                         </span>
                         {menu.description && (
-                          <span className="text-[9.5px] text-zinc-500 font-medium">{menu.description}</span>
+                          <span className="text-[9.5px] text-zinc-500 md:text-slate-400 font-medium">{menu.description}</span>
                         )}
-                        <div className="flex-1 border-b border-dashed border-zinc-700/50 mx-1.5 min-w-[8px] h-3" />
+                        <div className="flex-1 border-b border-dashed border-zinc-700/50 md:border-slate-200 mx-1.5 min-w-[8px] h-3" />
                         {menu.price && (
-                          <span className={`font-black text-orange-400 shrink-0 ${isSignature ? 'text-[13px]' : 'text-[12px]'}`}>
+                          <span className={`font-black text-orange-400 md:text-orange-600 shrink-0 ${isSignature ? 'text-[13px]' : 'text-[12px]'}`}>
                             {menu.price}
                           </span>
                         )}
@@ -1244,9 +1305,9 @@ export default function RestaurantInfoCard({
                     );
                   })}
                 </div>
-                <div className="pt-2.5 flex items-center gap-1.5 border-t border-white/5 mt-1">
-                  <Info size={10} className="text-zinc-500 shrink-0" />
-                  <p className="text-[9px] text-zinc-500 font-extrabold">실제 메뉴 구성 및 가격은 매장 상황에 따라 다를 수 있습니다.</p>
+                <div className="pt-2.5 flex items-center gap-1.5 border-t border-white/5 md:border-slate-200 mt-1">
+                  <Info size={10} className="text-zinc-500 md:text-slate-400 shrink-0" />
+                  <p className="text-[9px] text-zinc-500 md:text-slate-400 font-extrabold">실제 메뉴 구성 및 가격은 매장 상황에 따라 다를 수 있습니다.</p>
                 </div>
               </div>
             )}
@@ -1255,7 +1316,7 @@ export default function RestaurantInfoCard({
             <div className="grid grid-cols-2 gap-3 pt-1 shrink-0">
               <div 
                 onClick={() => openNaverDeeplink(restaurant.name, restaurant.address)}
-                className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-green-500/30 rounded-2xl p-3 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+                className="bg-white/5 md:bg-slate-50 hover:bg-white/10 md:hover:bg-slate-100 border border-white/5 md:border-slate-200 rounded-2xl p-3 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
               >
                 <div className="absolute -right-6 -bottom-6 w-12 h-12 bg-green-500/10 rounded-full blur-xl group-hover:bg-green-500/20 transition-all duration-300" />
                 <div className="flex items-center gap-2 relative z-10">
@@ -1264,27 +1325,26 @@ export default function RestaurantInfoCard({
                     alt="Naver Map Logo" 
                     className="w-4 h-4 rounded shadow-sm object-contain"
                   />
-                  <span className="text-[11px] font-bold text-white group-hover:text-green-400 transition-colors">네이버 지도</span>
+                  <span className="text-[11px] font-bold text-white md:text-slate-700 group-hover:text-green-400 md:group-hover:text-green-600 transition-colors">네이버 지도</span>
                 </div>
-                <ExternalLink size={11} className="text-white/30 group-hover:text-green-400 transition-colors relative z-10 shrink-0" />
+                <ExternalLink size={11} className="text-white/30 md:text-slate-400 group-hover:text-green-400 md:group-hover:text-green-600 transition-colors relative z-10 shrink-0" />
               </div>
 
               {/* 카카오맵 바로가기 카드 */}
               <div 
                 onClick={() => openKakaoDeeplink(restaurant.name, restaurant.kakao_place_id, restaurant.lat, restaurant.lng)}
-                className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-yellow-500/30 rounded-2xl p-3.5 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
+                className="bg-white/5 md:bg-slate-50 hover:bg-white/10 md:hover:bg-slate-100 border border-white/5 md:border-slate-200 rounded-2xl p-3.5 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
               >
                 <div className="absolute -right-6 -bottom-6 w-12 h-12 bg-yellow-500/10 rounded-full blur-xl group-hover:bg-yellow-500/20 transition-all duration-300" />
                 <div className="flex items-center gap-2 relative z-10">
-                  {/* 카카오맵 파비콘 적용 */}
                   <img 
                     src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAOVBMVEVHcEwAdv//5wD/5AD74gAAfP/64QD64QD64QD74gC4wIOApbw+i+ejtZvv3CJaldjTzlwlhfLc0kuK1weQAAAACnRSTlMA////Fv//+bQX9hPeKgAAALpJREFUKJF901sSgyAMBVBIBHlKcf+LLYYWCYL5ccZjLoFBIazZ9aR2Y4WwM6llhVmjEV0mQinsksVNOqack8ObG4KTUpWS6oMjoiMibvrHo1mpoRP9hTJkekRkCDUPgNIDMKRUX95BuL5aYXoixaoD4JzE1oGU97OB+FbGfb4eggb/UxnhcbZ1zmK+WYdaE+bbeqRl5YlTpNNJXSPD0soaGWqUoW8cMDpkyC4tMtvfr+a2xnLlt/Xv8AWzshIVTzb8eQAAAABJRU5ErkJggg==" 
                     alt="Kakao Map Logo" 
                     className="w-4 h-4 rounded shadow-sm object-contain"
                   />
-                  <span className="text-[11px] font-bold text-white group-hover:text-yellow-400 transition-colors">카카오맵</span>
+                  <span className="text-[11px] font-bold text-white md:text-slate-700 group-hover:text-yellow-400 md:group-hover:text-yellow-600 transition-colors">카카오맵</span>
                 </div>
-                <ExternalLink size={11} className="text-white/30 group-hover:text-yellow-400 transition-colors relative z-10 shrink-0" />
+                <ExternalLink size={11} className="text-white/30 md:text-slate-400 group-hover:text-yellow-400 md:group-hover:text-yellow-600 transition-colors relative z-10 shrink-0" />
               </div>
             </div>
           </div>
@@ -1332,22 +1392,20 @@ export default function RestaurantInfoCard({
         )}
       </AnimatePresence>
 
-      {/* 데스크탑 좌측 상세 패널 */}
-      <motion.div
-        animate={{ 
-          x: restaurant ? (isSidebarCollapsed ? detailShift : 0) : hideShift, 
-          opacity: restaurant ? 1 : 0 
-        }}
-        transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-        style={{ 
-          pointerEvents: restaurant ? 'auto' : 'none',
-          left: detailLeft,
-          width: detailWidth
-        }}
-        className="hidden md:flex absolute top-6 bottom-6 z-30 flex-col bg-zinc-950/70 border border-white/10 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] overflow-hidden"
-      >
-        {!isMobileDevice && restaurant && renderContent()}
-      </motion.div>
+      {/* 데스크탑 전용 상세 패널 (인라인 플렉스 패널로 개편) */}
+      <AnimatePresence initial={false}>
+        {restaurant && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 380, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+            className="hidden md:flex flex-col h-full bg-white border-r border-slate-200 text-slate-800 shrink-0 overflow-hidden relative z-20 shadow-sm"
+          >
+            {!isMobileDevice && renderContent()}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Route selection modal */}
       <AnimatePresence>

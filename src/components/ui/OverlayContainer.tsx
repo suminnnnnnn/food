@@ -15,12 +15,13 @@ export default function OverlayContainer({ activeTab, onClose, children }: Overl
   const titles: Record<TabType, string> = {
     shopping: '인기 맛집 밀키트 쇼핑',
     home: '지도로 찾기',
-    near: '근처 맛집 목록',
+    near: '주변 맛집 목록',
     favorites: '내 저장소',
     mypage: '마이',
+    planning: '나의 여행 일정',
   };
 
-  const isVisible = activeTab !== 'home';
+  const isVisible = activeTab !== 'home' && activeTab !== 'near';
 
   return (
     <AnimatePresence>

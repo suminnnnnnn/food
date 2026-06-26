@@ -30,15 +30,15 @@ interface Props {
   onSearchPlaces: () => void;
   onAddPlaceFromSearch: (place: any, targetDay?: number) => void;
 
-  // 트리플 벤치마킹 추가 프롭
   favorites: string[];
   restaurants: Restaurant[];
-
-  // 노션 및 실시간 공동 편집 추가 프롭
   onUpdateItinerary?: (updated: Itinerary) => void;
   onResetCustomWaypoints?: () => void;
   windowWidth?: number;
   sidebarWidth?: number;
+  isInline?: boolean;
+  isSearchingMode?: boolean;
+  onSearchingModeChange?: (val: boolean) => void;
 }
 
 export default function FloatingItineraryPanel({
@@ -67,13 +67,20 @@ export default function FloatingItineraryPanel({
   onUpdateItinerary,
   onResetCustomWaypoints,
   windowWidth = 1200,
-  sidebarWidth = 420
+  sidebarWidth = 420,
+  isInline = false,
+  isSearchingMode: propSearchingMode,
+  onSearchingModeChange
 }: Props) {
   // 아코디언 상태 관리 (기본적으로 첫번째 Day는 펼쳐진 상태로 세팅)
   const [expandedDays, setExpandedDays] = useState<Record<number, boolean>>({ 1: true });
   // 검색 모드로 진입할 때의 대상 Day
   const [targetDayForSearch, setTargetDayForSearch] = useState<number>(1);
-  const [isSearchingMode, setIsSearchingMode] = useState<boolean>(false);
+  
+  const [internalSearchingMode, setInternalSearchingMode] = useState<boolean>(false);
+  const isSearchingMode = propSearchingMode !== undefined ? propSearchingMode : internalSearchingMode;
+  const setIsSearchingMode = onSearchingModeChange !== undefined ? onSearchingModeChange : setInternalSearchingMode;
+
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
   const [hoveredConnectorIdx, setHoveredConnectorIdx] = useState<string | null>(null);
@@ -547,16 +554,19 @@ export default function FloatingItineraryPanel({
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -400, y: 0, width: 420 }}
-      animate={{ opacity: 1, x: 0, y: 0, width: panelWidth }}
-      exit={{ opacity: 0, x: -400 }}
+      initial={isInline ? { opacity: 0 } : { opacity: 0, x: -400, y: 0, width: 420 }}
+      animate={isInline ? { opacity: 1 } : { opacity: 1, x: 0, y: 0, width: panelWidth }}
+      exit={isInline ? { opacity: 0 } : { opacity: 0, x: -400 }}
       transition={{ type: 'spring', damping: 25, stiffness: 220 }}
       onDragOver={(e) => e.preventDefault()}
       onClick={() => showMoreMenu && setShowMoreMenu(false)}
-      className={`absolute itn-glass-panel rounded-3xl z-40 p-5 flex flex-col min-h-0 overflow-hidden ${
-        isMobile ? 'left-4 right-4 top-4 bottom-24' : 'left-6 top-6 bottom-6'
-      }`}
-      style={{ 
+      className={isInline 
+        ? "w-full h-full flex flex-col min-h-0 overflow-hidden bg-transparent p-5 border-0 rounded-none z-20"
+        : `absolute itn-glass-panel rounded-3xl z-40 p-5 flex flex-col min-h-0 overflow-hidden ${
+            isMobile ? 'left-4 right-4 top-4 bottom-24' : 'left-6 top-6 bottom-6'
+          }`
+      }
+      style={isInline ? undefined : { 
         boxShadow: 'var(--itn-shadow-lg)',
         width: isMobile ? undefined : panelWidth
       }}
@@ -724,7 +734,7 @@ export default function FloatingItineraryPanel({
       {/* 본문 피드 영역 (검색모드 시 듀얼 컬럼 배치) */}
       <div className={`flex-1 flex min-h-0 mt-4 overflow-hidden ${isMobile ? 'flex-col gap-4' : 'gap-6'}`}>
         {/* 좌측 또는 전체: 통합 아코디언 타임라인 뷰 영역 (모든 Day 노출) */}
-        <div className={`${isMobile ? 'w-full' : 'w-[380px]'} flex flex-col min-h-0 overflow-hidden shrink-0 ${isMobile && isSearchingMode ? 'hidden' : ''}`}>
+        <div className={`${isMobile ? 'w-full' : isInline ? 'w-[340px]' : 'w-[380px]'} flex flex-col min-h-0 overflow-hidden shrink-0 ${isMobile && isSearchingMode ? 'hidden' : ''}`}>
           <div className="flex-1 overflow-y-auto pr-1 space-y-3 relative min-h-0 itn-scrollbar">
             {itinerary.days.map((dayData) => {
               const isExpanded = !!expandedDays[dayData.day];
@@ -893,10 +903,10 @@ export default function FloatingItineraryPanel({
                                 </div>
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">
-                                    <h5 className="text-sm font-bold truncate flex items-center gap-1.5 tracking-tight" style={{ color: 'var(--itn-text)' }}>
+                                    <h5 className="text-[17px] font-bold truncate flex items-center gap-1.5 tracking-tight" style={{ color: 'var(--itn-text)' }}>
                                       <span>{item.name}</span>
                                     </h5>
-                                    <span className="text-xs block truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
+                                    <span className="text-[15px] block truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
                                   </div>
 
                                   {/* 컨트롤 */}
@@ -951,7 +961,7 @@ export default function FloatingItineraryPanel({
                                 {(item.status || item.budget !== undefined) && (
                                   <div className="flex flex-wrap gap-1.5 items-center mt-1.5 select-none">
                                     {item.status && (
-                                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${
+                                      <span className={`text-[14px] font-bold px-2 py-0.5 rounded-lg border ${
                                         item.status === 'confirmed'
                                           ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
                                           : 'bg-amber-50 border-amber-200 text-amber-600'
@@ -960,7 +970,7 @@ export default function FloatingItineraryPanel({
                                       </span>
                                     )}
                                     {item.budget !== undefined && (
-                                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-sub)' }}>
+                                      <span className="text-[14px] font-bold px-2 py-0.5 rounded-lg" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-sub)' }}>
                                         💸 {item.budget.toLocaleString()}원
                                       </span>
                                     )}
@@ -971,7 +981,7 @@ export default function FloatingItineraryPanel({
                                 {item.checklist && item.checklist.length > 0 && (
                                   <div className="space-y-1 mt-1.5 pt-1.5" style={{ borderTop: '1px solid var(--itn-border-subtle)' }} onClick={e => e.stopPropagation()}>
                                     {item.checklist.map((check, cIdx) => (
-                                      <label key={cIdx} className="flex items-center gap-1.5 cursor-pointer text-xs select-none" style={{ color: 'var(--itn-text-sub)' }}>
+                                      <label key={cIdx} className="flex items-center gap-1.5 cursor-pointer text-[15px] select-none" style={{ color: 'var(--itn-text-sub)' }}>
                                         <input
                                           type="checkbox"
                                           checked={check.done}
@@ -986,7 +996,7 @@ export default function FloatingItineraryPanel({
 
 
                                 {item.memo && (
-                                  <p className="text-xs px-2.5 py-1 rounded-xl truncate mt-1.5 select-none" style={{ color: 'var(--itn-text-sub)', background: 'var(--itn-card-hover)', border: '1px solid var(--itn-border-subtle)' }}>
+                                  <p className="text-[15px] px-2.5 py-1 rounded-xl truncate mt-1.5 select-none" style={{ color: 'var(--itn-text-sub)', background: 'var(--itn-card-hover)', border: '1px solid var(--itn-border-subtle)' }}>
                                     💡 {item.memo}
                                   </p>
                                 )}

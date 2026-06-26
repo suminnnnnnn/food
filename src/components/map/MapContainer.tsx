@@ -11,12 +11,13 @@ import { Restaurant, ItineraryItem, Itinerary } from '@/types';
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Locate, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool } from 'lucide-react';
+import { Locate, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool, ShoppingBag, Bell, Sparkles, CornerUpRight } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
 import FavoritesView from '@/components/ui/FavoritesView';
 import MyPageView from '@/components/ui/MyPageView';
+import ItineraryTabView from '@/components/ui/ItineraryTabView';
 import BottomTabBar, { TabType } from '@/components/ui/BottomTabBar';
 import ShoppingTabView from '@/components/ui/ShoppingTabView';
 import OverlayContainer from '@/components/ui/OverlayContainer';
@@ -28,7 +29,26 @@ import CustomModal from '@/components/ui/CustomModal';
 import { saveLocalItinerary } from '@/lib/supabase/itineraries';
 import { getRouteBufferPolygon, isPointInPolygon, getDistance } from '@/lib/geoUtils';
 
-
+const NearbyIcon = ({ size = 20, ...props }: React.SVGProps<SVGSVGElement> & { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <ellipse cx="12" cy="18" rx="8" ry="3" />
+    <path
+      d="M12 3a4.5 4.5 0 0 0-4.5 4.5c0 3.8 4.5 8.5 4.5 8.5s4.5-4.7 4.5-8.5A4.5 4.5 0 0 0 12 3z"
+      fill="currentColor"
+    />
+    <circle cx="12" cy="7.5" r="1.5" fill="white" stroke="white" strokeWidth="0.5" />
+  </svg>
+);
 
 const getFormattedCategory = (categoryStr?: string | null) => {
   if (!categoryStr) return '';
@@ -273,6 +293,10 @@ export default function MapContainer({
   const [favorites, setFavorites] = useState<string[]>([]);
   const [user, setUser] = useState<{ name: string; email: string; provider: 'kakao' | 'google' | 'naver'; avatarUrl?: string } | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState<string>('');
+  const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const isSearchExpanded = isSearchFocused || globalSearchQuery.trim() !== '';
   const [isItineraryPlannerOpen, setIsItineraryPlannerOpen] = useState(false);
   const [editingItinerary, setEditingItinerary] = useState<any>(null);
   const [activeItinerary, setActiveItinerary] = useState<any>(null);
@@ -280,6 +304,7 @@ export default function MapContainer({
   // 3차 기획: 지도 드로잉 일정 만들기 상태
   const [isPlanningMode, setIsPlanningMode] = useState<boolean>(false);
   const [activePlanningItinerary, setActivePlanningItinerary] = useState<any>(null);
+  const [isPlanningSearchActive, setIsPlanningSearchActive] = useState<boolean>(false);
   const [planningActiveDay, setPlanningActiveDay] = useState<number>(1);
   const [editingItemForMemo, setEditingItemForMemo] = useState<any>(null); // 플로팅 패널의 메모 수정용
   const [showMemoModal, setShowMemoModal] = useState<boolean>(false);
@@ -325,14 +350,45 @@ export default function MapContainer({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const subSidebarWidth = useMemo(() => {
+    if (activeTab === 'planning' && activePlanningItinerary) {
+      return isPlanningSearchActive ? 760 : 380;
+    }
+    return 380;
+  }, [activeTab, activePlanningItinerary, isPlanningSearchActive]);
+
   const sidebarWidth = useMemo(() => {
     if (windowWidth < 768) return 0;
-    if (windowWidth < 1024) return 340;
-    if (windowWidth < 1200) return 380;
-    return 420;
-  }, [windowWidth]);
+    if (isSidebarCollapsed) return 62;
+    return 62 + subSidebarWidth;
+  }, [windowWidth, isSidebarCollapsed, subSidebarWidth]);
+
+  useEffect(() => {
+    if (!map) return;
+    const timer = setTimeout(() => {
+      map.relayout();
+      map.setCenter(new kakao.maps.LatLng(mapCenter.lat, mapCenter.lng));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [sidebarWidth, map]);
 
   const sidebarXOffset = sidebarWidth + 8;
+
+  // 주변맛집 탭 선택 시 드로잉 모드 실행 및 서브 사이드바 닫기, 타 탭 선택 시 드로잉 클리어
+  useEffect(() => {
+    if (activeTab === 'near') {
+      startAreaDrawing();
+      setIsSidebarCollapsed(true);
+    } else {
+      if (activeTab !== 'home' && activeTab !== 'planning') {
+        setSelectedRestaurant(null);
+        setSelectedCluster(null);
+      }
+      if (isAreaDrawingMode || filterPolygon) {
+        clearAreaFilter();
+      }
+    }
+  }, [activeTab]);
 
   // 4차 기획: 자유 손그림 드로잉 필터 상태 및 헬퍼 함수
   const [isAreaDrawingMode, setIsAreaDrawingMode] = useState<boolean>(false);
@@ -369,6 +425,9 @@ export default function MapContainer({
     setIsAreaDrawingMode(false);
     setIsDrawingActive(false);
     setIsSnapActive(false);
+    if (activeTab === 'near') {
+      setActiveTab('home');
+    }
   };
 
   const handleMapDragEnd = (map: kakao.maps.Map) => {
@@ -824,7 +883,7 @@ export default function MapContainer({
     setPlanningActiveDay(1);
     setIsPlanningMode(true);
     setShowInitPlanningModal(false);
-    setActiveTab('home');
+    setActiveTab('planning');
   };
 
   // 계획 모드 또는 활성 일정 모드 OSRM 실제 도로망 경로 구간 좌표 계산
@@ -1288,7 +1347,13 @@ export default function MapContainer({
       }
     }
   }, [favorites]);
-
+  useEffect(() => {
+    if (map) {
+      setTimeout(() => {
+        map.relayout();
+      }, 350); // 서브 사이드바 및 상세정보 카드 애니메이션 완료 후 실행 (transition 시간 감안)
+    }
+  }, [isSidebarCollapsed, selectedRestaurant, map, activeTab, isPlanningSearchActive]);
 
   // 지도 범위 변경
   useEffect(() => {
@@ -1667,6 +1732,27 @@ export default function MapContainer({
         if (!tags.includes(activeTag)) return false;
       }
 
+      // 4. 통합 텍스트 검색 필터
+      if (globalSearchQuery.trim()) {
+        const query = globalSearchQuery.toLowerCase().trim();
+        const nameMatch = r.name.toLowerCase().includes(query);
+        const categoryMatch = (r.category || '').toLowerCase().includes(query);
+        const addressMatch = (r.address || '').toLowerCase().includes(query);
+        
+        // 유튜버 채널명 매칭
+        const youtuberMatch = r.videos?.some(vid => 
+          vid.youtuber?.name?.toLowerCase().includes(query)
+        ) || false;
+        
+        // 키워드 및 태그 매칭
+        const tags = getRestaurantAllTags(r);
+        const tagMatch = tags.some(tag => tag.toLowerCase().includes(query));
+        
+        if (!nameMatch && !categoryMatch && !addressMatch && !youtuberMatch && !tagMatch) {
+          return false;
+        }
+      }
+
       return true;
     });
 
@@ -1690,13 +1776,13 @@ export default function MapContainer({
       });
     }
     return result;
-  }, [restaurants, activeCategory, activeSort, activeVideoType, filterPolygon, activeTag]);
+  }, [restaurants, activeCategory, activeSort, activeVideoType, filterPolygon, activeTag, globalSearchQuery]);
 
 if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center">Loading Maps...</div>;
   if (mapError) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center text-red-500 font-bold">Failed to load Kakao Maps: {mapError.message}</div>;
 
   return (
-    <div className="w-full h-screen relative overflow-hidden bg-gray-100 dark:bg-zinc-950">
+    <div className="w-full h-screen flex relative overflow-hidden bg-gray-100 dark:bg-zinc-950 font-sans">
       {/* 글로벌 SVG 그라데이션 정의 */}
       <svg width="0" height="0" className="absolute pointer-events-none" aria-hidden="true">
         <defs>
@@ -1706,402 +1792,647 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
           </linearGradient>
         </defs>
       </svg>
-      
 
+      {/* ========================================================
+          1. 데스크탑 1차 메인 사이드바 (주황-빨강 그라데이션) - md 이상 노출
+          ======================================================== */}
+      <div className="hidden md:flex flex-col w-[62px] h-full shrink-0 bg-gradient-to-b from-[#ff3b30] to-[#ff6f00] py-6 justify-between items-center z-30 shadow-[4px_0_24px_rgba(0,0,0,0.12)]">
+        {/* 상단 로고 */}
+        <div className="flex flex-col items-center gap-1">
+          <div className="w-11 h-11 flex items-center justify-center select-none cursor-pointer hover:scale-105 active:scale-95 transition-all relative">
+            {/* 후광 효과 (Soft White Glow behind the logo) */}
+            <div className="absolute w-8 h-8 rounded-full bg-white/20 blur-md pointer-events-none" />
+            <img 
+              src="/favicon_perfect_gradient.png" 
+              className="w-8 h-8 object-contain relative z-10 drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]" 
+              alt="로고" 
+            />
+          </div>
+        </div>
 
-      {/* 데스크탑 좌측 스마트 사이드바 (Practical, Info-First) */}
-      <AnimatePresence>
-        {!hideDefaultSidebar && !isSidebarCollapsed && !isAreaDrawingMode && !isPlanningMode && (
-          <motion.div
-            initial={{ x: -400, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -400, opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            style={{ width: sidebarWidth }}
-            className="hidden md:flex absolute top-6 left-6 bottom-6 z-20 flex-col bg-zinc-950/70 backdrop-blur-md text-white rounded-[28px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.6)] border border-white/10"
+        {/* 대메뉴 아이콘 리스트 */}
+        <div className="flex flex-col gap-5 w-full items-center">
+          {[
+            { id: 'home' as TabType, label: '홈', icon: Home },
+            { id: 'near' as TabType, label: '주변맛집', icon: NearbyIcon },
+            { id: 'shopping' as TabType, label: '쇼핑', icon: ShoppingBag },
+            { id: 'planning' as TabType, label: '일정', icon: CalendarRange },
+            { id: 'favorites' as TabType, label: '저장', icon: Star },
+            { id: 'mypage' as TabType, label: '마이', icon: User },
+          ].map((menu) => {
+            const Icon = menu.icon;
+            const isActive = activeTab === menu.id;
+            return (
+              <button
+                key={menu.id}
+                onClick={() => {
+                  setActiveTab(menu.id);
+                }}
+                className={`group relative flex flex-col items-center justify-center w-[50px] h-[50px] rounded-2xl transition-all duration-300 ease-out cursor-pointer ${
+                  isActive
+                    ? 'bg-white text-[#ff5a00] shadow-[0_8px_20px_rgba(255,90,0,0.35)] scale-105 font-black border border-white/50 z-10 active:scale-[0.95]'
+                    : 'text-white/80 hover:text-white hover:bg-white/20 hover:scale-110 hover:shadow-[0_4px_12px_rgba(255,255,255,0.2)] active:scale-[0.92] z-10'
+                }`}
+                title={menu.label}
+              >
+                <Icon 
+                  size={22} 
+                  className={`transition-all duration-300 z-10 ${
+                    isActive ? 'group-hover:scale-105 group-active:scale-90' : 'group-hover:-translate-y-[4px] group-hover:scale-105 group-active:scale-90'
+                  }`} 
+                  strokeWidth={isActive ? 2.5 : 2} 
+                />
+                <span className="text-[11px] mt-1 opacity-90 font-bold z-10">{menu.label}</span>
+                
+                {/* 활성 인디케이터 바 */}
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-orange-600 rounded-r-md z-10" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 하단 단추 (제보하기 & 로그인/프로필) */}
+        <div className="flex flex-col items-center gap-4">
+          {/* 제보하기 */}
+          <button
+            onClick={() => {
+              if (!user) setIsLoginModalOpen(true);
+              else setIsSubmissionOpen(true);
+            }}
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 hover:scale-110 active:scale-90 text-white flex items-center justify-center transition-all cursor-pointer hover:shadow-[0_0_12px_rgba(255,255,255,0.3)]"
+            title="맛집 제보하기"
           >
-            {/* Sidebar Header & Filters */}
-            <div 
-              onClick={() => { setIsSortOpen(false); setIsCategoryOpen(false); setIsVideoTypeOpen(false); }}
-              className={`w-full pt-7 pb-4 px-7 shrink-0 bg-white/[0.02] border-b border-white/5 backdrop-blur-md z-10 rounded-t-[28px] flex flex-col justify-between ${
-                desktopView === 'list' && filteredRestaurants.some(r => r.videos && r.videos.length > 0) ? 'aspect-video' : 'gap-5'
-              }`}
-            >
-              {desktopView === 'list' ? (
-                <>
-                  <div className="flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-3">
-                      <img 
-                        src="/favicon_perfect_gradient.png" 
-                        className="w-6 h-6 object-contain rounded-md shadow-sm" 
-                        alt="모두의맛집" 
+            <Plus size={20} strokeWidth={2.5} />
+          </button>
+
+          {/* 로그인 / 프로필 */}
+          <button
+            onClick={() => {
+              if (!user) setIsLoginModalOpen(true);
+              else {
+                setActiveTab('mypage');
+                setSelectedRestaurant(null);
+                setSelectedCluster(null);
+              }
+            }}
+            className="w-10 h-10 rounded-full overflow-hidden border border-white/20 hover:border-white/50 flex items-center justify-center transition-all hover:scale-110 active:scale-90 cursor-pointer bg-white/10 hover:shadow-[0_0_12px_rgba(255,255,255,0.3)]"
+            title={user ? `${user.name} 님` : "로그인"}
+          >
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} className="w-full h-full object-cover" alt="Avatar" />
+            ) : (
+              <User size={18} className="text-white" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* ========================================================
+          2. 데스크탑 2차 서브 사이드바 (서브 메뉴 및 필터/리스트) - md 이상 노출
+          ======================================================== */}
+      <AnimatePresence initial={false}>
+        {!isSidebarCollapsed && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: subSidebarWidth, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="hidden md:flex flex-col h-full bg-white border-r border-slate-200 shrink-0 overflow-hidden z-20 shadow-[2px_0_12px_rgba(0,0,0,0.02)] relative select-none"
+          >
+            {/* 서브 사이드바 콘텐츠 영역 */}
+            <div className="flex-1 overflow-y-auto portal-sidebar-scrollbar flex flex-col" style={{ scrollbarWidth: 'none' }}>
+              
+              {/* 2-1. 홈(지도) 탭 서브 컨텐츠 */}
+              {activeTab === 'home' && (
+                <div className="p-5 space-y-5 flex-1 flex flex-col">
+                  {/* 카테고리 필터 */}
+                  <div>
+                    <h3 className="text-xs font-black text-slate-800 tracking-wider uppercase mb-2 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                      음식 종류 카테고리
+                    </h3>
+                    <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                      {['전체', '한식', '일식', '중식', '양식', '아시안', '분식', '카페/디저트', '술집'].map((category) => {
+                        const isActive = activeCategory === category;
+                        return (
+                          <button
+                            key={category}
+                            onClick={() => {
+                              setActiveCategory(category);
+                              setSelectedCluster(null);
+                            }}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                              isActive
+                                ? 'bg-orange-500 text-white shadow-[0_2px_8px_rgba(255,111,0,0.25)] font-black border border-transparent'
+                                : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
+                            }`}
+                          >
+                            {category}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 실시간 인기 해시태그 필터 */}
+                  <div>
+                    <h3 className="text-xs font-black text-slate-800 tracking-wider uppercase mb-2 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                      실시간 인기 테마
+                    </h3>
+                    <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                      {TRENDING_TAGS.map((tag) => {
+                        const isActive = activeTag === tag.value;
+                        return (
+                          <button
+                            key={tag.id}
+                            onClick={() => setActiveTag(tag.value)}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                              isActive
+                                ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white font-black border-0 shadow-sm'
+                                : 'bg-slate-50 border border-slate-200/60 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {tag.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 정렬 및 포맷 상세 설정 */}
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 gap-2 select-none">
+                    <div className="flex bg-slate-50 border border-slate-200/80 rounded-xl p-0.5 shrink-0">
+                      {[
+                        { id: 'latest', label: '최신순' },
+                        { id: 'views', label: '조회수순' },
+                      ].map((sort) => (
+                        <button
+                          key={sort.id}
+                          onClick={() => setActiveSort(sort.id as any)}
+                          className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                            activeSort === sort.id
+                              ? 'bg-white text-orange-600 shadow-sm font-black'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          {sort.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="relative flex items-center">
+                      <select
+                        value={activeVideoType}
+                        onChange={(e) => setActiveVideoType(e.target.value as any)}
+                        className="appearance-none bg-slate-50 border border-slate-200/80 rounded-xl pl-3 pr-8 py-1.5 text-[11px] font-bold text-slate-700 focus:outline-none focus:border-orange-500 cursor-pointer shadow-sm hover:bg-slate-100 transition-colors"
+                      >
+                        {['영상 전체', '쇼츠 리뷰', '롱폼 리뷰'].map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={11} className="absolute right-2.5 text-slate-500 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* 맛집 리스트 영역 */}
+                  <div className="pt-3 border-t border-slate-100 flex-1 flex flex-col min-h-0">
+                    <div className="flex items-center justify-between mb-3 shrink-0">
+                      <h4 className="text-sm font-black text-slate-800 tracking-tight">
+                        우리 동네 맛집
+                      </h4>
+                      {selectedCluster && (
+                        <button
+                          onClick={() => setSelectedCluster(null)}
+                          className="text-[10px] font-bold text-orange-600 hover:underline"
+                        >
+                          해제
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-3 overflow-y-auto flex-1 pr-1 pb-4 portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                      {(selectedCluster || filteredRestaurants).slice(0, 40).map((r) => {
+                        const vid = getBestVideo(r.videos, activeVideoType);
+                        const isFav = favorites.includes(r.id);
+                        const isSelected = selectedRestaurant?.id === r.id;
+
+                        return (
+                          <div
+                            key={r.id}
+                            onClick={() => {
+                              handleSelectRestaurant(r);
+                              map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
+                            }}
+                            className={`group p-3 rounded-2xl border transition-all cursor-pointer flex gap-3 ${
+                              isSelected
+                                ? 'bg-orange-50/40 border-orange-500/30 shadow-sm shadow-orange-500/5'
+                                : 'bg-slate-50/50 hover:bg-slate-100/50 border-slate-100 hover:border-slate-200'
+                            }`}
+                          >
+                            <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-200 border border-slate-100 relative">
+                              {vid?.thumbnail ? (
+                                <img src={vid.thumbnail} className="w-full h-full object-cover" alt={r.name} />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                  <Utensils size={18} />
+                                </div>
+                              )}
+                              {vid?.is_short && (
+                                <div className="absolute bottom-0.5 right-0.5 bg-red-600 text-white text-[7px] font-black px-1 rounded">
+                                  S
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                              <div className="flex items-center justify-between gap-1">
+                                <h5 className="font-extrabold text-[14px] text-slate-800 truncate group-hover:text-orange-600 transition-colors">
+                                  {r.name}
+                                </h5>
+                                <Star
+                                  size={11}
+                                  className={isFav ? 'text-orange-500 fill-orange-500' : 'text-slate-300'}
+                                />
+                              </div>
+                              <span className="text-xs text-slate-400 truncate mt-0.5">
+                                {getFormattedCategory(r.category)}
+                              </span>
+                              {vid?.view_count !== undefined && vid.view_count > 0 && (
+                                <span className="text-[11px] font-bold text-orange-500/80 mt-1">
+                                  조회수 {formatViewCount(vid.view_count)}회
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 2-2. 내 저장소 탭 서브 컨텐츠 */}
+              {activeTab === 'favorites' && (
+                <div className="p-5 space-y-5">
+                  <div>
+                    <h3 className="text-xs font-black text-slate-800 tracking-wider uppercase mb-3 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                      내 저장 콘텐츠
+                    </h3>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      우측 대시보드 화면에서 저장된 코스 일정과 즐겨찾는 핫플 식당 목록을 체계적으로 보관하고 편집할 수 있습니다.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 2-3. 밀키트 쇼핑 탭 서브 컨텐츠 */}
+              {activeTab === 'shopping' && (
+                <div className="p-5 space-y-5">
+                  <div>
+                    <h3 className="text-xs font-black text-slate-800 tracking-wider uppercase mb-3 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                      밀키트 쇼핑
+                    </h3>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      그 유튜버가 극찬했던 시그니처 메뉴를 집에서 밀키트로 최저가에 만나보세요. 100% 검증된 인생 맛집 컬렉션입니다.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 2-4. 마이페이지 탭 서브 컨텐츠 */}
+              {activeTab === 'mypage' && (
+                <div className="p-5 space-y-5">
+                  <div>
+                    <h3 className="text-xs font-black text-slate-800 tracking-wider uppercase mb-3 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                      프로필 & 서비스 제보
+                    </h3>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      로그인 정보 관리, 제보 맛집 승인 현황 및 서비스 정보를 한눈에 관리하세요.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 2-5. 일정 탭 서브 컨텐츠 */}
+              {activeTab === 'planning' && (
+                <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-transparent">
+                  {!activePlanningItinerary ? (
+                    <div className="p-5 flex-1 overflow-y-auto portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                      <ItineraryTabView
+                        onOpenItineraryPlanner={(itinerary) => {
+                          if (itinerary) {
+                            setEditingItinerary(itinerary);
+                            setActivePlanningItinerary(itinerary);
+                            setPlanningActiveDay(1);
+                            setIsPlanningMode(true);
+                          } else {
+                            setNewItineraryTitle('');
+                            setNewItineraryStartDate('');
+                            setNewItineraryEndDate('');
+                            setShowInitPlanningModal(true);
+                          }
+                        }}
+                        onSelectTab={setActiveTab}
                       />
-                      <div className="flex items-center gap-2.5">
-                        <h2 className="text-[22px] font-extrabold text-white tracking-tight">
-                          우리 동네 맛집
-                        </h2>
-                        {filterPolygon && filterPolygon.length >= 3 && (
-                          <span className="text-[10px] font-black text-brand-orange-light flex items-center gap-1.5 animate-pulse bg-brand-orange/15 border border-brand-orange/25 px-2.5 py-0.5 rounded-full shadow-sm shrink-0">
-                            <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
-                            영역 필터 적용 중
-                          </span>
-                        )}
-                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {/* 프로필 연동형 마이페이지 전환 버튼 */}
-                      <button
-                        onClick={() => setDesktopView('mypage')}
-                        className="overflow-hidden bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-xl transition-all border border-white/10 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm w-9.5 h-9.5 shrink-0"
-                        title="마이페이지"
-                      >
-                        {user?.avatarUrl ? (
-                          <img 
-                            src={user.avatarUrl} 
-                            alt={user.name} 
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <User size={18} className="stroke-[2.5]" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* 인기 급상승 해시태그 칩스 카러셀 */}
-                  {desktopView === 'list' && (
-                    <div className="pt-3 px-1 pb-2.5 shrink-0 select-none border-b border-white/5">
-                      <div className="text-[11px] font-black text-zinc-500 tracking-wider uppercase mb-2 px-1 flex items-center gap-1.5">
-                        <span>실시간 급상승 테마</span>
-                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                      </div>
-                      <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-0.5 select-none px-1 -mx-1">
-                        {TRENDING_TAGS.map(tag => {
-                          const isActive = activeTag === tag.value;
-                          return (
-                            <button
-                              key={tag.id}
-                              onClick={() => setActiveTag(tag.value)}
-                              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                                isActive
-                                  ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white border-0 shadow-md shadow-red-600/15 font-black hover:scale-105'
-                                  : 'bg-white/[0.03] border border-white/8 text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06] hover:border-white/12 active:scale-95'
-                              }`}
-                            >
-                              {tag.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                  ) : (
+                    // 데스크톱에서는 2차 서브 사이드바 내에 인라인으로 일정 편집기를 렌더링
+                    windowWidth >= 768 && (
+                      <FloatingItineraryPanel
+                        itinerary={activePlanningItinerary}
+                        activeDay={planningActiveDay}
+                        onActiveDayChange={setPlanningActiveDay}
+                        windowWidth={windowWidth}
+                        sidebarWidth={sidebarWidth}
+                        onRemoveItem={(itemId) => {
+                          setActivePlanningItinerary((prev: any) => {
+                            const updatedDays = prev.days.map((d: any) => {
+                              if (d.day === planningActiveDay) {
+                                return {
+                                  ...d,
+                                  items: d.items.filter((item: any) => item.id !== itemId)
+                                };
+                              }
+                              return d;
+                            });
+                            return { ...prev, days: updatedDays };
+                          });
+                          if (selectedPlanningItemId === itemId) {
+                            setSelectedPlanningItemId(null);
+                            setRecommendedRestaurantsForSelectedSpot([]);
+                          }
+                        }}
+                        onMoveUp={(index) => {
+                          if (index === 0) return;
+                          setActivePlanningItinerary((prev: any) => {
+                            const updatedDays = prev.days.map((d: any) => {
+                              if (d.day === planningActiveDay) {
+                                const newItems = [...d.items];
+                                const temp = newItems[index];
+                                newItems[index] = newItems[index - 1];
+                                newItems[index - 1] = temp;
+                                return { ...d, items: newItems };
+                              }
+                              return d;
+                            });
+                            return { ...prev, days: updatedDays };
+                          });
+                        }}
+                        onMoveDown={(index) => {
+                          setActivePlanningItinerary((prev: any) => {
+                            const updatedDays = prev.days.map((d: any) => {
+                              if (d.day === planningActiveDay) {
+                                if (index === d.items.length - 1) return d;
+                                const newItems = [...d.items];
+                                const temp = newItems[index];
+                                newItems[index] = newItems[index + 1];
+                                newItems[index + 1] = temp;
+                                return { ...d, items: newItems };
+                              }
+                              return d;
+                            });
+                            return { ...prev, days: updatedDays };
+                          });
+                        }}
+                        onEditItemMemo={(item) => {
+                          setEditingItemForMemo(item);
+                          setInputVisitTime(item.visit_time || '');
+                          setInputMemo(item.memo || '');
+                          setShowMemoModal(true);
+                        }}
+                        onSave={() => {
+                          if (activePlanningItinerary.days.every((d: any) => d.items.length === 0)) {
+                            alert('최소 한 개 이상의 장소를 일정에 추가해 주세요.');
+                            return;
+                          }
+                          saveLocalItinerary(activePlanningItinerary);
+                          window.dispatchEvent(new Event('itinerariesUpdated'));
+                          setActiveItinerary(activePlanningItinerary);
+                          setActiveItineraryDay(1);
+                          setIsPlanningMode(false);
+                          setActivePlanningItinerary(null);
+                          alert('일정이 성공적으로 저장되었습니다!');
+                        }}
+                        onClose={() => {
+                          if (confirm('편집 중인 일정을 취소하고 종료하시겠습니까? 저장되지 않은 변경사항은 삭제됩니다.')) {
+                            setIsPlanningMode(false);
+                            setActivePlanningItinerary(null);
+                            setSelectedPlanningItemId(null);
+                            setRecommendedRestaurantsForSelectedSpot([]);
+                          }
+                        }}
+                        selectedItemId={selectedPlanningItemId}
+                        onSelectItem={handleSelectPlanningItem}
+                        recommendedRestaurants={(() => {
+                          const currentPlanningItem = (() => {
+                            if (!activePlanningItinerary) return null;
+                            const dayData = activePlanningItinerary.days.find((d: any) => d.day === planningActiveDay);
+                            const dayItems = dayData?.items || [];
+                            if (selectedPlanningItemId) {
+                              return dayItems.find((it: any) => it.id === selectedPlanningItemId) || dayItems[0];
+                            }
+                            return dayItems[0];
+                          })();
+
+                          if (!currentPlanningItem) return [];
+
+                          return nearRouteRestaurants.map(restaurant => {
+                            const distance = currentPlanningItem 
+                              ? getDistance(currentPlanningItem.lat, currentPlanningItem.lng, restaurant.lat, restaurant.lng) 
+                              : 0;
+                            return {
+                              restaurant,
+                              distance,
+                              type: 'near' as const
+                            };
+                          });
+                        })()}
+                        onAddRecommendedRestaurant={(res) => {
+                          insertRestaurantToPlanningRoute(res);
+                          alert(`${res.name} 맛집을 최적 경로 중간에 경유지로 추가했습니다`);
+                          setTimeout(() => {
+                            if (selectedPlanningItemId) {
+                              setActivePlanningItinerary((currentItinerary: any) => {
+                                if (!currentItinerary) return currentItinerary;
+                                const dayData = currentItinerary.days.find((d: any) => d.day === planningActiveDay);
+                                const curItem = dayData?.items.find((it: any) => it.id === selectedPlanningItemId);
+                                if (curItem) {
+                                  handleSelectPlanningItem(curItem);
+                                }
+                                return currentItinerary;
+                              });
+                            }
+                          }, 100);
+                        }}
+                        onRestaurantDrop={(res) => {
+                          addPlaceToPlanning({
+                            name: res.name,
+                            category: res.category || '음식점',
+                            address: res.address,
+                            lat: res.lat,
+                            lng: res.lng,
+                            is_custom_spot: false,
+                            restaurant_id: res.id
+                          });
+                          alert(`${res.name} 맛집이 패널에 추가되었습니다 📌`);
+                        }}
+                        searchQuery={searchQuery}
+                        onSearchQueryChange={setSearchQuery}
+                        searchResults={searchResults}
+                        isSearching={isSearching}
+                        onSearchPlaces={handleSearchPlaces}
+                        onAddPlaceFromSearch={(place) => {
+                          addPlaceToPlanning({
+                            name: place.place_name,
+                            category: place.category_name.split(' > ').pop() || '관광지',
+                            address: place.address_name || place.road_address_name,
+                            lat: parseFloat(place.y),
+                            lng: parseFloat(place.x),
+                            place_url: place.place_url,
+                            is_custom_spot: true
+                          });
+                          alert(`${place.place_name}을(를) 일정 코스에 추가하였습니다.`);
+                        }}
+                        favorites={favorites}
+                        restaurants={restaurants}
+                        onUpdateItinerary={(updated) => setActivePlanningItinerary(updated)}
+                        onResetCustomWaypoints={() => {
+                          setCustomWaypoints({});
+                          alert('경로 Rerouting이 초기화되어 최초 실제 도로망 경로로 복구되었습니다 🔄');
+                        }}
+                        isInline={true}
+                        isSearchingMode={isPlanningSearchActive}
+                        onSearchingModeChange={setIsPlanningSearchActive}
+                      />
+                    )
                   )}
-
-                  {/* Filter Pills (Moved below stories, redesigned as pills) */}
-                  <div className="flex items-center flex-wrap gap-2 shrink-0 pb-3 border-b border-white/5 relative z-[50] px-1">
-                    {/* 정렬 드롭다운 */}
-                    <div className="relative shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setIsSortOpen(!isSortOpen); setIsCategoryOpen(false); setIsVideoTypeOpen(false); }}
-                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-full text-[12px] font-bold text-zinc-300 transition-all shadow-sm whitespace-nowrap"
-                      >
-                        {activeSort === 'latest' ? '최신순' : '조회수순'}
-                        <ChevronDown size={13} className={`transition-transform duration-200 ${isSortOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      <AnimatePresence>
-                        {isSortOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="absolute top-full left-0 mt-2 p-1.5 min-w-[120px] bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100]"
-                          >
-                            {['latest', 'views'].map((sort) => (
-                              <button
-                                key={sort}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveSort(sort as any);
-                                  setIsSortOpen(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-bold transition-all ${activeSort === sort ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'}`}
-                              >
-                                {sort === 'latest' ? '최신순' : '조회수순'}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-
-                    {/* 영상 포맷 드롭다운 */}
-                    <div className="relative shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setIsVideoTypeOpen(!isVideoTypeOpen); setIsSortOpen(false); setIsCategoryOpen(false); }}
-                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all shadow-sm whitespace-nowrap ${activeVideoType !== '영상 전체' ? 'bg-brand-orange/20 text-brand-orange border border-brand-orange/30' : 'bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 text-zinc-300'}`}
-                      >
-                        {activeVideoType}
-                        <ChevronDown size={13} className={`transition-transform duration-200 ${isVideoTypeOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      <AnimatePresence>
-                        {isVideoTypeOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="absolute top-full left-0 mt-2 p-1.5 min-w-[120px] bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] max-h-[200px] overflow-y-auto"
-                          >
-                            {['영상 전체', '쇼츠 리뷰', '롱폼 리뷰'].map((type) => (
-                              <button
-                                key={type}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveVideoType(type as any);
-                                  setSelectedCluster(null);
-                                  setIsVideoTypeOpen(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-bold transition-all ${activeVideoType === type ? 'bg-gradient-to-r from-red-600/20 to-orange-500/20 text-brand-orange-light' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'}`}
-                              >
-                                {type}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-
-                    {/* 카테고리 드롭다운 */}
-                    <div className="relative shrink-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setIsCategoryOpen(!isCategoryOpen); setIsSortOpen(false); setIsVideoTypeOpen(false); }}
-                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all shadow-sm whitespace-nowrap ${activeCategory !== '전체' ? 'bg-brand-orange/20 text-brand-orange border border-brand-orange/30' : 'bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 text-zinc-300'}`}
-                      >
-                        {activeCategory}
-                        <ChevronDown size={13} className={`transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      <AnimatePresence>
-                        {isCategoryOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="absolute top-full left-0 mt-2 p-1.5 min-w-[120px] bg-zinc-900 border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] max-h-[200px] overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full"
-                          >
-                            {['전체', '한식', '일식', '중식', '양식', '아시안', '분식', '카페/디저트', '술집'].map((category) => (
-                              <button
-                                key={category}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveCategory(category);
-                                  setSelectedCluster(null);
-                                  setIsCategoryOpen(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-bold transition-all ${activeCategory === category ? 'bg-gradient-to-r from-red-600/20 to-orange-500/20 text-brand-orange-light' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'}`}
-                              >
-                                {category}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {selectedCluster && (
-                    <button 
-                      onClick={() => setSelectedCluster(null)}
-                      className="w-full mt-4 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border border-white/10 shadow-sm backdrop-blur-md"
-                    >
-                      ← 클러스터 해제하고 지도 전체보기
-                    </button>
-                  )}
-                </>
-              ) : (
-                <div className="flex items-center gap-3">
-                  {/* 뒤로 가기 단추 */}
-                  <button
-                    onClick={() => setDesktopView('list')}
-                    className="p-2 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-xl transition-all border border-white/10 hover:scale-105 active:scale-95 flex items-center justify-center shadow-sm"
-                  >
-                    <ArrowLeft size={18} className="stroke-[2.5]" />
-                  </button>
-                  <h2 className="text-[20px] font-extrabold text-white tracking-tight">
-                    마이페이지
-                  </h2>
                 </div>
               )}
             </div>
 
-            {/* Sidebar Contents */}
-            <div className="flex-1 overflow-y-auto relative z-0 bg-transparent rounded-b-[28px]" style={{ scrollbarWidth: 'none' }}>
-              <div className="p-4 space-y-3">
-                {desktopView === 'list' ? (
-                  (() => {
-                    const feedList = selectedCluster || filteredRestaurants;
+            {/* 서브 사이드바 하단 접기 버튼 */}
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-50">
+              <button
+                onClick={() => setIsSidebarCollapsed(true)}
+                className="w-5 h-10 bg-white border border-slate-200 shadow-md rounded-r-xl flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer hover:bg-slate-50"
+              >
+                <ChevronLeft size={12} className="stroke-[3]" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-                    return (
-                      <div className="space-y-4">
-                        {feedList.map(r => {
-                          const vid = getBestVideo(r.videos, activeVideoType);
-                          const isFav = favorites.includes(r.id);
-                          const isSelected = selectedRestaurant?.id === r.id;
-                          const isHovered = hoveredRestaurantId === r.id;
+      {/* 서브 사이드바가 접혔을 때의 열기 플로팅 버튼 */}
+      {isSidebarCollapsed && (
+        <button
+          onClick={() => setIsSidebarCollapsed(false)}
+          className="hidden md:flex absolute left-[62px] top-1/2 -translate-y-1/2 z-50 w-5 h-10 bg-white border border-slate-200 shadow-md rounded-r-xl items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer hover:bg-slate-50"
+        >
+          <ChevronRight size={12} className="stroke-[3]" />
+        </button>
+      )}
 
-                          return (
-                            <div
-                              key={r.id}
-                              onClick={() => {
-                                handleSelectRestaurant(r);
-                                map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
-                              }}
-                              onMouseEnter={() => setHoveredRestaurantId(r.id)}
-                              onMouseLeave={() => setHoveredRestaurantId(null)}
-                              className="group relative w-full rounded-2xl overflow-hidden cursor-pointer border backdrop-blur-[20px] bg-zinc-900/50"
-                              style={{
-                                transform: isHovered ? 'scale(1.015)' : 'scale(1)',
-                                borderColor: isSelected 
-                                  ? 'rgba(249, 115, 22, 0.5)' 
-                                  : (isHovered ? 'rgba(249, 115, 22, 0.4)' : 'rgba(255, 255, 255, 0.1)'),
-                                boxShadow: isSelected 
-                                  ? '0 0 15px rgba(239, 68, 68, 0.2)' 
-                                  : (isHovered ? '0 12px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(249, 115, 22, 0.15)' : 'none'),
-                                transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease'
-                              }}
-                            >
+      {/* 식당 상세 정보 카드 (데스크탑 flex flow / 모바일 bottom overlay) */}
+      <RestaurantInfoCard 
+        restaurant={isAreaDrawingMode ? null : selectedRestaurant} 
+        onClose={() => handleSelectRestaurant(null)} 
+        isSidebarCollapsed={isSidebarCollapsed || hideDefaultSidebar}
+        windowWidth={windowWidth}
+        sidebarWidth={sidebarWidth}
+        onRequestVideoSubmit={(restaurant) => {
+          setSubmissionTarget({ id: restaurant.id, name: restaurant.name });
+          setIsSubmissionOpen(true);
+        }}
+        favorites={favorites}
+        toggleFavorite={(id) => {
+          const isFav = favorites.includes(id);
+          if (isFav) setFavorites(favorites.filter(favId => favId !== id));
+          else setFavorites([...favorites, id]);
+        }}
+        isPlanningMode={isPlanningMode}
+        isRecommendedRouteItem={selectedRestaurant ? isRestaurantInPlanningBuffer(selectedRestaurant) : false}
+        onAddToPlanning={(rest) => {
+          addPlaceToPlanning({
+            name: rest.name,
+            category: rest.category || '음식점',
+            address: rest.address,
+            lat: rest.lat,
+            lng: rest.lng,
+            is_custom_spot: false,
+            restaurant_id: rest.id
+          });
+          handleSelectRestaurant(null);
+        }}
+        onInsertToPlanningRoute={(rest) => {
+          insertRestaurantToPlanningRoute(rest);
+          handleSelectRestaurant(null);
+        }}
+      />
 
-                              {/* 16:9 대형 썸네일 영역 */}
-                              <div className="relative w-full aspect-video bg-zinc-950 overflow-hidden rounded-t-2xl">
-                                {vid?.thumbnail ? (
-                                  <img 
-                                    src={vid.thumbnail}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                    alt={r.name}
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-zinc-600 bg-gradient-to-br from-zinc-900 to-zinc-800">
-                                    <Utensils size={36} />
-                                  </div>
-                                )}
-
-                                {/* 썸네일 그라데이션 오버레이 (텍스트 가독성용) */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
-
-                                {/* 우상단: 즐겨찾기 버튼 */}
-                                <motion.button
-                                  whileTap={{ scale: 0.8 }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isFav) {
-                                      setFavorites(favorites.filter(id => id !== r.id));
-                                    } else {
-                                      setFavorites([...favorites, r.id]);
-                                    }
-                                  }}
-                                  className="absolute top-3 right-3 p-1.5 bg-black/50 backdrop-blur-xl rounded-full border border-white/15 hover:bg-white/10 transition-colors shadow-md z-10"
-                                >
-                                  <Star 
-                                    size={13}
-                                    stroke={isFav ? 'url(#red-orange-grad)' : 'currentColor'}
-                                    fill={isFav ? 'url(#red-orange-grad)' : 'none'}
-                                    strokeWidth={isFav ? 2.5 : 2}
-                                    className={`transition-all duration-300 ${
-                                      isFav
-                                        ? 'drop-shadow-[0_0_4px_rgba(255,75,0,0.45)]'
-                                        : 'text-zinc-400 hover:text-red-500'
-                                    }`}
-                                  />
-                                </motion.button>
-
-                                {/* 우하단: Shorts 배지 (3안: 글라스모피즘 + 텍스트 그라데이션) */}
-                                {vid?.is_short && (
-                                  <div className="absolute bottom-3 right-3 bg-zinc-950/60 backdrop-blur-md text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-white/10 shadow-lg z-10 flex items-center gap-1 select-none">
-                                    <Play size={8} fill="url(#red-orange-grad)" stroke="url(#red-orange-grad)" />
-                                    <span className="bg-gradient-to-r from-red-500 to-brand-orange bg-clip-text text-transparent font-black">
-                                      SHORTS
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* 하단 정보 영역 */}
-                              <div className="p-4 flex flex-col space-y-2.5">
-                                {/* 식당명 + 카테고리 */}
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <h4 className="font-extrabold text-[16px] text-zinc-100 truncate tracking-tight group-hover:text-white transition-colors">
-                                      {r.name}
-                                    </h4>
-                                    {r.category && (() => {
-                                      const formattedCategory = getFormattedCategory(r.category);
-                                      if (!formattedCategory) return null;
-                                      return (
-                                        <span className="inline-flex items-center bg-white/[0.04] border border-white/10 px-1.5 py-0.5 rounded text-[10px] font-bold text-zinc-400 shrink-0">
-                                          {formattedCategory}
-                                        </span>
-                                      );
-                                    })()}
-                                  </div>
-                                </div>
-
-                                {/* 영상 제목 */}
-                                {vid?.title && (
-                                  <p className="text-[12.5px] font-medium text-zinc-400 line-clamp-2 leading-relaxed tracking-tight">
-                                    {vid.title}
-                                  </p>
-                                )}
-
-                                {/* 유튜버 프로필 + 채널명 · 조회수 메타데이터 한 줄 */}
-                                <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
-                                  {vid?.youtuber && (
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      {vid.youtuber.profile_image ? (
-                                        <img 
-                                          src={vid.youtuber.profile_image}
-                                          className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0"
-                                          alt={vid.youtuber.name}
-                                        />
-                                      ) : (
-                                        <div className="w-4 h-4 rounded-full bg-zinc-700 flex items-center justify-center text-[8px] font-bold text-zinc-300 border border-white/10 shrink-0">
-                                          {vid.youtuber.name[0]}
-                                        </div>
-                                      )}
-                                      <span className="font-bold text-zinc-400 truncate max-w-[120px]">
-                                        {vid.youtuber.name}
-                                      </span>
-                                    </div>
-                                  )}
-                                  
-                                  {vid?.youtuber && (
-                                    <span className="text-zinc-600 shrink-0">·</span>
-                                  )}
-
-                                  {vid?.view_count !== undefined && vid.view_count > 0 ? (
-                                    <span className="font-medium text-zinc-400">
-                                      조회수 {formatViewCount(vid.view_count)}회
-                                    </span>
-                                  ) : (
-                                    <span className="font-medium text-zinc-400">
-                                      조회수 0회
-                                    </span>
-                                  )}
-                                </div>
+      {/* ========================================================
+          3. 우측 메인 열 (상단바 + 메인 콘텐츠 영역)
+          ======================================================== */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        
 
 
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <MyPageView 
+        {/* ========================================================
+            메인 콘텐츠 윈도우 (지도 또는 탭별 상세 대시보드 뷰)
+            ======================================================== */}
+        <div className="flex-1 relative overflow-hidden bg-slate-50">
+          
+        {/* 데스크탑 전용 탭별 대시보드 (Shopping, Favorites, MyPage 등) - md 이상 노출 */}
+        {activeTab !== 'home' && activeTab !== 'planning' && activeTab !== 'near' ? (
+          <div className="hidden md:block w-full h-full overflow-y-auto bg-slate-50/50 p-8 portal-sidebar-scrollbar select-text text-slate-800 relative z-10">
+              <div className="max-w-6xl mx-auto pb-16">
+                
+                {/* 탭별 뷰 컴포넌트 마운트 */}
+                {activeTab === 'shopping' && (
+                  <div className="text-zinc-800">
+                    <ShoppingTabView />
+                  </div>
+                )}
+                
+                {activeTab === 'favorites' && (
+                  <FavoritesView
+                    onSelectRestaurant={(lat, lng, id) => {
+                      const target = restaurants.find(r => r.id === id);
+                      if (target) {
+                        setSelectedRestaurant(target);
+                        setActiveTab('home');
+                        map?.setLevel(4, { animate: true });
+                        map?.panTo(new kakao.maps.LatLng(lat, lng));
+                      }
+                    }}
+                    onNavigateDetail={(id) => {
+                      const target = restaurants.find(r => r.id === id);
+                      if (target) {
+                        setSelectedRestaurant(target);
+                        setActiveTab('home');
+                        map?.setLevel(4, { animate: true });
+                        map?.panTo(new kakao.maps.LatLng(target.lat, target.lng));
+                      }
+                    }}
+                  />
+                )}
+
+                {activeTab === 'mypage' && (
+                  <MyPageView
                     onOpenSubmission={() => {
                       if (!user) {
                         setIsLoginModalOpen(true);
                       } else {
                         setIsSubmissionOpen(true);
                       }
-                    }} 
+                    }}
                     onOpenItineraryPlanner={(itinerary) => {
                       if (itinerary) {
                         setEditingItinerary(itinerary);
@@ -2123,62 +2454,10 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                     onTriggerLogin={() => setIsLoginModalOpen(true)}
                   />
                 )}
+
               </div>
             </div>
-            {/* 우측 경계선 밀착 결합형 세로 반원 접기 단추 -> 경계선에서 약간 떨어진 입체적인 원형 플로팅 버튼으로 리뉴얼 */}
-            <motion.button
-              onClick={() => {
-                if (selectedRestaurant) {
-                  handleSelectRestaurant(null);
-                } else {
-                  setIsSidebarCollapsed(true);
-                }
-              }}
-              onMouseEnter={() => setIsCollapseTabHovered(true)}
-              onMouseLeave={() => setIsCollapseTabHovered(false)}
-              animate={{ x: selectedRestaurant ? sidebarXOffset : 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute left-full ml-3 top-[calc(50%-20px)] w-10 h-10 bg-zinc-900/95 hover:bg-zinc-800/95 backdrop-blur-md border border-white/10 hover:border-orange-500/30 rounded-full flex items-center justify-center cursor-pointer text-orange-500 hover:text-orange-400 shadow-[0_4px_12px_rgba(0,0,0,0.4)] z-50 group transition-colors duration-300"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <ChevronLeft size={18} className="stroke-[3.0] transition-transform group-hover:-translate-x-1 duration-300 ease-out" />
-              
-              {/* 프리미엄 즉시 반응형 커스텀 툴팁 */}
-              <AnimatePresence>
-                {isCollapseTabHovered && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -8 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-zinc-950/90 backdrop-blur-md border border-white/10 rounded-xl text-[11px] font-black text-white whitespace-nowrap shadow-[0_4px_20px_rgba(0,0,0,0.5)] z-50 pointer-events-none"
-                  >
-                    {selectedRestaurant ? "상세 정보 접기" : "사이드바 접기"}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 좌측 중앙 아크릴 오렌지 글로우 "열기" 버튼 */}
-      <AnimatePresence>
-        {isSidebarCollapsed && (
-          <motion.button
-            initial={{ x: -40, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -40, opacity: 0 }}
-            transition={{ type: 'spring', damping: 22, stiffness: 250 }}
-            onClick={() => setIsSidebarCollapsed(false)}
-            className="absolute top-1/2 -translate-y-1/2 left-6 z-20 w-14 h-14 bg-zinc-950/80 backdrop-blur-md hover:bg-zinc-900/90 text-orange-500 hover:text-orange-400 rounded-full shadow-[0_0_24px_rgba(255,107,0,0.45)] border border-orange-500/30 transition-all hover:scale-110 active:scale-95 flex items-center justify-center group cursor-pointer"
-            title="사이드바 열기"
-          >
-            <List size={22} className="stroke-[2.5] transition-transform group-hover:scale-110" />
-          </motion.button>
-        )}
-      </AnimatePresence>
+          ) : null}
 
 
 
@@ -2194,6 +2473,68 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
         onTouchEnd={handleContainerMouseUp}
         className={`absolute inset-0 w-full h-full transition-colors duration-700 ${mapTheme}`}
       >
+        {/* Floating Google-style AI Search Console */}
+        {!hideOmniSearch && activeTab !== 'near' && !isAreaDrawingMode && (
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 w-full px-4 flex justify-center transition-all duration-300">
+            <div 
+              onClick={() => {
+                searchInputRef.current?.focus();
+              }}
+              className={`flex items-center bg-white border border-slate-200/80 rounded-full shadow-[0_4px_24px_rgba(0,0,0,0.08)] transition-all duration-500 py-2.5 pl-5 pr-2 w-full cursor-text ${
+                isSearchExpanded ? 'max-w-lg ring-2 ring-orange-500/20 shadow-[0_0_15px_rgba(255,111,0,0.15)]' : 'max-w-[260px]'
+              } ${isSearchFocused ? 'animate-[borderGlow_2.5s_infinite]' : ''}`}
+            >
+              <Sparkles size={16} className="text-orange-500 animate-pulse shrink-0 mr-3" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={globalSearchQuery}
+                onFocus={() => {
+                  setIsSearchFocused(true);
+                  setIsSidebarCollapsed(false);
+                  if (activeTab !== 'home') setActiveTab('home');
+                }}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setIsSearchFocused(false);
+                  }, 200);
+                }}
+                onChange={(e) => {
+                  setGlobalSearchQuery(e.target.value);
+                  setIsSidebarCollapsed(false);
+                  if (activeTab !== 'home') setActiveTab('home');
+                }}
+                placeholder={isSearchExpanded ? "식당, 카테고리, 유튜버 채널 검색..." : ""}
+                className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
+              />
+              {globalSearchQuery && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGlobalSearchQuery('');
+                    setIsSidebarCollapsed(false);
+                    if (activeTab !== 'home') setActiveTab('home');
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors shrink-0 mr-1.5"
+                >
+                  <X size={14} />
+                </button>
+              )}
+              <div className="w-[1px] h-5 bg-slate-200 mx-2 shrink-0" />
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsSidebarCollapsed(false);
+                  if (activeTab !== 'home') setActiveTab('home');
+                }}
+                className="w-8 h-8 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white flex items-center justify-center hover:shadow-[0_2px_8px_rgba(255,111,0,0.3)] hover:brightness-105 active:scale-95 transition-all shrink-0 cursor-pointer"
+              >
+                <Search size={14} strokeWidth={2.8} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <Map
           key="place-map-v2"
           center={mapCenter}
@@ -2743,26 +3084,6 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
             <Locate size={18} className={isLocating ? "animate-spin" : ""} />
           </button>
         </div>
-
-        {/* 영역 그리기 필터 */}
-        <div className="flex items-center gap-2 group">
-          <span className="text-[10px] font-black text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
-            {filterPolygon ? '영역 필터 해제' : '영역으로 찾기'}
-          </span>
-          <button
-            onClick={filterPolygon ? clearAreaFilter : startAreaDrawing}
-            className={`p-3 rounded-full border hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer ${
-              isAreaDrawingMode
-                ? 'bg-gradient-to-tr from-red-600 to-brand-orange text-white border-transparent animate-pulse'
-                : filterPolygon
-                ? 'bg-zinc-900 text-brand-orange border-brand-orange/40 hover:border-brand-orange/60'
-                : 'bg-zinc-900 text-orange-500 hover:text-orange-400 border-white/10 hover:border-orange-500/30'
-            }`}
-            title="영역 그리기 필터"
-          >
-            <Pentagon size={18} className={isAreaDrawingMode ? 'stroke-[2.5]' : ''} />
-          </button>
-        </div>
       </div>
 
       {/* 4차 기획: 영역 그리기 컨트롤 패널 (슬림 글래스모피즘 캡슐형 + 스피닝 테두리) */}
@@ -2913,78 +3234,12 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
         )}
       </AnimatePresence>
 
-      {/* 식당 상세 정보 카드 Overlay */}
-      <RestaurantInfoCard 
-        restaurant={isAreaDrawingMode ? null : selectedRestaurant} 
-        onClose={() => handleSelectRestaurant(null)} 
-        isSidebarCollapsed={isSidebarCollapsed || hideDefaultSidebar}
-        windowWidth={windowWidth}
-        sidebarWidth={sidebarWidth}
-        onRequestVideoSubmit={(restaurant) => {
-          setSubmissionTarget({ id: restaurant.id, name: restaurant.name });
-          setIsSubmissionOpen(true);
-        }}
-        favorites={favorites}
-        toggleFavorite={(id) => {
-          const isFav = favorites.includes(id);
-          if (isFav) setFavorites(favorites.filter(favId => favId !== id));
-          else setFavorites([...favorites, id]);
-        }}
-        isPlanningMode={isPlanningMode}
-        isRecommendedRouteItem={selectedRestaurant ? isRestaurantInPlanningBuffer(selectedRestaurant) : false}
-        onAddToPlanning={(rest) => {
-          addPlaceToPlanning({
-            name: rest.name,
-            category: rest.category || '음식점',
-            address: rest.address,
-            lat: rest.lat,
-            lng: rest.lng,
-            is_custom_spot: false,
-            restaurant_id: rest.id
-          });
-          handleSelectRestaurant(null);
-        }}
-        onInsertToPlanningRoute={(rest) => {
-          insertRestaurantToPlanningRoute(rest);
-          handleSelectRestaurant(null);
-        }}
-      />
+
 
       {/* 모바일 탭 컨텐츠 오버레이 바텀시트 */}
       <OverlayContainer activeTab={activeTab} onClose={() => setActiveTab('home')}>
         {activeTab === 'shopping' && (
           <ShoppingTabView />
-        )}
-        {activeTab === 'near' && (
-          <NearHotplacesView
-            displayedRestaurants={restaurants}
-            favorites={favorites}
-            toggleFavorite={(id) => {
-              const isFav = favorites.includes(id);
-              if (isFav) setFavorites(favorites.filter(favId => favId !== id));
-              else setFavorites([...favorites, id]);
-            }}
-            onSelectRestaurant={(r) => {
-              setSelectedRestaurant(r);
-              setActiveTab('home'); // 지도로 가기 위해 홈 탭으로 전환
-              map?.setLevel(4, { animate: true });
-              map?.panTo(new kakao.maps.LatLng(r.lat, r.lng));
-            }}
-            onNavigateDetail={(id) => {
-              const target = restaurants.find(r => r.id === id);
-              if (target) {
-                setSelectedRestaurant(target);
-                setActiveTab('home');
-                map?.setLevel(4, { animate: true });
-                map?.panTo(new kakao.maps.LatLng(target.lat, target.lng));
-              }
-            }}
-            onOpenSubmission={() => setIsSubmissionOpen(true)}
-            onTagClick={(tag) => {
-              setActiveCategory(tag);
-              setActiveTab('home');
-            }}
-          />
         )}
         {activeTab === 'favorites' && (
           <FavoritesView
@@ -3006,6 +3261,25 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                 map?.panTo(new kakao.maps.LatLng(target.lat, target.lng));
               }
             }}
+          />
+        )}
+        {activeTab === 'planning' && (
+          <ItineraryTabView
+            onOpenItineraryPlanner={(itinerary) => {
+              if (itinerary) {
+                setEditingItinerary(itinerary);
+                setActivePlanningItinerary(itinerary);
+                setPlanningActiveDay(1);
+                setIsPlanningMode(true);
+                setActiveTab('home'); // 모바일에서는 코스 마커를 보기 위해 지도로 복귀
+              } else {
+                setNewItineraryTitle('');
+                setNewItineraryStartDate('');
+                setNewItineraryEndDate('');
+                setShowInitPlanningModal(true);
+              }
+            }}
+            onSelectTab={setActiveTab}
           />
         )}
         {activeTab === 'mypage' && (
@@ -3132,7 +3406,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
 
       {/* 3차 기획: 지도 드로잉용 플로팅 패널 */}
       <AnimatePresence>
-        {isPlanningMode && activePlanningItinerary && (
+        {isPlanningMode && activePlanningItinerary && windowWidth < 768 && (
           <FloatingItineraryPanel
             itinerary={activePlanningItinerary}
             activeDay={planningActiveDay}
@@ -3533,6 +3807,8 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
           </button>
         </div>
       </CustomModal>
+        </div>
+      </div>
     </div>
   );
 }
