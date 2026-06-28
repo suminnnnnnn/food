@@ -1,11 +1,8 @@
 import { Restaurant } from '@/types';
-import { getRestaurantRatings } from '@/lib/constants/ratings';
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
-import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronRight, Eye, CreditCard, Layers, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
-import { MichelinIcon, BlueRibbonIcon } from '@/components/icons/CustomIcons';
+import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronRight, Eye, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck, Coffee, Croissant, Beer, Pizza, Fish, Wine, IceCream2, Sandwich, Soup, Beef } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import { openExternal } from '@/lib/external-link';
-import Link from 'next/link';
 
 declare global {
   interface Window {
@@ -91,6 +88,31 @@ const getFormattedCategory = (categoryStr?: string | null) => {
   return categoryStr.trim();
 };
 
+const getCategoryIcon = (category?: string | null): React.ReactElement => {
+  const c = (category ?? '').toLowerCase();
+  if (c.includes('카페') || c.includes('커피') || c.includes('coffee')) return <Coffee size={18} />;
+  if (c.includes('베이커리') || c.includes('빵') || c.includes('제과') || c.includes('도넛') || c.includes('bakery')) return <Croissant size={18} />;
+  if (c.includes('아이스크림') || c.includes('빙수') || c.includes('디저트')) return <IceCream2 size={18} />;
+  if (c.includes('피자')) return <Pizza size={18} />;
+  if (c.includes('샌드위치') || c.includes('버거') || c.includes('햄버거') || c.includes('패스트푸드')) return <Sandwich size={18} />;
+  if (c.includes('초밥') || c.includes('스시') || c.includes('회') || c.includes('해산물') || c.includes('수산')) return <Fish size={18} />;
+  if (c.includes('일식') || c.includes('라멘') || c.includes('우동') || c.includes('소바')) return <Soup size={18} />;
+  if (c.includes('삼겹살') || c.includes('갈비') || c.includes('고기') || c.includes('육류') || c.includes('스테이크') || c.includes('소고기') || c.includes('beef')) return <Beef size={18} />;
+  if (c.includes('치킨') || c.includes('닭') || c.includes('구이')) return <Flame size={18} />;
+  if (c.includes('술') || c.includes('와인') || c.includes('wine') || c.includes('바 ') || c.includes('bar')) return <Wine size={18} />;
+  if (c.includes('맥주') || c.includes('호프') || c.includes('beer') || c.includes('펍')) return <Beer size={18} />;
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* 숟가락 — 왼쪽 타원 머리 + 손잡이 */}
+      <ellipse cx="7" cy="6.5" rx="3.5" ry="4.5" />
+      <line x1="7" y1="11" x2="7" y2="22" />
+      {/* 젓가락 — 오른쪽 두 선 */}
+      <line x1="16" y1="2" x2="16" y2="22" />
+      <line x1="20" y1="2" x2="20" y2="22" />
+    </svg>
+  );
+};
+
 const formatViewCount = (count: number) => {
   if (count >= 1000000) return `${(count / 1000000).toFixed(1).replace('.0', '')}M`;
   if (count >= 1000) return `${(count / 1000).toFixed(1).replace('.0', '')}K`;
@@ -140,7 +162,6 @@ const getStoreOpenStatus = (hoursText?: string | null): OpenStatus => {
 
   try {
     const now = new Date();
-    const kstOffset = 9 * 60;
     const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
     const kstDate = new Date(utc + (3600000 * 9));
     
@@ -458,17 +479,6 @@ const parseBusinessHours = (hours?: string | null) => {
   return hours.replace(/<br\s*\/?>/gi, '\n').trim();
 };
 
-const parseTimeToSeconds = (timeStr: string): number => {
-  const parts = timeStr.split(':');
-  if (parts.length === 2) {
-    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
-  }
-  if (parts.length === 3) {
-    return parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
-  }
-  return 0;
-};
-
 interface RestaurantInfoCardProps {
   restaurant: Restaurant | null;
   onClose: () => void;
@@ -485,19 +495,15 @@ interface RestaurantInfoCardProps {
 }
 
 
-export default function RestaurantInfoCard({ 
-  restaurant, 
-  onClose, 
-  isSidebarCollapsed = false,
+export default function RestaurantInfoCard({
+  restaurant,
+  onClose,
   favorites = [],
   toggleFavorite,
   isPlanningMode = false,
   isRecommendedRouteItem = false,
-  onAddToPlanning,
   onInsertToPlanningRoute,
   onRequestVideoSubmit,
-  windowWidth = 1200,
-  sidebarWidth = 420
 }: RestaurantInfoCardProps) {
   const openNaverDeeplink = (name: string, address?: string) => {
     const query = name + ' ' + (address ? address.split(' ').slice(0, 2).join(' ') : '');
@@ -542,27 +548,6 @@ export default function RestaurantInfoCard({
     }
   };
 
-  const openKakaoRouteDeeplink = (name: string, kakaoPlaceId?: string, lat?: number, lng?: number) => {
-    if (typeof window === 'undefined') return;
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      const appUrl = kakaoPlaceId ? `kakaomap://route?ep=${kakaoPlaceId}&by=CAR` : `kakaomap://route?ep=${lat},${lng}&by=CAR`;
-      window.location.href = appUrl;
-      setTimeout(() => {
-        const webUrl = kakaoPlaceId ? `https://map.kakao.com/link/to/${kakaoPlaceId}` : `https://map.kakao.com/link/to/${encodeURIComponent(name)},${lat},${lng}`;
-        window.open(webUrl, '_blank', 'noopener,noreferrer');
-      }, 1500);
-    } else {
-      const pcUrl = kakaoPlaceId ? `https://map.kakao.com/link/to/${kakaoPlaceId}` : `https://map.kakao.com/link/to/${encodeURIComponent(name)},${lat},${lng}`;
-      openExternal(pcUrl, { reason: 'kakao_navi' });
-    }
-  };
-
-  // 반응형 너비 및 위치 연산 (기본값 설정 포함)
-  const detailWidth = sidebarWidth;
-  const detailLeft = 24 + sidebarWidth + 8; // left-6 (24px) + sidebar + gap(8px)
-  const detailShift = -(detailLeft - 24); // collapses to left-6 (24px)
-  const hideShift = -(detailLeft + detailWidth + 100); // dynamic offscreen hiding
 
   const [isMobileDevice, setIsMobileDevice] = useState(false);
 
@@ -630,19 +615,17 @@ export default function RestaurantInfoCard({
   // 액션 버튼 개별 호버 상태
   const [isBookmarkHovered, setIsBookmarkHovered] = useState(false);
   const [isShareHovered, setIsShareHovered] = useState(false);
+  const [isPhoneHovered, setIsPhoneHovered] = useState(false);
+  const [isNavHovered, setIsNavHovered] = useState(false);
 
   // 복사 피드백 애니메이션 상태
   const [copiedAddress, setCopiedAddress] = useState(false);
-  const [copiedPhone, setCopiedPhone] = useState(false);
 
   const handleCopy = (text: string, type: 'address' | 'phone') => {
     navigator.clipboard.writeText(text);
     if (type === 'address') {
       setCopiedAddress(true);
       setTimeout(() => setCopiedAddress(false), 2000);
-    } else {
-      setCopiedPhone(true);
-      setTimeout(() => setCopiedPhone(false), 2000);
     }
   };
 
@@ -654,7 +637,6 @@ export default function RestaurantInfoCard({
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [embedError, setEmbedError] = useState(false);
   const [isHoursExpanded, setIsHoursExpanded] = useState(false);
-  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [showRouteModal, setShowRouteModal] = useState(false);
   const playerInstanceRef = useRef<any>(null);
 
@@ -666,7 +648,6 @@ export default function RestaurantInfoCard({
     setIsBookmarkHovered(false);
     setIsShareHovered(false);
     setIsHoursExpanded(false);
-    setIsSummaryExpanded(false);
     setShowRouteModal(false);
   }, [restaurant?.id]);
 
@@ -773,20 +754,10 @@ export default function RestaurantInfoCard({
   // DB 연동 데이터 파싱
   const menuList = parseMenuInfo(restaurant?.menu_info);
   const businessHours = parseBusinessHours(restaurant?.business_hours);
-  const hasPhone = !!restaurant?.phone;
   const hasParking = checkAvailability(restaurant?.parking);
   const hasReservation = checkAvailability(restaurant?.reservation);
   const hasPackaging = checkAvailability(restaurant?.packaging);
   const openStatus = getStoreOpenStatus(restaurant?.business_hours || '');
-
-  const getTagStyle = (source: string) => {
-    switch (source) {
-      case 'michelin': return { bg: 'bg-red-500/10 border border-red-500/25', text: 'text-red-400', icon: MichelinIcon };
-      case 'blueribbon': return { bg: 'bg-blue-500/10 border border-blue-500/25', text: 'text-blue-400', icon: BlueRibbonIcon };
-      case 'ddoganjib': return { bg: 'bg-orange-500/10 border border-orange-500/25', text: 'text-brand-orange', icon: Flame };
-      default: return { bg: 'bg-white/5 border border-white/5', text: 'text-white/60', icon: null };
-    }
-  };
 
   const renderContent = () => {
     if (!restaurant) return null;
@@ -882,26 +853,67 @@ export default function RestaurantInfoCard({
               <div className="relative w-full h-full flex justify-center items-center">
                 {!isPlayingVideo ? (
                   <>
-                    <img 
-                      src={thumbnailFallback} 
-                      alt="Video Thumbnail" 
-                      className="w-full h-full object-cover relative z-10 brightness-[0.70]"
+                    <img
+                      src={thumbnailFallback}
+                      alt="Video Thumbnail"
+                      className="w-full h-full object-cover relative z-10 brightness-[0.65]"
                       draggable={false}
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = getFallbackThumbnail(restaurant.category || '');
                       }}
                     />
-                    
-                    <div 
+
+                    {/* 채널 정보 — 상단 */}
+                    {activeVideo?.youtuber && (
+                      <div className="absolute top-3 left-3 z-30 flex items-center gap-2">
+                        {activeVideo.youtuber.profile_image ? (
+                          <img
+                            src={activeVideo.youtuber.profile_image}
+                            className="w-7 h-7 rounded-full object-cover ring-2 ring-white/30 shrink-0"
+                            alt={activeVideo.youtuber.name}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-[11px] font-bold text-white shrink-0">
+                            {activeVideo.youtuber.name?.[0]}
+                          </div>
+                        )}
+                        <span className="text-[12px] font-semibold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+                          {activeVideo.youtuber.name}
+                        </span>
+                        {activeVideo.is_short && (
+                          <span className="inline-flex items-center gap-0.5 text-[8px] font-black bg-gradient-to-r from-red-600 to-orange-500 text-white px-1.5 py-0.5 rounded-full shrink-0 shadow-sm">
+                            <Play size={7} fill="currentColor" /> SHORTS
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 영상 제목 + 조회수 — 하단 */}
+                    <div className="absolute bottom-0 inset-x-0 z-30 bg-gradient-to-t from-black/80 to-transparent px-4 pt-8 pb-4">
+                      {activeVideo?.title && (
+                        <p className="text-[13px] font-bold text-white leading-snug line-clamp-2 mb-1.5 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+                          {activeVideo.title}
+                        </p>
+                      )}
+                      {activeVideo?.view_count !== undefined && activeVideo.view_count > 0 && (
+                        <div className="flex items-center gap-1">
+                          <Eye size={11} className="text-orange-300 shrink-0" />
+                          <span className="text-[11px] font-bold text-orange-300">{formatViewCount(activeVideo.view_count)}회</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div
                       onClick={() => setIsPlayingVideo(true)}
-                      className="absolute inset-0 bg-black/10 flex items-center justify-center group cursor-pointer transition-all z-20"
+                      className="absolute inset-0 flex items-center justify-center group cursor-pointer transition-all z-20"
                     >
-                      <motion.div 
+                      <motion.div
                         whileHover={{ scale: 1.06 }}
                         whileTap={{ scale: 0.95 }}
-                        className="w-18 h-18 bg-black/60 hover:bg-black/75 text-white/95 rounded-full flex items-center justify-center shadow-2xl transition-all border border-white/10 select-none cursor-pointer"
+                        className="w-16 h-16 bg-black/60 hover:bg-black/75 text-white/95 rounded-full flex items-center justify-center shadow-2xl transition-all border border-white/20 select-none cursor-pointer"
                       >
-                        <Play size={24} className="ml-1 text-white fill-current" />
+                        <Play size={22} className="ml-1 text-white fill-current" />
                       </motion.div>
                     </div>
                   </>
@@ -943,34 +955,30 @@ export default function RestaurantInfoCard({
             </div>
           )}
 
-          <div className="p-5 md:p-6 space-y-4 text-white md:text-slate-800">
+          <div className="p-3 md:p-4 space-y-3 text-white md:text-slate-800">
             {/* Unified Profile Card (Profile, AI briefing, Facility info merged) */}
-            <div className="bg-zinc-900/80 md:bg-slate-50 border border-zinc-800 md:border-slate-200/60 rounded-3xl p-5 relative overflow-hidden space-y-4 shadow-sm">
+            <div className="bg-zinc-900/80 md:bg-slate-50 border border-zinc-800 md:border-slate-200/60 rounded-2xl p-3 relative overflow-hidden space-y-2 shadow-sm">
               <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/8 md:bg-orange-500/5 rounded-full filter blur-2xl -z-10" />
 
-              {/* place+ Badge */}
-              <div className="flex select-none">
-                <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white text-[9.5px] font-black tracking-wider leading-none">
-                  place+
-                </span>
-              </div>
-
               {/* Row 1: Name */}
-              <div className="flex justify-between items-start gap-4 min-w-0">
-                <h3 className="text-[22px] md:text-[26px] font-black text-white md:text-slate-900 tracking-tight leading-tight truncate">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="shrink-0 text-orange-400 md:text-orange-500">
+                  {getCategoryIcon(restaurant.category)}
+                </span>
+                <h3 className="text-[18px] md:text-[20px] font-black text-white md:text-slate-900 tracking-tight leading-snug truncate">
                   {restaurant.name}
                 </h3>
               </div>
 
               {/* Row 2: Category */}
-              <div className="flex items-center flex-wrap gap-2 text-[15px] font-semibold text-zinc-400 md:text-slate-500 select-none">
+              <div className="flex items-center flex-wrap gap-1.5 text-[13px] font-semibold text-zinc-400 md:text-slate-500 select-none -mt-0.5">
                 {restaurant.category && (
                   <span>{getFormattedCategory(restaurant.category)}</span>
                 )}
               </div>
 
-              {/* Row 2.5: Quick Action Buttons (전화, 즐겨찾기, 공유하기, 길찾기) */}
-              <div className="grid grid-cols-4 gap-2 pt-1 pb-1">
+              {/* Quick Action Buttons */}
+              <div className="grid grid-cols-4 gap-1.5 pt-0.5">
                 {/* 전화 */}
                 <button
                   onClick={() => {
@@ -980,33 +988,43 @@ export default function RestaurantInfoCard({
                       alert('등록된 전화번호가 없습니다.');
                     }
                   }}
-                  className="flex flex-col items-center justify-center py-2 bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border border-white/5 md:border-slate-200 rounded-xl transition-all gap-1 cursor-pointer group"
+                  onMouseEnter={() => setIsPhoneHovered(true)}
+                  onMouseLeave={() => setIsPhoneHovered(false)}
+                  className={`flex flex-col items-center justify-center py-2.5 border rounded-xl transition-all gap-1 cursor-pointer group ${
+                    isPhoneHovered
+                      ? 'bg-red-500/10 border-red-500/30 md:border-red-500/20 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)] md:shadow-none'
+                      : 'bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border-white/5 md:border-slate-200 text-zinc-400 md:text-slate-500'
+                  }`}
                 >
-                  <Phone size={14} className="text-zinc-400 md:text-slate-500 group-hover:text-white md:group-hover:text-slate-800 transition-colors" />
-                  <span className="text-sm font-bold text-zinc-400 md:text-slate-500 group-hover:text-white md:group-hover:text-slate-800 transition-colors">전화</span>
+                  <Phone
+                    size={20}
+                    stroke={isPhoneHovered ? 'url(#red-orange-grad)' : 'currentColor'}
+                    strokeWidth={isPhoneHovered ? 2.5 : 2}
+                  />
+                  <span className="text-[11px] font-bold">전화</span>
                 </button>
 
-                {/* 즐겨찾기 */}
+                {/* 저장 */}
                 <button
                   onClick={() => toggleFavorite && toggleFavorite(restaurant.id)}
                   onMouseEnter={() => setIsBookmarkHovered(true)}
                   onMouseLeave={() => setIsBookmarkHovered(false)}
-                  className={`flex flex-col items-center justify-center py-2 border rounded-xl transition-all gap-1 cursor-pointer group ${
+                  className={`flex flex-col items-center justify-center py-2.5 border rounded-xl transition-all gap-1 cursor-pointer group ${
                     (favorites.includes(restaurant.id) || isBookmarkHovered)
                       ? 'bg-red-500/10 border-red-500/30 md:border-red-500/20 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)] md:shadow-none'
                       : 'bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border-white/5 md:border-slate-200 text-zinc-400 md:text-slate-500 hover:text-white md:hover:text-slate-800'
                   }`}
                 >
-                  <Star 
-                    size={14} 
+                  <Star
+                    size={20}
                     stroke={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 'url(#red-orange-grad)' : 'currentColor'}
-                    fill={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 'url(#red-orange-grad)' : 'none'} 
+                    fill={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 'url(#red-orange-grad)' : 'none'}
                     strokeWidth={(favorites.includes(restaurant.id) || isBookmarkHovered) ? 2.5 : 2}
                   />
-                  <span className="text-sm font-bold">즐겨찾기</span>
+                  <span className="text-[11px] font-bold">저장</span>
                 </button>
 
-                {/* 공유하기 */}
+                {/* 공유 */}
                 <button
                   onClick={() => {
                     if (navigator.share) {
@@ -1022,33 +1040,43 @@ export default function RestaurantInfoCard({
                   }}
                   onMouseEnter={() => setIsShareHovered(true)}
                   onMouseLeave={() => setIsShareHovered(false)}
-                  className={`flex flex-col items-center justify-center py-2 border rounded-xl transition-all gap-1 cursor-pointer group ${
+                  className={`flex flex-col items-center justify-center py-2.5 border rounded-xl transition-all gap-1 cursor-pointer group ${
                     isShareHovered
                       ? 'bg-red-500/10 border-red-500/30 md:border-red-500/20 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)] md:shadow-none'
                       : 'bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border-white/5 md:border-slate-200 text-zinc-400 md:text-slate-500 hover:text-white md:hover:text-slate-800'
                   }`}
                 >
-                  <Share2 
-                    size={14} 
+                  <Share2
+                    size={20}
                     stroke={isShareHovered ? 'url(#red-orange-grad)' : 'currentColor'}
                     fill={isShareHovered ? 'url(#red-orange-grad)' : 'none'}
                     strokeWidth={isShareHovered ? 2.5 : 2}
                   />
-                  <span className="text-sm font-bold">공유하기</span>
+                  <span className="text-[11px] font-bold">공유</span>
                 </button>
 
                 {/* 길찾기 */}
                 <button
                   onClick={() => setShowRouteModal(true)}
-                  className="flex flex-col items-center justify-center py-2 bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border border-white/5 md:border-slate-200 rounded-xl transition-all gap-1 cursor-pointer group"
+                  onMouseEnter={() => setIsNavHovered(true)}
+                  onMouseLeave={() => setIsNavHovered(false)}
+                  className={`flex flex-col items-center justify-center py-2.5 border rounded-xl transition-all gap-1 cursor-pointer group ${
+                    isNavHovered
+                      ? 'bg-red-500/10 border-red-500/30 md:border-red-500/20 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)] md:shadow-none'
+                      : 'bg-zinc-800/40 md:bg-white hover:bg-zinc-800/80 md:hover:bg-slate-100 border-white/5 md:border-slate-200 text-zinc-400 md:text-slate-500'
+                  }`}
                 >
-                  <Navigation size={14} className="text-zinc-400 md:text-slate-500 group-hover:text-white md:group-hover:text-slate-800 transition-colors" />
-                  <span className="text-sm font-bold text-zinc-400 md:text-slate-500 group-hover:text-white md:group-hover:text-slate-800 transition-colors">길찾기</span>
+                  <Navigation
+                    size={20}
+                    stroke={isNavHovered ? 'url(#red-orange-grad)' : 'currentColor'}
+                    strokeWidth={isNavHovered ? 2.5 : 2}
+                  />
+                  <span className="text-[11px] font-bold">길찾기</span>
                 </button>
               </div>
 
               {/* Row 6: Facilities List */}
-              <div className="flex flex-col gap-2.5 pt-3 border-t border-zinc-800 md:border-slate-200 text-sm font-medium text-zinc-300 md:text-slate-600">
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-zinc-800 md:border-slate-200 text-sm font-medium text-zinc-300 md:text-slate-600">
                 {/* Hours */}
                 <div className="flex items-start gap-2.5">
                   <Clock size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
@@ -1100,7 +1128,7 @@ export default function RestaurantInfoCard({
                               className="flex items-center justify-between w-full cursor-pointer group"
                             >
                               <div className="flex items-center flex-wrap gap-1 min-w-0">
-                                <span className={`text-[16px] leading-relaxed transition-colors ${isHoursExpanded ? 'font-black text-white md:text-slate-900' : 'font-bold text-zinc-200 md:text-slate-700'}`}>
+                                <span className={`text-[14px] transition-colors ${isHoursExpanded ? 'font-black text-white md:text-slate-900' : 'font-bold text-zinc-200 md:text-slate-700'}`}>
                                   {isHoursExpanded ? todayLine : cleanTodayLine}
                                 </span>
                                 {!isHoursExpanded && renderStatusBadge()}
@@ -1120,7 +1148,7 @@ export default function RestaurantInfoCard({
                                 >
                                   {lines.map((line, idx) => (
                                     <div key={idx} className="flex items-center flex-wrap gap-1 min-w-0">
-                                      <span className={`text-[15px] leading-relaxed ${idx === todayIndex ? 'font-black text-white md:text-slate-900' : 'font-semibold text-zinc-400 md:text-slate-500'}`}>
+                                      <span className={`text-[13px] ${idx === todayIndex ? 'font-black text-white md:text-slate-900' : 'font-semibold text-zinc-400 md:text-slate-500'}`}>
                                         {line}
                                       </span>
                                       {idx === todayIndex && renderStatusBadge()}
@@ -1134,11 +1162,11 @@ export default function RestaurantInfoCard({
                       }
                       return (
                         <div className="flex items-center flex-wrap gap-1 min-w-0">
-                          <span className="text-[16px] font-bold text-zinc-200 md:text-slate-700 block">{cleanTodayLine}</span>
+                          <span className="text-[14px] font-bold text-zinc-200 md:text-slate-700 block">{cleanTodayLine}</span>
                           {renderStatusBadge()}
                         </div>
                       );
-                    })() : <span className="text-[16px] font-bold text-zinc-400 md:text-slate-400 block">영업시간 정보 없음</span>}
+                    })() : <span className="text-[14px] font-bold text-zinc-400 md:text-slate-400 block">영업시간 정보 없음</span>}
                   </div>
                 </div>
 
@@ -1147,7 +1175,7 @@ export default function RestaurantInfoCard({
                   <div className="flex items-start gap-2.5">
                     <Car size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <span className="text-[16px] font-bold text-zinc-200 md:text-slate-700">주차 {hasParking ? '가능' : '불가'}</span>
+                      <span className="text-[14px] font-bold text-zinc-200 md:text-slate-700">주차 {hasParking ? '가능' : '불가'}</span>
                       <span className="text-zinc-500 md:text-slate-400 text-[15px] font-semibold ml-1.5">( {restaurant.parking} )</span>
                     </div>
                   </div>
@@ -1157,7 +1185,7 @@ export default function RestaurantInfoCard({
                 <div className="flex items-start gap-2.5">
                   <CalendarCheck size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <span className="text-[16px] font-bold text-zinc-200 md:text-slate-700">
+                    <span className="text-[14px] font-bold text-zinc-200 md:text-slate-700">
                       예약 {hasReservation ? '가능' : '불가'} · 포장 {hasPackaging ? '가능' : '불가'}
                     </span>
                   </div>
@@ -1167,7 +1195,7 @@ export default function RestaurantInfoCard({
                 <div className="flex items-start gap-2.5">
                   <MapPin size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[16px] font-bold text-zinc-200 md:text-slate-700 leading-normal">{restaurant.address}</span>
+                    <span className="text-[14px] font-bold text-zinc-200 md:text-slate-700 leading-normal">{restaurant.address}</span>
                     <button
                       onClick={() => handleCopy(restaurant.address, 'address')}
                       className="flex items-center gap-1 text-zinc-500 md:text-slate-400 hover:text-zinc-300 md:hover:text-slate-600 transition-colors cursor-pointer shrink-0"

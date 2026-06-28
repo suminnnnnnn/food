@@ -11,17 +11,18 @@ const NearbyIcon = ({ size = 20, ...props }: React.SVGProps<SVGSVGElement> & { s
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2.2"
+    strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
     {...props}
   >
-    <ellipse cx="12" cy="18" rx="8" ry="3" />
-    <path
-      d="M12 3a4.5 4.5 0 0 0-4.5 4.5c0 3.8 4.5 8.5 4.5 8.5s4.5-4.7 4.5-8.5A4.5 4.5 0 0 0 12 3z"
-      fill="currentColor"
-    />
-    <circle cx="12" cy="7.5" r="1.5" fill="white" stroke="white" strokeWidth="0.5" />
+    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    <path d="M9.5 14.5a3.5 3.5 0 0 1 0-5" />
+    <path d="M14.5 9.5a3.5 3.5 0 0 1 0 5" />
+    <path d="M7.2 16.8a7 7 0 0 1 0-9.6" />
+    <path d="M16.8 7.2a7 7 0 0 1 0 9.6" />
+    <path d="M4.9 19.1a10.5 10.5 0 0 1 0-14.2" />
+    <path d="M19.1 4.9a10.5 10.5 0 0 1 0 14.2" />
   </svg>
 );
 

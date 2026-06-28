@@ -21,7 +21,7 @@ export default function OverlayContainer({ activeTab, onClose, children }: Overl
     planning: '나의 여행 일정',
   };
 
-  const isVisible = activeTab !== 'home' && activeTab !== 'near';
+  const isVisible = activeTab !== 'home';
 
   return (
     <AnimatePresence>
