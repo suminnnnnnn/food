@@ -2035,167 +2035,163 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                     </div>
                   )}
 
-                  {/* ?듯� ?濡�?ㅼ� ?�� 諛?*/}
-                  <div className="relative flex items-center justify-between gap-1.5 p-1 bg-slate-50 border border-slate-200/60 rounded-2xl select-none shrink-0 z-30">
-                     {/* 1. ?� 醫瑜 */}
-                     <div className="relative flex-1">
-                        <button
-                          onClick={() => setActiveDropdown(activeDropdown === 'category' ? null : 'category')}
-                          className={`w-full py-2 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all border cursor-pointer ${
-                        activeCategory !== '전체'
-                              ? 'bg-orange-500 text-white border-transparent shadow-sm shadow-orange-500/20'
-                              : 'bg-white border-slate-100 text-slate-700 shadow-sm hover:bg-slate-50'
-                          }`}
-                        >
-                          <Utensils size={11} className="shrink-0" />
-                        <span className="truncate">{activeCategory === '전체' ? '음식 종류' : activeCategory}</span>
-                          <ChevronDown size={11} className={activeDropdown === 'category' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
-                        </button>
-                        
-                        {/* ?�ㅻ�??濡�?ㅼ� - ?� 醫瑜 (?-?�ㅻ�??�� 洹몃━?? */}
-                        <AnimatePresence>
-                          {activeDropdown === 'category' && (
-                            <motion.div
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: 8 }}
-                              className="absolute top-full left-0 mt-1.5 w-[270px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 z-50 grid grid-cols-3 gap-1"
-                            >
-                      {['전체', '한식', '일식', '중식', '양식', '아시안', '분식', '카페/디저트', '술집'].map((category) => (
-                                <button
-                                  key={category}
-                                  onClick={() => {
-                                    setActiveCategory(category);
-                                    setSelectedCluster(null);
-                                    setActiveDropdown(null);
-                                  }}
-                                  className={`py-2 px-1 rounded-xl text-[11px] font-bold text-center transition-all cursor-pointer ${
-                                    activeCategory === category
-                                      ? 'bg-orange-500 text-white font-black shadow-sm shadow-orange-500/20'
-                                      : 'hover:bg-slate-50 text-slate-600'
-                                  }`}
-                                >
-                          {category === '카페/디저트' ? '디저트' : category}
-                                </button>
-                              ))}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                     </div>
-
-                     {/* 2. ?�� 湲곗? */}
-                     <div className="relative flex-1">
-                        <button
-                          onClick={() => setActiveDropdown(activeDropdown === 'sort' ? null : 'sort')}
-                          className={`w-full py-2 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all border cursor-pointer ${
-                            activeSort !== 'latest'
-                              ? 'bg-orange-500 text-white border-transparent shadow-sm shadow-orange-500/20'
-                              : 'bg-white border-slate-100 text-slate-700 shadow-sm hover:bg-slate-50'
-                          }`}
-                        >
-                          <ArrowUpDown size={11} className="shrink-0" />
-                        <span className="truncate">{activeSort === 'latest' ? '최신순' : '조회수순'}</span>
-                          <ChevronDown size={11} className={activeDropdown === 'sort' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
-                        </button>
-                        
-                        {/* ?�ㅻ�??濡�?ㅼ� - ?�� 湲곗? (?-?�ㅻ�??�� 洹몃━?? */}
-                        <AnimatePresence>
-                          {activeDropdown === 'sort' && (
-                            <motion.div
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: 8 }}
-                              className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 w-[180px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 z-50 grid grid-cols-2 gap-1"
-                            >
-                      {[{ id: 'latest', label: '최신순' }, { id: 'views', label: '조회수순' }].map((sort) => (
-                                <button
-                                  key={sort.id}
-                                  onClick={() => {
-                                    setActiveSort(sort.id as any);
-                                    setSelectedCluster(null);
-                                    setActiveDropdown(null);
-                                  }}
-                                  className={`py-2 px-1 rounded-xl text-[11px] font-bold text-center transition-all cursor-pointer ${
-                                    activeSort === sort.id
-                                      ? 'bg-orange-500 text-white font-black shadow-sm shadow-orange-500/20'
-                                      : 'hover:bg-slate-50 text-slate-600'
-                                  }`}
-                                >
-                                  {sort.label}
-                                </button>
-                              ))}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                     </div>
-
-                     {/* 3. ?� 醫瑜 */}
-                     <div className="relative flex-1">
-                        <button
-                          onClick={() => setActiveDropdown(activeDropdown === 'videoType' ? null : 'videoType')}
-                          className={`w-full py-2 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all border cursor-pointer ${
-                        activeVideoType !== '전체 리뷰'
-                              ? 'bg-orange-500 text-white border-transparent shadow-sm shadow-orange-500/20'
-                              : 'bg-white border-slate-100 text-slate-700 shadow-sm hover:bg-slate-50'
-                          }`}
-                        >
-                          <PlayCircle size={11} className="shrink-0" />
-                          <span className="truncate">
-                          {activeVideoType === '전체 리뷰' ? '영상 종류' : activeVideoType === '쇼츠 리뷰' ? '쇼츠' : '롱폼'}
-                          </span>
-                          <ChevronDown size={11} className={activeDropdown === 'videoType' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
-                        </button>
-                        
-                        {/* ?�ㅻ�??濡�?ㅼ� - ?� 醫瑜 (?-?�ㅻ�??�� 洹몃━?? */}
-                        <AnimatePresence>
-                          {activeDropdown === 'videoType' && (
-                            <motion.div
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: 8 }}
-                              className="absolute top-full right-0 mt-1.5 w-[240px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 z-50 grid grid-cols-3 gap-1"
-                            >
-                              {[
-                        { id: '전체 리뷰', label: '전체' },
-                        { id: '쇼츠 리뷰', label: '쇼츠' },
-                        { id: '롱폼 리뷰', label: '롱폼' }
-                              ].map((type) => (
-                                <button
-                                  key={type.id}
-                                  onClick={() => {
-                                    setActiveVideoType(type.id as any);
-                                    setSelectedCluster(null);
-                                    setActiveDropdown(null);
-                                  }}
-                                  className={`py-2 px-1 rounded-xl text-[11px] font-bold text-center transition-all cursor-pointer ${
-                                    activeVideoType === type.id
-                                      ? 'bg-orange-500 text-white font-black shadow-sm shadow-orange-500/20'
-                                      : 'hover:bg-slate-50 text-slate-600'
-                                  }`}
-                                >
-                                  {type.label}
-                                </button>
-                              ))}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                     </div>
-                  </div>
-
-                  {/* 留吏 由ъ�???�� ??洹몃�?곗�???ㅻ�?��??*/}
                   <div className="pt-3 border-t border-slate-100 flex-1 flex flex-col min-h-0">
-                    <div className="flex items-center justify-between mb-3 shrink-0">
-                      <h4 className="text-[15px] font-extrabold text-slate-800 tracking-tight">
-                        우리 동네 맛집
-                      </h4>
-                      {selectedCluster && (
-                        <button
-                          onClick={() => setSelectedCluster(null)}
-                          className="text-[11px] font-semibold text-orange-600 hover:underline"
-                        >
-                        해제
-                        </button>
-                      )}
+                    <div className="flex items-center justify-between mb-3.5 shrink-0 gap-2">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <h4 className="text-[14px] font-black text-slate-800 tracking-tight">
+                          우리 동네 맛집
+                        </h4>
+                        {selectedCluster && (
+                          <button
+                            onClick={() => setSelectedCluster(null)}
+                            className="text-[10px] font-bold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-md hover:bg-orange-100 transition-colors"
+                          >
+                            해제
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 필터 3형제 - 우리동네맛집 우측 배치 */}
+                      <div className="flex items-center gap-1 z-30 select-none">
+                        {/* 1. 음식 종류 */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'category' ? null : 'category')}
+                            className={`py-1.5 px-2 rounded-full text-[10px] font-bold flex items-center gap-0.5 transition-all border cursor-pointer ${
+                              activeCategory !== '전체'
+                                ? 'bg-orange-500 text-white border-transparent'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <Utensils size={9} className="shrink-0" />
+                            <span className="truncate max-w-[42px]">{activeCategory === '전체' ? '음식' : activeCategory === '카페/디저트' ? '디저트' : activeCategory}</span>
+                            <ChevronDown size={9} className={activeDropdown === 'category' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
+                          </button>
+                          
+                          <AnimatePresence>
+                            {activeDropdown === 'category' && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 6 }}
+                                className="absolute top-full right-0 mt-1 w-[240px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 z-50 grid grid-cols-3 gap-1"
+                              >
+                                {['전체', '한식', '일식', '중식', '양식', '아시안', '분식', '디저트', '술집'].map((category) => (
+                                  <button
+                                    key={category}
+                                    onClick={() => {
+                                      setActiveCategory(category === '디저트' ? '카페/디저트' : category);
+                                      setSelectedCluster(null);
+                                      setActiveDropdown(null);
+                                    }}
+                                    className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
+                                      (category === '디저트' ? '카페/디저트' : category) === activeCategory
+                                        ? 'bg-orange-500 text-white font-black shadow-sm'
+                                        : 'hover:bg-slate-50 text-slate-600'
+                                    }`}
+                                  >
+                                    {category}
+                                  </button>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                        {/* 2. 정렬 방식 */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'sort' ? null : 'sort')}
+                            className={`py-1.5 px-2 rounded-full text-[10px] font-bold flex items-center gap-0.5 transition-all border cursor-pointer ${
+                              activeSort !== 'latest'
+                                ? 'bg-orange-500 text-white border-transparent'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <ArrowUpDown size={9} className="shrink-0" />
+                            <span className="truncate">{activeSort === 'latest' ? '최신' : '조회'}</span>
+                            <ChevronDown size={9} className={activeDropdown === 'sort' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
+                          </button>
+                          
+                          <AnimatePresence>
+                            {activeDropdown === 'sort' && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 6 }}
+                                className="absolute top-full right-0 mt-1 w-[130px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 z-50 grid grid-cols-1 gap-1"
+                              >
+                                {[{ id: 'latest', label: '최신순' }, { id: 'views', label: '조회수순' }].map((sort) => (
+                                  <button
+                                    key={sort.id}
+                                    onClick={() => {
+                                      setActiveSort(sort.id as any);
+                                      setSelectedCluster(null);
+                                      setActiveDropdown(null);
+                                    }}
+                                    className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
+                                      activeSort === sort.id
+                                        ? 'bg-orange-500 text-white font-black shadow-sm'
+                                        : 'hover:bg-slate-50 text-slate-600'
+                                    }`}
+                                  >
+                                    {sort.label}
+                                  </button>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                        {/* 3. 영상 종류 */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setActiveDropdown(activeDropdown === 'videoType' ? null : 'videoType')}
+                            className={`py-1.5 px-2 rounded-full text-[10px] font-bold flex items-center gap-0.5 transition-all border cursor-pointer ${
+                              activeVideoType !== '전체 리뷰'
+                                ? 'bg-orange-500 text-white border-transparent'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <PlayCircle size={9} className="shrink-0" />
+                            <span className="truncate">{activeVideoType === '전체 리뷰' ? '영상' : activeVideoType === '쇼츠 리뷰' ? '쇼츠' : '롱폼'}</span>
+                            <ChevronDown size={9} className={activeDropdown === 'videoType' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
+                          </button>
+                          
+                          <AnimatePresence>
+                            {activeDropdown === 'videoType' && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 6 }}
+                                className="absolute top-full right-0 mt-1 w-[160px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 z-50 grid grid-cols-1 gap-1"
+                              >
+                                {[
+                                  { id: '전체 리뷰', label: '전체 리뷰' },
+                                  { id: '쇼츠 리뷰', label: '쇼츠 리뷰' },
+                                  { id: '롱폼 리뷰', label: '롱폼 리뷰' }
+                                ].map((type) => (
+                                  <button
+                                    key={type.id}
+                                    onClick={() => {
+                                      setActiveVideoType(type.id as any);
+                                      setSelectedCluster(null);
+                                      setActiveDropdown(null);
+                                    }}
+                                    className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
+                                      activeVideoType === type.id
+                                        ? 'bg-orange-500 text-white font-black shadow-sm'
+                                        : 'hover:bg-slate-50 text-slate-600'
+                                    }`}
+                                  >
+                                    {type.label}
+                                  </button>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-3 overflow-y-auto flex-1 pb-4 pr-3 portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>

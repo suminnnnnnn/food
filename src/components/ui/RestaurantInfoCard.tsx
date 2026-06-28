@@ -881,27 +881,29 @@ export default function RestaurantInfoCard({
                         <span className="text-[12px] font-semibold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                           {activeVideo.youtuber.name}
                         </span>
-                        {activeVideo.is_short && (
-                          <span className="inline-flex items-center gap-0.5 text-[8px] font-black bg-gradient-to-r from-red-600 to-orange-500 text-white px-1.5 py-0.5 rounded-full shrink-0 shadow-sm">
-                            <Play size={7} fill="currentColor" /> SHORTS
-                          </span>
-                        )}
                       </div>
                     )}
 
-                    {/* 영상 제목 + 조회수 — 하단 */}
+                    {/* 영상 제목 + 조회수 + Shorts badge — 하단 */}
                     <div className="absolute bottom-0 inset-x-0 z-30 bg-gradient-to-t from-black/80 to-transparent px-4 pt-8 pb-4">
                       {activeVideo?.title && (
                         <p className="text-[13px] font-bold text-white leading-snug line-clamp-2 mb-1.5 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                           {activeVideo.title}
                         </p>
                       )}
-                      {activeVideo?.view_count !== undefined && activeVideo.view_count > 0 && (
-                        <div className="flex items-center gap-1">
-                          <Eye size={11} className="text-orange-300 shrink-0" />
-                          <span className="text-[11px] font-bold text-orange-300">{formatViewCount(activeVideo.view_count)}회</span>
-                        </div>
-                      )}
+                      <div className="flex items-center justify-between">
+                        {activeVideo?.view_count !== undefined && activeVideo.view_count > 0 ? (
+                          <div className="flex items-center gap-1">
+                            <Eye size={11} className="text-orange-300 shrink-0" />
+                            <span className="text-[11px] font-bold text-orange-300">{formatViewCount(activeVideo.view_count)}회</span>
+                          </div>
+                        ) : <div />}
+                        {activeVideo?.is_short && (
+                          <div className="bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-black px-1.5 py-[2px] rounded-md flex items-center gap-0.5 shadow-sm">
+                            <Play size={8} fill="currentColor" /> SHORTS
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div

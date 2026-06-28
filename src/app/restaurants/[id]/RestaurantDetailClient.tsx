@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Restaurant, Video, AffiliateProduct } from '@/types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -571,8 +571,8 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
                     onError={(e) => { (e.target as HTMLImageElement).src = getFallbackThumbnail(restaurant.category || ''); }}
                   />
                   {activeVideo.is_short && (
-                    <div className="absolute top-4 left-4 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-black px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-lg z-20">
-                      <Play size={8} fill="currentColor" /> SHORTS
+                    <div className="absolute bottom-3 right-3 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg z-20">
+                      <Play size={7} fill="currentColor" /> SHORTS
                     </div>
                   )}
                   <button

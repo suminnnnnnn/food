@@ -23,7 +23,14 @@ export default function RootLayout({
   return (
     <html lang="ko" className="h-full antialiased" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
+        <link
+          rel="preload"
+          href="https://cdn.jsdelivr.net/gh/sunn-us/SUIT@latest/fonts/variable/woff2/SUIT-Variable.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
       </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <Providers>
