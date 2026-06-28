@@ -418,12 +418,15 @@ export default function MapContainer({
 
   // 二쇰?留吏 ???�� ???濡??紐⑤ ?ㅽ 諛??釉 ?ъ�?諛 닫기, ? ???�� ???濡???대━??
   useEffect(() => {
+    // 탭 전환 시 드롭다운 필터 닫기
+    setActiveDropdown(null);
+
     if (activeTab === 'near') {
       if (filterPolygon) {
-        setIsSidebarCollapsed(false); // ?대? 洹몃┛ ?�� ?�쇰�??ъ�?諛 ?댁�??寃곌낵 ?�
+        setIsSidebarCollapsed(false); // 이미 그린 영역이 있으므로 결과 표시
       } else {
         startAreaDrawing();
-        setIsSidebarCollapsed(true); // 洹몃━湲??� ???ъ�?諛 ?湲�
+        setIsSidebarCollapsed(true); // 그리기 시작 시 사이드바 접기
       }
     } else if (activeTab === 'home') {
       setIsSidebarCollapsed(false);
@@ -436,6 +439,8 @@ export default function MapContainer({
         clearAreaFilter();
       }
     } else {
+      // favorites, planning 등 나머지 탭들도 사이드바 열림 보장
+      setIsSidebarCollapsed(false);
       if (activeTab !== 'planning') {
         setSelectedRestaurant(null);
         setSelectedCluster(null);
@@ -2233,7 +2238,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                                 : '0 2px 8px rgba(0,0,0,0.08)',
                             }}
                           >
-                            {/* 諛곌꼍 ?대?吏 */}
+                            {/* 배경 이미지 */}
                             {vid?.thumbnail ? (
                               <img
                                 src={vid.thumbnail}
@@ -2246,7 +2251,14 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                               </div>
                             )}
 
-                            {/* 洹몃�?곗�???ㅻ�?�� */}
+                            {/* Shorts badge - 우측하단 배치 */}
+                            {vid?.is_short && (
+                              <div className="absolute bottom-2.5 right-2.5 bg-red-600/90 backdrop-blur-md text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-red-500/30 shadow-[0_2px_8px_rgba(220,38,38,0.3)] z-10">
+                                <Play size={6} fill="currentColor"/> SHORTS
+                              </div>
+                            )}
+
+                            {/* 그라데이션 오버레이 */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/20" />
 
                             {/* ?��: 移댄怨�由� + 利寃⑥갼湲� */}
@@ -2283,11 +2295,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                                     </div>
                                   )}
                                   <span className="text-[10px] font-semibold text-white/80 truncate max-w-[100px]">{vid.youtuber.name}</span>
-                                  {vid.is_short && (
-                                    <span className="inline-flex items-center gap-0.5 text-[7px] font-black bg-gradient-to-r from-red-600 to-orange-500 text-white px-1.5 py-0.5 rounded-full shrink-0 shadow-sm">
-                                      <Play size={6} fill="currentColor" /> SHORTS
-                                    </span>
-                                  )}
+                                  
                                 </div>
                               )}
                               <p className="text-[15px] font-black text-white leading-tight truncate">{r.name}</p>
@@ -2402,8 +2410,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
               {activeTab === 'favorites' && (
                 <div className="flex flex-col h-full">
                   {!user ? (
-                    <div className="flex flex-col items-center justify-center h-full px-6 gap-0">
-                      <p className="text-[16px] font-extrabold text-slate-800 tracking-tight">로그인이 필요해요</p>
+                    <div className="flex flex-col items-center justify-center h-full px-6">
                       <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-400 to-orange-400 flex items-center justify-center shadow-lg mb-5">
                         <User size={30} className="text-white" />
                       </div>
@@ -2936,11 +2943,11 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
               setIsSidebarCollapsed(!isSidebarCollapsed);
             }
           }}
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-[14px] h-11 bg-white rounded-r-xl flex items-center justify-center shadow-[2px_0_8px_rgba(0,0,0,0.10)] border-y border-r border-slate-200/80 cursor-pointer hover:bg-orange-50 hover:border-orange-300/60 transition-colors duration-200 group"
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-[18px] h-16 bg-white rounded-r-2xl flex items-center justify-center shadow-[4px_0_12px_rgba(0,0,0,0.12)] border-y border-r border-slate-200/80 cursor-pointer hover:bg-orange-50 hover:border-orange-300/40 transition-all duration-200 group"
         >
           {isSidebarCollapsed && !selectedRestaurant
-            ? <ChevronRight size={10} strokeWidth={2.5} className="text-slate-400 group-hover:text-orange-500 transition-colors" />
-            : <ChevronLeft size={10} strokeWidth={2.5} className="text-slate-400 group-hover:text-orange-500 transition-colors" />
+            ? <ChevronRight size={13} strokeWidth={3} className="text-[#ff6b00] group-hover:scale-110 transition-transform" />
+            : <ChevronLeft size={13} strokeWidth={3} className="text-[#ff6b00] group-hover:scale-110 transition-transform" />
           }
         </button>
       </div>
