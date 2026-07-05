@@ -2233,10 +2233,29 @@ export default function MapContainer({
     try { return typeof window !== 'undefined' && !localStorage.getItem('mm_home_onboarded'); } catch { return false; }
   });
   const dismissOnboarding = (cat?: string) => {
-    try { localStorage.setItem('mm_home_onboarded', '1'); } catch {}
+    try { localStorage.setItem('mm_home_onboarded', '1'); if (cat) localStorage.setItem('mm_taste', cat); } catch {}
     if (cat) { setActiveCategory(cat); setSelectedCluster(null); }
     setShowOnboarding(false);
   };
+
+  // P2: 개인화 — 저장된 취향(온보딩) + 시간대 맞춤 스마트 추천
+  const [savedTaste] = useState<string | null>(() => {
+    try { return typeof window !== 'undefined' ? localStorage.getItem('mm_taste') : null; } catch { return null; }
+  });
+  const [smartRecDismissed, setSmartRecDismissed] = useState(false);
+  const smartRec = (() => {
+    // 저장된 취향이 있으면 우선 — 없으면 현재 시간대 기반 추천
+    if (savedTaste) {
+      const label = savedTaste === '카페/디저트' ? '카페·디저트' : savedTaste;
+      return { emoji: '💛', title: `당신 취향, ${label} 맛집`, sub: '취향에 맞춰 골라봤어요', apply: () => { setActiveCategory(savedTaste); setSelectedCluster(null); } };
+    }
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 11) return { emoji: '☕', title: '아침엔 브런치·카페', sub: '가볍게 하루 시작', apply: () => { setActiveCategory('카페/디저트'); setSelectedCluster(null); } };
+    if (hour >= 11 && hour < 14) return { emoji: '🍚', title: '점심 뭐 먹지?', sub: '지금 뜨는 맛집부터', apply: () => { setActiveSort('views'); setSelectedCluster(null); } };
+    if (hour >= 14 && hour < 17) return { emoji: '🍰', title: '나른한 오후, 디저트 한 입', sub: '카페·디저트 볼까요', apply: () => { setActiveCategory('카페/디저트'); setSelectedCluster(null); } };
+    if (hour >= 17 && hour < 21) return { emoji: '🍖', title: '저녁 맛집 볼까요?', sub: '오늘 저녁은 여기서', apply: () => { setActiveSort('views'); setSelectedCluster(null); } };
+    return { emoji: '🌙', title: '출출한 밤, 야식 어때요?', sub: '심야 맛집 모아봤어요', apply: () => { setActiveCuration('night'); setSelectedCluster(null); } };
+  })();
 
   // 공용 컴팩트 행 렌더 (홈·히어로·주변맛집) — 다중 유튜버·권위 뱃지·거리·영상수·방문상태
   const renderCompactRow = (r: Restaurant, hero = false) => {
@@ -2810,6 +2829,19 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                     </div>
 
                     <div className="space-y-1.5 overflow-y-auto flex-1 pb-4 pr-3 portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                      {/* P2: 시간대·취향 스마트 추천 (재방문 시, 온보딩과 배타) */}
+                      {!selectedCluster && !showOnboarding && !smartRecDismissed && (
+                        <div className="flex items-center gap-2.5 rounded-xl border border-orange-100 bg-gradient-to-br from-orange-50/80 to-white px-3 py-2.5">
+                          <span className="text-[20px] leading-none shrink-0">{smartRec.emoji}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[12.5px] font-black text-slate-800 truncate">{smartRec.title}</p>
+                            <p className="text-[10px] text-slate-500 truncate">{smartRec.sub}</p>
+                          </div>
+                          <button onClick={() => smartRec.apply()} className="shrink-0 text-[11px] font-black text-white rounded-full px-3 py-1.5 active:scale-95 transition-transform" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}>보기</button>
+                          <button onClick={() => setSmartRecDismissed(true)} className="shrink-0 p-1 text-slate-400 hover:text-slate-600" aria-label="닫기"><X size={14} /></button>
+                        </div>
+                      )}
+
                       {/* P1: 첫 진입 1탭 온보딩 (개인화) */}
                       {!selectedCluster && showOnboarding && (
                         <motion.div
