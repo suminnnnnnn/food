@@ -1657,6 +1657,14 @@ export default function MapContainer({
   // 외부/내부 호버 ID 중 활성화된 것 사용
   const effectiveHoveredId = externalHoveredRestaurantId || hoveredRestaurantId;
 
+  // 지도 마커 hover 시 사이드바 리스트의 해당 행을 화면 안으로 스크롤 (양방향 연동)
+  useEffect(() => {
+    if (!mapHoveredRestaurantId) return;
+    if (activeTab !== 'home' && activeTab !== 'near') return;
+    const el = document.querySelector(`[data-rid="${mapHoveredRestaurantId}"]`);
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [mapHoveredRestaurantId, activeTab]);
+
   // 외부 선택 레스토랑 변경 시 지도 이동 및 상태 업데이트
   useEffect(() => {
     if (externalSelectedRestaurant) {
@@ -2236,6 +2244,7 @@ export default function MapContainer({
     const isFav = savedIds.has(r.id);
     const isSelected = selectedRestaurant?.id === r.id;
     const isVisited = visitedIds.has(r.id);
+    const isMapHovered = mapHoveredRestaurantId === r.id; // 지도 마커 hover → 이 행 강조
     const youtubers = getUniqueYoutubers(r);
     const badges = getAuthorityBadges(r);
     const distKm = userLocation && typeof r.lat === 'number' && typeof r.lng === 'number'
@@ -2261,12 +2270,15 @@ export default function MapContainer({
     return (
       <motion.div
         key={r.id}
+        data-rid={r.id}
         onClick={() => { handleSelectRestaurant(r); map?.panTo(new kakao.maps.LatLng(r.lat, r.lng)); }}
+        onMouseEnter={() => setHoveredRestaurantId(r.id)}
+        onMouseLeave={() => setHoveredRestaurantId(null)}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
         whileTap={{ scale: 0.98 }}
-        className={`group grid grid-cols-[84px_1fr_auto] gap-2.5 items-center rounded-xl cursor-pointer border p-2 transition-all ${isVisited ? 'opacity-65' : ''} ${hero ? '' : 'bg-white'} ${isSelected ? 'border-orange-400 shadow-md' : hero ? 'border-orange-200 shadow-sm hover:shadow-md' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}
+        className={`group grid grid-cols-[84px_1fr_auto] gap-2.5 items-center rounded-xl cursor-pointer border p-2 transition-all ${isVisited ? 'opacity-65' : ''} ${hero ? '' : 'bg-white'} ${isSelected ? 'border-orange-400 shadow-md' : isMapHovered ? 'border-orange-300 shadow-md ring-2 ring-orange-100' : hero ? 'border-orange-200 shadow-sm hover:shadow-md' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}
         style={hero ? { background: 'linear-gradient(100deg,#FFF4E9,#ffffff 62%)', transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' } : { transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' }}
       >
         {/* 썸네일 */}
