@@ -2233,9 +2233,6 @@ export default function MapContainer({
     }, filteredRestaurants[0]);
   }, [filteredRestaurants, activeVideoType, savedMapMode, filterPolygon]);
 
-  // 포커스 히어로 대상: 선택된 맛집 우선, 없으면 기본(지금 뜨는)
-  const focusedRestaurant = selectedRestaurant || heroRestaurant;
-
   // "오늘 뭐 먹지?" 게임 모달 (랜덤 뽑기 / 밸런스 게임)
   const [activeGameModal, setActiveGameModal] = useState<'random' | 'balance' | null>(null);
 
@@ -2366,77 +2363,6 @@ export default function MapContainer({
     );
   };
 
-  // 포커스 히어로: 선택된(또는 기본=지금 뜨는) 맛집을 리스트 상단 큰 카드로 고정
-  const renderFocusHero = (r: Restaurant) => {
-    const vid = getBestVideo(r.videos, activeVideoType);
-    const isFav = savedIds.has(r.id);
-    const youtubers = getUniqueYoutubers(r);
-    const badges = getAuthorityBadges(r);
-    const isDefault = !selectedRestaurant; // 아무것도 선택 안 함 → 지금 뜨는
-    const distKm = userLocation && typeof r.lat === 'number' && typeof r.lng === 'number'
-      ? getDistance(userLocation.lat, userLocation.lng, r.lat, r.lng) : null;
-    const distLabel = distKm == null ? null : distKm < 1 ? `${Math.round(distKm * 1000)}m` : `${distKm.toFixed(1)}km`;
-    return (
-      <motion.div
-        key={`focus-${r.id}`}
-        onClick={() => { handleSelectRestaurant(r); map?.panTo(new kakao.maps.LatLng(r.lat, r.lng)); }}
-        onMouseEnter={() => setHoveredRestaurantId(r.id)}
-        onMouseLeave={() => setHoveredRestaurantId(null)}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-        className="group relative flex flex-col rounded-2xl overflow-hidden bg-white cursor-pointer border border-orange-200 shadow-md"
-      >
-        <div className="relative w-full aspect-video bg-slate-100 overflow-hidden">
-          {vid?.thumbnail ? (
-            <img src={vid.thumbnail} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" alt={r.name} />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center"><Utensils size={34} className="text-slate-500" /></div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/30 pointer-events-none" />
-          <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
-            {isDefault && <span className="inline-flex items-center gap-0.5 text-white text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}><Flame size={9} fill="currentColor" /> 지금 뜨는</span>}
-            {badges.map((b) => (<span key={b.short} className="text-white text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: b.bg }}>{b.short}</span>))}
-          </div>
-          <button onClick={(e) => { e.stopPropagation(); toggleSave(r.id); }} className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center border border-white/15 hover:bg-black/65 transition-colors">
-            <Star size={14} className={isFav ? 'text-orange-400 fill-orange-400' : 'text-white/85'} />
-          </button>
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="w-12 h-12 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center"><Play size={20} fill="currentColor" className="text-white ml-0.5" /></span>
-          </div>
-          <div className="absolute inset-x-0 bottom-0 z-10 p-3">
-            <p className="text-[16px] font-black text-white leading-tight tracking-tight line-clamp-1">{r.name}</p>
-            <div className="flex items-center gap-1.5 mt-1.5">
-              {youtubers.length > 0 && (
-                <>
-                  <span className="flex -space-x-2 shrink-0">
-                    {youtubers.slice(0, 3).map((y, i) => (
-                      y.profile_image ? (
-                        <img key={i} src={y.profile_image} className="w-5 h-5 rounded-full object-cover ring-2 ring-white/70" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      ) : (
-                        <span key={i} className="w-5 h-5 rounded-full bg-white/25 ring-2 ring-white/70 flex items-center justify-center text-[8px] font-bold text-white">{y.name?.[0] ?? '?'}</span>
-                      )
-                    ))}
-                  </span>
-                  <span className="text-[11px] font-bold text-white/95 truncate">{youtubers[0].name}{youtubers.length > 1 ? ` 외 ${youtubers.length - 1}` : ''}</span>
-                </>
-              )}
-              {vid && vid.view_count > 0 && (
-                <span className="text-[11px] font-bold text-orange-300 tabular-nums shrink-0 ml-auto flex items-center gap-1"><Eye size={11} /> {formatViewCount(vid.view_count)}</span>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
-          <span className="flex items-center gap-1.5 text-[10.5px] tabular-nums text-slate-500 min-w-0 truncate">
-            {distLabel && <span className="font-bold text-slate-600 flex items-center gap-0.5"><MapPin size={10} className="shrink-0" />{distLabel}</span>}
-            {vid?.published_at && <span className="text-slate-400">{formatRelativeTime(vid.published_at)}</span>}
-          </span>
-          <span className="text-[12px] font-black inline-flex items-center gap-1 shrink-0" style={{ color: '#FF6F00' }}>▶ 그 장면 보기</span>
-        </div>
-      </motion.div>
-    );
-  };
 
   // 내 저장 지도 모드: 진입 시 저장 핀들에 맞춰 지도 범위 자동 조정
   useEffect(() => {
@@ -2961,11 +2887,8 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                         </motion.div>
                       )}
 
-                      {/* 포커스 히어로 — 선택(또는 지금 뜨는) 맛집을 큰 카드로 고정 */}
-                      {!selectedCluster && focusedRestaurant && renderFocusHero(focusedRestaurant)}
-
                       {(() => {
-                        const pool = (selectedCluster || filteredRestaurants).filter(r => selectedCluster ? true : r.id !== focusedRestaurant?.id).slice(0, 40);
+                        const pool = (selectedCluster || filteredRestaurants).slice(0, 40);
                         if (selectedCluster) return <>{pool.map((r) => renderCompactRow(r))}</>;
                         const unvisited = pool.filter(r => !visitedIds.has(r.id));
                         const visited = pool.filter(r => visitedIds.has(r.id));
