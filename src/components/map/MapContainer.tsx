@@ -2309,7 +2309,7 @@ export default function MapContainer({
           setHoveredRestaurantId(r.id); // 마커 하이라이트는 즉시
           if (hero || activeTab !== 'home') return;
           if (hoverExpandTimer.current) clearTimeout(hoverExpandTimer.current);
-          hoverExpandTimer.current = setTimeout(() => setHoverExpandedId(r.id), 450); // 넷플릭스식 딜레이
+          hoverExpandTimer.current = setTimeout(() => setHoverExpandedId(r.id), 700); // 넷플릭스식 딜레이
         }}
         onMouseLeave={() => {
           setHoveredRestaurantId(null);
@@ -2319,7 +2319,7 @@ export default function MapContainer({
         layout
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: 'easeOut', layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
+        transition={{ duration: 0.2, ease: 'easeOut', layout: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } }}
         whileTap={{ scale: 0.98 }}
         className={isExpanded
           ? `group relative flex flex-col rounded-xl overflow-hidden bg-white cursor-pointer border border-orange-300 shadow-lg transition-all ${isVisited ? 'opacity-65' : ''}`
