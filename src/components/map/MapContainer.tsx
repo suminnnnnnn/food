@@ -13,7 +13,7 @@ import { getUserFolders, getAllUserFolderRelations, getOrCreateDefaultFolder, ad
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Locate, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool, ShoppingBag, Bell, CornerUpRight, ArrowUpDown, PlayCircle } from 'lucide-react';
+import { Locate, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool, ShoppingBag, Bell, CornerUpRight, ArrowUpDown, PlayCircle, SlidersHorizontal } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
@@ -191,6 +191,15 @@ const CURATIONS: { key: string; label: string; emoji: string; grad: string; matc
   { key: 'night',     label: '심야 맛집',     emoji: '🌙', grad: 'linear-gradient(150deg,#4338CA,#6D28D9)', match: (r) => /술집|주점|포차|이자카야|펍|호프/.test(r.category || '') || /포차|야식|심야|24시/.test(r.name || '') },
 ];
 
+// 음식 종류 다중 필터 — 칩 목록 + 매칭 술어
+const FOOD_CATEGORIES = ['한식', '일식', '중식', '양식', '아시안', '분식', '카페/디저트', '술집'];
+const matchCategory = (cat: string, ac: string): boolean => {
+  if (ac === '아시안') return cat.includes('아시안') || cat.includes('태국') || cat.includes('베트남') || cat.includes('동남아') || cat.includes('인도') || cat.includes('아시아') || cat.includes('대만') || cat.includes('일식') || cat.includes('멕시코') || cat.includes('타코');
+  if (ac === '카페/디저트') return cat.includes('카페') || cat.includes('디저트') || cat.includes('베이커리') || cat.includes('커피');
+  if (ac === '술집') return cat.includes('술집') || cat.includes('주점') || cat.includes('포차') || cat.includes('이자카야');
+  return cat.includes(ac);
+};
+
 // 맛집에 등장한 서로 다른 유튜버 목록 (중복 제거) — 다중 아바타 스택용
 const getUniqueYoutubers = (r: Restaurant): { name: string; profile_image: string; subscriber_count: number | null }[] => {
   const seen = new Set<string>();
@@ -328,7 +337,8 @@ export default function MapContainer({
   onExternalSelectedChange
 }: MapContainerProps) {
   const [map, setMap] = useState<kakao.maps.Map | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string>('전체');
+  const [activeCategories, setActiveCategories] = useState<string[]>([]); // 음식 다중선택 (빈 배열 = 전체)
+  const [isFilterOpen, setIsFilterOpen] = useState(false); // 다중 필터 패널
   const [activeSort, setActiveSort] = useState<'latest' | 'views'>('latest');
   const [activeVideoType, setActiveVideoType] = useState<'전체 리뷰' | '쇼츠 리뷰' | '롱폼 리뷰'>('전체 리뷰');
   const [activeDropdown, setActiveDropdown] = useState<'category' | 'sort' | 'videoType' | null>(null);
@@ -2106,23 +2116,11 @@ export default function MapContainer({
         }
       }
 
-      // 1. 음식 카테고리 필터
-      let catMatch = false;
-      if (activeCategory === '전체') {
-        catMatch = true;
-      } else {
+      // 1. 음식 카테고리 다중 필터 (빈 배열 = 전체, 선택된 것 중 하나라도 매칭되면 통과)
+      if (activeCategories.length > 0) {
         const cat = r.category || '';
-        if (activeCategory === '아시안') {
-          catMatch = cat.includes('아시안') || cat.includes('태국') || cat.includes('베트남') || cat.includes('동남아') || cat.includes('인도') || cat.includes('아시아') || cat.includes('대만') || cat.includes('일식') || cat.includes('멕시코') || cat.includes('타코');
-        } else if (activeCategory === '카페/디저트') {
-          catMatch = cat.includes('카페') || cat.includes('디저트') || cat.includes('베이커리') || cat.includes('커피');
-        } else if (activeCategory === '술집') {
-          catMatch = cat.includes('술집') || cat.includes('주점') || cat.includes('포차') || cat.includes('이자카야');
-        } else {
-          catMatch = cat.includes(activeCategory);
-        }
+        if (!activeCategories.some(ac => matchCategory(cat, ac))) return false;
       }
-      if (!catMatch) return false;
 
       // 2. ?� ?щ㎎ ?��
       if (activeVideoType !== '전체 리뷰') {
@@ -2200,7 +2198,7 @@ export default function MapContainer({
       });
     }
     return result;
-  }, [restaurants, activeCategory, activeSort, activeVideoType, filterPolygon, activeTag, activeCuration, activeYoutuber, globalSearchQuery, savedMapMode, savedStatusFilter, savedIds, visitedIds, activeThemeChip]);
+  }, [restaurants, activeCategories, activeSort, activeVideoType, filterPolygon, activeTag, activeCuration, activeYoutuber, globalSearchQuery, savedMapMode, savedStatusFilter, savedIds, visitedIds, activeThemeChip]);
 
   // 유튜버 발견 축: 현재 지도 내 맛집에 등장한 유튜버 집계 (많은 순)
   // 주의: 이 파일은 react-kakao-maps-sdk의 Map을 import하므로 전역 Map 대신 plain object 사용
@@ -2218,6 +2216,9 @@ export default function MapContainer({
     // 구독자수 내림차순(동률이면 등장 맛집 수 순)
     return Object.values(acc).sort((a, b) => (b.subs - a.subs) || (b.count - a.count)).slice(0, 15);
   }, [restaurants]);
+
+  // 다중 필터 활성 개수 (음식 선택수 + 정렬 + 영상)
+  const activeFilterCount = activeCategories.length + (activeSort !== 'latest' ? 1 : 0) + (activeVideoType !== '전체 리뷰' ? 1 : 0);
 
   // 홈 테마 큐레이션 레일 — 현재 지도 내 맛집으로 각 테마 개수 집계 (빈 컬렉션은 숨김)
   const curationRail = useMemo(() => {
@@ -2245,7 +2246,7 @@ export default function MapContainer({
   });
   const dismissOnboarding = (cat?: string) => {
     try { localStorage.setItem('mm_home_onboarded', '1'); if (cat) localStorage.setItem('mm_taste', cat); } catch {}
-    if (cat) { setActiveCategory(cat); setSelectedCluster(null); }
+    if (cat) { setActiveCategories([cat]); setSelectedCluster(null); }
     setShowOnboarding(false);
   };
 
@@ -2260,12 +2261,12 @@ export default function MapContainer({
     // 저장된 취향이 있으면 우선 — 없으면 현재 시간대 기반 추천
     if (savedTaste) {
       const label = savedTaste === '카페/디저트' ? '카페·디저트' : savedTaste;
-      return { emoji: '💛', title: `당신 취향, ${label} 맛집`, sub: '취향에 맞춰 골라봤어요', apply: () => { setActiveCategory(savedTaste); setSelectedCluster(null); } };
+      return { emoji: '💛', title: `당신 취향, ${label} 맛집`, sub: '취향에 맞춰 골라봤어요', apply: () => { setActiveCategories([savedTaste]); setSelectedCluster(null); } };
     }
     const hour = new Date().getHours();
-    if (hour >= 6 && hour < 11) return { emoji: '☕', title: '아침엔 브런치·카페', sub: '가볍게 하루 시작', apply: () => { setActiveCategory('카페/디저트'); setSelectedCluster(null); } };
+    if (hour >= 6 && hour < 11) return { emoji: '☕', title: '아침엔 브런치·카페', sub: '가볍게 하루 시작', apply: () => { setActiveCategories(['카페/디저트']); setSelectedCluster(null); } };
     if (hour >= 11 && hour < 14) return { emoji: '🍚', title: '점심 뭐 먹지?', sub: '지금 뜨는 맛집부터', apply: () => { setActiveSort('views'); setSelectedCluster(null); } };
-    if (hour >= 14 && hour < 17) return { emoji: '🍰', title: '나른한 오후, 디저트 한 입', sub: '카페·디저트 볼까요', apply: () => { setActiveCategory('카페/디저트'); setSelectedCluster(null); } };
+    if (hour >= 14 && hour < 17) return { emoji: '🍰', title: '나른한 오후, 디저트 한 입', sub: '카페·디저트 볼까요', apply: () => { setActiveCategories(['카페/디저트']); setSelectedCluster(null); } };
     if (hour >= 17 && hour < 21) return { emoji: '🍖', title: '저녁 맛집 볼까요?', sub: '오늘 저녁은 여기서', apply: () => { setActiveSort('views'); setSelectedCluster(null); } };
     return { emoji: '🌙', title: '출출한 밤, 야식 어때요?', sub: '심야 맛집 모아봤어요', apply: () => { setActiveCuration('night'); setSelectedCluster(null); } };
   })();
@@ -2540,228 +2541,82 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                         )}
                       </div>
 
-                      {/* 필터 3형제 - 우리동네맛집 우측 배치 */}
-                      <div className="flex items-center gap-1.5 z-30 select-none">
-                        {/* 1. 음식 종류 — 드롭다운 오른쪽 방향 */}
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              if (activeDropdown === 'category') {
-                                setActiveDropdown(null);
-                                setDropdownAnchor(null);
-                              } else {
-                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                                setDropdownAnchor({ top: rect.bottom + 4, left: rect.left });
-                                setActiveDropdown('category');
-                              }
-                            }}
-                            className={`py-1.5 px-2.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                              activeCategory !== '전체'
-                                ? 'shadow-sm'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                            }`}
-                            style={activeCategory !== '전체' ? {
-                              backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #ef4444, #f97316)',
-                              backgroundOrigin: 'border-box',
-                              backgroundClip: 'padding-box, border-box',
-                              border: '1.5px solid transparent',
-                              color: '#ef4444',
-                            } : undefined}
-                          >
-                            <Utensils size={12} className="shrink-0" />
-                            <span
-                              className="truncate"
-                              style={activeCategory !== '전체' ? {
-                                backgroundImage: 'linear-gradient(135deg, #ef4444, #f97316)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                              } : undefined}
-                            >{activeCategory === '전체' ? '음식' : activeCategory === '카페/디저트' ? '디저트' : activeCategory}</span>
-                            <ChevronDown size={12} className={activeDropdown === 'category' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
-                          </button>
-                          {activeDropdown === 'category' && dropdownAnchor && createPortal(
-                            <motion.div
-                              initial={{ opacity: 0, y: 6, scale: 0.97 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              transition={{ duration: 0.15, ease: 'easeOut' }}
-                              style={{ position: 'fixed', top: dropdownAnchor.top, left: dropdownAnchor.left, zIndex: 9999 }}
-                              className="w-[240px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 grid grid-cols-3 gap-1"
-                            >
-                              {['전체', '한식', '일식', '중식', '양식', '아시안', '분식', '디저트', '술집'].map((category) => (
-                                <button
-                                  key={category}
-                                  onClick={() => {
-                                    setActiveCategory(category === '디저트' ? '카페/디저트' : category);
-                                    setSelectedCluster(null);
-                                    setActiveDropdown(null);
-                                    setDropdownAnchor(null);
-                                  }}
-                                  className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
-                                    (category === '디저트' ? '카페/디저트' : category) === activeCategory
-                                      ? 'font-black'
-                                      : 'hover:bg-slate-50 text-slate-600'
-                                  }`}
-                                  style={(category === '디저트' ? '카페/디저트' : category) === activeCategory ? {
-                                    backgroundImage: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.12))',
-                                    color: '#ef4444',
-                                  } : undefined}
-                                >
-                                  {category}
-                                </button>
-                              ))}
-                            </motion.div>,
-                            document.body
-                          )}
-                        </div>
-
-                        {/* 2. 정렬 방식 — 드롭다운 왼쪽 방향 */}
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              if (activeDropdown === 'sort') {
-                                setActiveDropdown(null);
-                                setDropdownAnchor(null);
-                              } else {
-                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                                setDropdownAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-                                setActiveDropdown('sort');
-                              }
-                            }}
-                            className={`py-1.5 px-2.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                              activeSort !== 'latest'
-                                ? 'shadow-sm'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                            }`}
-                            style={activeSort !== 'latest' ? {
-                              backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #ef4444, #f97316)',
-                              backgroundOrigin: 'border-box',
-                              backgroundClip: 'padding-box, border-box',
-                              border: '1.5px solid transparent',
-                              color: '#ef4444',
-                            } : undefined}
-                          >
-                            <ArrowUpDown size={12} className="shrink-0" />
-                            <span
-                              className="truncate"
-                              style={activeSort !== 'latest' ? {
-                                backgroundImage: 'linear-gradient(135deg, #ef4444, #f97316)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                              } : undefined}
-                            >{activeSort === 'latest' ? '최신' : '조회'}</span>
-                            <ChevronDown size={12} className={activeDropdown === 'sort' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
-                          </button>
-                          {activeDropdown === 'sort' && dropdownAnchor && createPortal(
-                            <motion.div
-                              initial={{ opacity: 0, y: 6, scale: 0.97 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              transition={{ duration: 0.15, ease: 'easeOut' }}
-                              style={{ position: 'fixed', top: dropdownAnchor.top, right: dropdownAnchor.right, zIndex: 9999 }}
-                              className="w-[130px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 grid grid-cols-1 gap-1"
-                            >
-                              {[{ id: 'latest', label: '최신순' }, { id: 'views', label: '조회수순' }].map((sort) => (
-                                <button
-                                  key={sort.id}
-                                  onClick={() => {
-                                    setActiveSort(sort.id as any);
-                                    setSelectedCluster(null);
-                                    setActiveDropdown(null);
-                                    setDropdownAnchor(null);
-                                  }}
-                                  className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
-                                    activeSort === sort.id ? 'font-black' : 'hover:bg-slate-50 text-slate-600'
-                                  }`}
-                                  style={activeSort === sort.id ? {
-                                    backgroundImage: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.12))',
-                                    color: '#ef4444',
-                                  } : undefined}
-                                >
-                                  {sort.label}
-                                </button>
-                              ))}
-                            </motion.div>,
-                            document.body
-                          )}
-                        </div>
-
-                        {/* 3. 영상 종류 — 드롭다운 왼쪽 방향 */}
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              if (activeDropdown === 'videoType') {
-                                setActiveDropdown(null);
-                                setDropdownAnchor(null);
-                              } else {
-                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                                setDropdownAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-                                setActiveDropdown('videoType');
-                              }
-                            }}
-                            className={`py-1.5 px-2.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                              activeVideoType !== '전체 리뷰'
-                                ? 'shadow-sm'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                            }`}
-                            style={activeVideoType !== '전체 리뷰' ? {
-                              backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #ef4444, #f97316)',
-                              backgroundOrigin: 'border-box',
-                              backgroundClip: 'padding-box, border-box',
-                              border: '1.5px solid transparent',
-                              color: '#ef4444',
-                            } : undefined}
-                          >
-                            <PlayCircle size={12} className="shrink-0" />
-                            <span
-                              className="truncate"
-                              style={activeVideoType !== '전체 리뷰' ? {
-                                backgroundImage: 'linear-gradient(135deg, #ef4444, #f97316)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                              } : undefined}
-                            >{activeVideoType === '전체 리뷰' ? '영상' : activeVideoType === '쇼츠 리뷰' ? '쇼츠' : '롱폼'}</span>
-                            <ChevronDown size={12} className={activeDropdown === 'videoType' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
-                          </button>
-                          {activeDropdown === 'videoType' && dropdownAnchor && createPortal(
-                            <motion.div
-                              initial={{ opacity: 0, y: 6, scale: 0.97 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              transition={{ duration: 0.15, ease: 'easeOut' }}
-                              style={{ position: 'fixed', top: dropdownAnchor.top, right: dropdownAnchor.right, zIndex: 9999 }}
-                              className="w-[160px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 grid grid-cols-1 gap-1"
-                            >
-                              {[
-                                { id: '전체 리뷰', label: '전체 리뷰' },
-                                { id: '쇼츠 리뷰', label: '쇼츠 리뷰' },
-                                { id: '롱폼 리뷰', label: '롱폼 리뷰' }
-                              ].map((type) => (
-                                <button
-                                  key={type.id}
-                                  onClick={() => {
-                                    setActiveVideoType(type.id as any);
-                                    setSelectedCluster(null);
-                                    setActiveDropdown(null);
-                                    setDropdownAnchor(null);
-                                  }}
-                                  className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
-                                    activeVideoType === type.id ? 'font-black' : 'hover:bg-slate-50 text-slate-600'
-                                  }`}
-                                  style={activeVideoType === type.id ? {
-                                    backgroundImage: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.12))',
-                                    color: '#ef4444',
-                                  } : undefined}
-                                >
-                                  {type.label}
-                                </button>
-                              ))}
-                            </motion.div>,
-                            document.body
-                          )}
-                        </div>
+                      {/* 다중 필터 버튼 + 패널 (음식·정렬·영상) */}
+                      <div className="relative z-30 select-none">
+                        <button
+                          onClick={() => setIsFilterOpen(v => !v)}
+                          className={`py-1.5 px-3 rounded-full text-[12px] font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${activeFilterCount > 0 ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                        >
+                          <SlidersHorizontal size={13} className="shrink-0" /> 필터
+                          {activeFilterCount > 0 && <span className="min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[10px] font-black flex items-center justify-center tabular-nums">{activeFilterCount}</span>}
+                        </button>
+                        {isFilterOpen && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
+                            <div className="absolute right-0 top-full mt-2 w-[300px] bg-white border border-slate-200 rounded-2xl shadow-xl p-4 z-50">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-[14px] font-black text-slate-800">필터</span>
+                                <button onClick={() => { setActiveCategories([]); setActiveSort('latest'); setActiveVideoType('전체 리뷰' as any); setSelectedCluster(null); }} className="text-[11px] font-bold text-slate-400 hover:text-slate-600 cursor-pointer">초기화</button>
+                              </div>
+                              <div className="mb-3.5">
+                                <div className="text-[10.5px] font-black text-slate-400 uppercase tracking-wide mb-1.5">음식 종류</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {FOOD_CATEGORIES.map((c) => {
+                                    const on = activeCategories.includes(c);
+                                    return (
+                                      <button key={c} onClick={() => { setSelectedCluster(null); setActiveCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]); }}
+                                        className={`py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all cursor-pointer ${on ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                        {c === '카페/디저트' ? '카페·디저트' : c}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <div className="mb-3.5">
+                                <div className="text-[10.5px] font-black text-slate-400 uppercase tracking-wide mb-1.5">정렬</div>
+                                <div className="flex gap-1.5">
+                                  {[{ id: 'latest', label: '최신순' }, { id: 'views', label: '조회수순' }].map((s) => {
+                                    const on = activeSort === s.id;
+                                    return (<button key={s.id} onClick={() => { setActiveSort(s.id as any); setSelectedCluster(null); }} className={`py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all cursor-pointer ${on ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>{s.label}</button>);
+                                  })}
+                                </div>
+                              </div>
+                              <div className="mb-4">
+                                <div className="text-[10.5px] font-black text-slate-400 uppercase tracking-wide mb-1.5">영상 종류</div>
+                                <div className="flex gap-1.5">
+                                  {[{ id: '전체 리뷰', label: '전체' }, { id: '쇼츠 리뷰', label: '쇼츠' }, { id: '롱폼 리뷰', label: '롱폼' }].map((t) => {
+                                    const on = activeVideoType === t.id;
+                                    return (<button key={t.id} onClick={() => { setActiveVideoType(t.id as any); setSelectedCluster(null); }} className={`py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all cursor-pointer ${on ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>{t.label}</button>);
+                                  })}
+                                </div>
+                              </div>
+                              <button onClick={() => setIsFilterOpen(false)} className="w-full rounded-xl py-2.5 text-[13px] font-black text-white active:scale-[0.98] transition-transform" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}>
+                                {(selectedCluster || filteredRestaurants).length}곳 보기
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
+
+                    {/* 음식 종류 다중 칩 (헤더 빠른 선택 · 저장탭 스타일) */}
+                    {!selectedCluster && (
+                      <div className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar mb-2" style={{ scrollbarWidth: 'none' }}>
+                        <button
+                          onClick={() => { setActiveCategories([]); setSelectedCluster(null); }}
+                          className={`shrink-0 py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all cursor-pointer ${activeCategories.length === 0 ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                        >전체</button>
+                        {FOOD_CATEGORIES.map((c) => {
+                          const on = activeCategories.includes(c);
+                          return (
+                            <button key={c} onClick={() => { setSelectedCluster(null); setActiveCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]); }}
+                              className={`shrink-0 py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all cursor-pointer ${on ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                              {c === '카페/디저트' ? '카페·디저트' : c}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* A: 테마 큐레이션 필터 칩 (스티키 헤더) */}
                     {!selectedCluster && curationRail.length > 0 && (
@@ -2933,7 +2788,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                               <p className="text-[13px] font-bold text-slate-500">조건에 맞는 맛집이 없어요</p>
                               <p className="text-[11px] text-slate-400 mt-1">필터를 바꾸거나 초기화해 보세요</p>
                               <button
-                                onClick={() => { setActiveCategory('전체'); setActiveCuration(null); setActiveYoutuber(null); setActiveVideoType('전체 리뷰' as any); setGlobalSearchQuery(''); }}
+                                onClick={() => { setActiveCategories([]); setActiveCuration(null); setActiveYoutuber(null); setActiveVideoType('전체 리뷰' as any); setGlobalSearchQuery(''); }}
                                 className="mt-4 px-4 py-2 rounded-full text-[12px] font-bold text-white active:scale-95 transition-transform"
                                 style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}
                               >
@@ -2978,33 +2833,14 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                         </div>
                         {/* 필터 3형제 - 전체 너비 균등 배분 */}
                         <div className="flex gap-1.5 z-30 select-none">
-                          {/* 1. 음식 종류 */}
+                          {/* 1. 음식 종류 (다중선택) */}
                           <div className="relative flex-1">
                             <button
                               onClick={() => setActiveDropdown(activeDropdown === 'category' ? null : 'category')}
-                              className={`w-full py-1.5 px-2 rounded-full text-[10px] font-bold flex items-center justify-center gap-0.5 transition-all cursor-pointer ${
-                                activeCategory !== '전체'
-                                  ? 'shadow-sm'
-                                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                              }`}
-                              style={activeCategory !== '전체' ? {
-                                backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #ef4444, #f97316)',
-                                backgroundOrigin: 'border-box',
-                                backgroundClip: 'padding-box, border-box',
-                                border: '1.5px solid transparent',
-                                color: '#ef4444',
-                              } : undefined}
+                              className={`w-full py-1.5 px-2 rounded-full text-[10px] font-bold flex items-center justify-center gap-0.5 border transition-all cursor-pointer ${activeCategories.length > 0 ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                             >
                               <Utensils size={9} className="shrink-0" />
-                              <span
-                                className="truncate"
-                                style={activeCategory !== '전체' ? {
-                                  backgroundImage: 'linear-gradient(135deg, #ef4444, #f97316)',
-                                  WebkitBackgroundClip: 'text',
-                                  WebkitTextFillColor: 'transparent',
-                                  backgroundClip: 'text',
-                                } : undefined}
-                              >{activeCategory === '전체' ? '음식' : activeCategory === '카페/디저트' ? '디저트' : activeCategory}</span>
+                              <span className="truncate">{activeCategories.length === 0 ? '음식' : `음식 ${activeCategories.length}`}</span>
                               <ChevronDown size={9} className={activeDropdown === 'category' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
                             </button>
                             <AnimatePresence>
@@ -3015,27 +2851,23 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                                   exit={{ opacity: 0, y: 6 }}
                                   className="absolute top-full left-0 mt-1 w-[240px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 z-50 grid grid-cols-3 gap-1"
                                 >
-                                  {['전체', '한식', '일식', '중식', '양식', '아시안', '분식', '디저트', '술집'].map((category) => (
-                                    <button
-                                      key={category}
-                                      onClick={() => {
-                                        setActiveCategory(category === '디저트' ? '카페/디저트' : category);
-                                        setSelectedCluster(null);
-                                        setActiveDropdown(null);
-                                      }}
-                                      className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
-                                        (category === '디저트' ? '카페/디저트' : category) === activeCategory
-                                          ? 'font-black'
-                                          : 'hover:bg-slate-50 text-slate-600'
-                                      }`}
-                                      style={(category === '디저트' ? '카페/디저트' : category) === activeCategory ? {
-                                        backgroundImage: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.12))',
-                                        color: '#ef4444',
-                                      } : undefined}
-                                    >
-                                      {category}
-                                    </button>
-                                  ))}
+                                  {['전체', ...FOOD_CATEGORIES].map((category) => {
+                                    const on = category === '전체' ? activeCategories.length === 0 : activeCategories.includes(category);
+                                    return (
+                                      <button
+                                        key={category}
+                                        onClick={() => {
+                                          setSelectedCluster(null);
+                                          if (category === '전체') setActiveCategories([]);
+                                          else setActiveCategories(prev => prev.includes(category) ? prev.filter(x => x !== category) : [...prev, category]);
+                                        }}
+                                        className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${on ? 'font-black' : 'hover:bg-slate-50 text-slate-600'}`}
+                                        style={on ? { backgroundImage: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.12))', color: '#ef4444' } : undefined}
+                                      >
+                                        {category === '카페/디저트' ? '디저트' : category}
+                                      </button>
+                                    );
+                                  })}
                                 </motion.div>
                               )}
                             </AnimatePresence>
