@@ -1302,7 +1302,7 @@ export default function RestaurantInfoCard({
                                   </div>
                                 )}
                               </div>
-                              <span className={`block text-[10px] w-full truncate text-center ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 md:text-slate-500 group-hover:text-white/70 md:group-hover:text-slate-800'}`}>
+                              <span title={vid.youtuber.name} className={`block text-[10px] w-full leading-tight text-center break-words line-clamp-2 ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 md:text-slate-500 group-hover:text-white/70 md:group-hover:text-slate-800'}`}>
                                 {vid.youtuber.name}
                               </span>
                             </div>
