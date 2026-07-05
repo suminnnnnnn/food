@@ -30,6 +30,8 @@ import FloatingItineraryPanel from '@/components/ui/FloatingItineraryPanel';
 import CustomModal from '@/components/ui/CustomModal';
 import RandomDrawModal from '@/components/game/RandomDrawModal';
 import BalanceGameModal from '@/components/game/BalanceGameModal';
+import Toast from '@/components/ui/Toast';
+import { useToast } from '@/hooks/useToast';
 
 import { saveLocalItinerary } from '@/lib/supabase/itineraries';
 import { getRouteBufferPolygon, isPointInPolygon, getDistance } from '@/lib/geoUtils';
@@ -436,12 +438,16 @@ export default function MapContainer({
   };
 
   // 별(저장) 토글 — 어디서든 호출되는 공용 핸들러. 기본 저장 폴더에 추가/제거.
+  const { toastMessage, isVisible: isToastVisible, showToast } = useToast();
+
   const toggleSave = async (restaurantId: string) => {
     if (!user?.id) {
       setIsLoginModalOpen(true); // 로그아웃 시 로그인 유도
       return;
     }
-    
+
+    const wasSaved = savedIds.has(restaurantId);
+
     let folderId = defaultFolderId;
     if (!folderId) {
       try {
@@ -455,14 +461,16 @@ export default function MapContainer({
     }
 
     try {
-      if (savedIds.has(restaurantId)) {
+      if (wasSaved) {
         await removeRestaurantFromFolder(folderId, restaurantId);
       } else {
         await addRestaurantToFolder(folderId, restaurantId, '', []);
       }
       await fetchFoldersAndRelations();
+      showToast({ message: wasSaved ? '저장을 해제했어요' : '⭐ 저장했어요' });
     } catch (err) {
       console.error('Failed to toggle save:', err);
+      showToast({ message: '저장에 실패했어요. 잠시 후 다시 시도해 주세요' });
     }
   };
 
@@ -2883,6 +2891,31 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                       {!selectedCluster && heroRestaurant && renderCompactRow(heroRestaurant, true)}
 
                       {(selectedCluster || filteredRestaurants).filter(r => selectedCluster ? true : r.id !== heroRestaurant?.id).slice(0, 40).map((r) => renderCompactRow(r))}
+
+                      {/* 빈 상태 */}
+                      {!selectedCluster && filteredRestaurants.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-14 text-center px-6">
+                          <Utensils size={30} className="text-slate-200 mb-3" />
+                          {restaurants.length === 0 ? (
+                            <>
+                              <p className="text-[13px] font-bold text-slate-500">이 지역엔 아직 맛집이 없어요</p>
+                              <p className="text-[11px] text-slate-400 mt-1">지도를 옮겨 다른 동네를 둘러보세요</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-[13px] font-bold text-slate-500">조건에 맞는 맛집이 없어요</p>
+                              <p className="text-[11px] text-slate-400 mt-1">필터를 바꾸거나 초기화해 보세요</p>
+                              <button
+                                onClick={() => { setActiveCategory('전체'); setActiveCuration(null); setActiveVideoType('전체 리뷰' as any); setGlobalSearchQuery(''); }}
+                                className="mt-4 px-4 py-2 rounded-full text-[12px] font-bold text-white active:scale-95 transition-transform"
+                                style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}
+                              >
+                                필터 초기화
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -4434,6 +4467,9 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
           />
         )}
       </AnimatePresence>
+
+      {/* 저장 등 액션 피드백 토스트 */}
+      <Toast message={toastMessage} isVisible={isToastVisible} />
 
       {/* 맛집 제보 바텀시트 */}
       <RestaurantSubmissionBottomSheet
