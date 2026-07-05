@@ -192,16 +192,16 @@ const CURATIONS: { key: string; label: string; emoji: string; grad: string; matc
 ];
 
 // 맛집에 등장한 서로 다른 유튜버 목록 (중복 제거) — 다중 아바타 스택용
-const getUniqueYoutubers = (r: Restaurant): { name: string; profile_image: string }[] => {
+const getUniqueYoutubers = (r: Restaurant): { name: string; profile_image: string; subscriber_count: number | null }[] => {
   const seen = new Set<string>();
-  const out: { name: string; profile_image: string }[] = [];
+  const out: { name: string; profile_image: string; subscriber_count: number | null }[] = [];
   (r.videos || []).forEach((v) => {
     const y = v.youtuber;
     if (!y) return;
     const key = y.id || y.name;
     if (!key || seen.has(key)) return;
     seen.add(key);
-    out.push({ name: y.name, profile_image: y.profile_image });
+    out.push({ name: y.name, profile_image: y.profile_image, subscriber_count: y.subscriber_count ?? null });
   });
   return out;
 };
@@ -2205,16 +2205,18 @@ export default function MapContainer({
   // 유튜버 발견 축: 현재 지도 내 맛집에 등장한 유튜버 집계 (많은 순)
   // 주의: 이 파일은 react-kakao-maps-sdk의 Map을 import하므로 전역 Map 대신 plain object 사용
   const areaYoutubers = useMemo(() => {
-    const acc: Record<string, { name: string; profile_image: string; count: number }> = {};
+    const acc: Record<string, { name: string; profile_image: string; count: number; subs: number }> = {};
     restaurants.forEach((r) => {
       getUniqueYoutubers(r).forEach((y) => {
         if (!y.name || y.name === 'Unknown') return;
+        const subs = y.subscriber_count ?? 0;
         const ex = acc[y.name];
-        if (ex) { ex.count++; if (!ex.profile_image && y.profile_image) ex.profile_image = y.profile_image; }
-        else acc[y.name] = { name: y.name, profile_image: y.profile_image, count: 1 };
+        if (ex) { ex.count++; if (!ex.profile_image && y.profile_image) ex.profile_image = y.profile_image; if (subs > ex.subs) ex.subs = subs; }
+        else acc[y.name] = { name: y.name, profile_image: y.profile_image, count: 1, subs };
       });
     });
-    return Object.values(acc).sort((a, b) => b.count - a.count).slice(0, 15);
+    // 구독자수 내림차순(동률이면 등장 맛집 수 순)
+    return Object.values(acc).sort((a, b) => (b.subs - a.subs) || (b.count - a.count)).slice(0, 15);
   }, [restaurants]);
 
   // 홈 테마 큐레이션 레일 — 현재 지도 내 맛집으로 각 테마 개수 집계 (빈 컬렉션은 숨김)
@@ -2817,7 +2819,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                               <button onClick={() => setActiveYoutuber(null)} className="ml-auto text-[11px] font-bold text-orange-500 hover:text-orange-600">전체 보기</button>
                             )}
                           </div>
-                          <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1 px-0.5">
+                          <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-1.5 px-1">
                             {areaYoutubers.map((y) => {
                               const on = activeYoutuber === y.name;
                               return (
