@@ -2253,6 +2253,9 @@ export default function MapContainer({
   const [smartRecDismissed, setSmartRecDismissed] = useState(false);
   // P4: 다녀온 곳 하단 접기
   const [showVisited, setShowVisited] = useState(false);
+  // 넷플릭스식 hover 확대: hover 후 딜레이를 두고 커짐 (마커 하이라이트는 즉시)
+  const [hoverExpandedId, setHoverExpandedId] = useState<string | null>(null);
+  const hoverExpandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const smartRec = (() => {
     // 저장된 취향이 있으면 우선 — 없으면 현재 시간대 기반 추천
     if (savedTaste) {
@@ -2274,7 +2277,7 @@ export default function MapContainer({
     const isSelected = selectedRestaurant?.id === r.id;
     const isVisited = visitedIds.has(r.id);
     const isMapHovered = mapHoveredRestaurantId === r.id; // 지도 마커 hover → 이 행 강조
-    const isExpanded = !hero && activeTab === 'home' && hoveredRestaurantId === r.id; // 넷플릭스식: 행 hover → 히어로 형식 확대
+    const isExpanded = !hero && activeTab === 'home' && hoverExpandedId === r.id; // 넷플릭스식: hover 후 딜레이 → 히어로 형식 확대
     const youtubers = getUniqueYoutubers(r);
     const badges = getAuthorityBadges(r);
     const distKm = userLocation && typeof r.lat === 'number' && typeof r.lng === 'number'
@@ -2302,12 +2305,21 @@ export default function MapContainer({
         key={r.id}
         data-rid={r.id}
         onClick={() => { handleSelectRestaurant(r); map?.panTo(new kakao.maps.LatLng(r.lat, r.lng)); }}
-        onMouseEnter={() => setHoveredRestaurantId(r.id)}
-        onMouseLeave={() => setHoveredRestaurantId(null)}
+        onMouseEnter={() => {
+          setHoveredRestaurantId(r.id); // 마커 하이라이트는 즉시
+          if (hero || activeTab !== 'home') return;
+          if (hoverExpandTimer.current) clearTimeout(hoverExpandTimer.current);
+          hoverExpandTimer.current = setTimeout(() => setHoverExpandedId(r.id), 450); // 넷플릭스식 딜레이
+        }}
+        onMouseLeave={() => {
+          setHoveredRestaurantId(null);
+          if (hoverExpandTimer.current) clearTimeout(hoverExpandTimer.current);
+          setHoverExpandedId(null); // 벗어나면 즉시 컴팩트로
+        }}
         layout
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: 'easeOut', layout: { duration: 0.24, ease: [0.16, 1, 0.3, 1] } }}
+        transition={{ duration: 0.2, ease: 'easeOut', layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
         whileTap={{ scale: 0.98 }}
         className={isExpanded
           ? `group relative flex flex-col rounded-xl overflow-hidden bg-white cursor-pointer border border-orange-300 shadow-lg transition-all ${isVisited ? 'opacity-65' : ''}`
