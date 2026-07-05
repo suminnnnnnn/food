@@ -2819,7 +2819,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                               <button onClick={() => setActiveYoutuber(null)} className="ml-auto text-[11px] font-bold text-orange-500 hover:text-orange-600">전체 보기</button>
                             )}
                           </div>
-                          <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-1.5 px-1">
+                          <div className="flex gap-2.5 overflow-x-auto no-scrollbar py-2.5 px-2">
                             {areaYoutubers.map((y) => {
                               const on = activeYoutuber === y.name;
                               return (
@@ -2829,12 +2829,16 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                                   className="shrink-0 flex flex-col items-center gap-1 w-[54px] active:scale-95 transition-transform"
                                   title={`${y.name} · ${y.count}곳`}
                                 >
-                                  <span className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center ${on ? 'ring-2 ring-orange-500 ring-offset-2' : 'ring-1 ring-slate-200'}`}>
-                                    {y.profile_image ? (
-                                      <img src={y.profile_image} className="w-full h-full object-cover" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                    ) : (
-                                      <span className="w-full h-full bg-slate-200 flex items-center justify-center text-[13px] font-bold text-slate-500">{y.name[0]}</span>
-                                    )}
+                                  <span className="relative flex">
+                                    <span className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center ${on ? 'ring-2 ring-orange-500 ring-offset-2' : 'ring-1 ring-slate-200'}`}>
+                                      {y.profile_image ? (
+                                        <img src={y.profile_image} className="w-full h-full object-cover" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                      ) : (
+                                        <span className="w-full h-full bg-slate-200 flex items-center justify-center text-[13px] font-bold text-slate-500">{y.name[0]}</span>
+                                      )}
+                                    </span>
+                                    {/* 곳 수 배지 (우상단) */}
+                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white tabular-nums">{y.count}</span>
                                   </span>
                                   <span className="flex flex-col items-center leading-tight w-full min-w-0">
                                     <span className={`text-[9.5px] font-bold text-center truncate w-full ${on ? 'text-orange-600' : 'text-slate-600'}`}>{y.name}</span>
