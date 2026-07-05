@@ -2538,249 +2538,64 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                         )}
                       </div>
 
-                      {/* 필터 3형제 - 우리동네맛집 우측 배치 */}
+                      {/* 정렬·영상 아이콘 토글 (우측) */}
                       <div className="flex items-center gap-1.5 z-30 select-none">
-                        {/* 1. 음식 종류 — 드롭다운 오른쪽 방향 */}
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              if (activeDropdown === 'category') {
-                                setActiveDropdown(null);
-                                setDropdownAnchor(null);
-                              } else {
-                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                                setDropdownAnchor({ top: rect.bottom + 4, left: rect.left });
-                                setActiveDropdown('category');
-                              }
-                            }}
-                            className={`py-1.5 px-2.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                              activeCategory !== '전체'
-                                ? 'shadow-sm'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                            }`}
-                            style={activeCategory !== '전체' ? {
-                              backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #ef4444, #f97316)',
-                              backgroundOrigin: 'border-box',
-                              backgroundClip: 'padding-box, border-box',
-                              border: '1.5px solid transparent',
-                              color: '#ef4444',
-                            } : undefined}
-                          >
-                            <Utensils size={12} className="shrink-0" />
-                            <span
-                              className="truncate"
-                              style={activeCategory !== '전체' ? {
-                                backgroundImage: 'linear-gradient(135deg, #ef4444, #f97316)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                              } : undefined}
-                            >{activeCategory === '전체' ? '음식' : activeCategory === '카페/디저트' ? '디저트' : activeCategory}</span>
-                            <ChevronDown size={12} className={activeDropdown === 'category' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
-                          </button>
-                          {activeDropdown === 'category' && dropdownAnchor && createPortal(
-                            <motion.div
-                              initial={{ opacity: 0, y: 6, scale: 0.97 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              transition={{ duration: 0.15, ease: 'easeOut' }}
-                              style={{ position: 'fixed', top: dropdownAnchor.top, left: dropdownAnchor.left, zIndex: 9999 }}
-                              className="w-[240px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 grid grid-cols-3 gap-1"
-                            >
-                              {['전체', '한식', '일식', '중식', '양식', '아시안', '분식', '디저트', '술집'].map((category) => (
-                                <button
-                                  key={category}
-                                  onClick={() => {
-                                    setActiveCategory(category === '디저트' ? '카페/디저트' : category);
-                                    setSelectedCluster(null);
-                                    setActiveDropdown(null);
-                                    setDropdownAnchor(null);
-                                  }}
-                                  className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
-                                    (category === '디저트' ? '카페/디저트' : category) === activeCategory
-                                      ? 'font-black'
-                                      : 'hover:bg-slate-50 text-slate-600'
-                                  }`}
-                                  style={(category === '디저트' ? '카페/디저트' : category) === activeCategory ? {
-                                    backgroundImage: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.12))',
-                                    color: '#ef4444',
-                                  } : undefined}
-                                >
-                                  {category}
-                                </button>
-                              ))}
-                            </motion.div>,
-                            document.body
-                          )}
-                        </div>
+                        {/* 정렬 토글 (최신 ⇄ 조회) */}
+                        <button
+                          onClick={() => { setActiveSort(activeSort === 'latest' ? 'views' : 'latest'); setSelectedCluster(null); }}
+                          className={`inline-flex items-center gap-1 rounded-full text-[11px] font-bold px-2.5 py-1.5 transition-all active:scale-95 cursor-pointer ${activeSort !== 'latest' ? 'text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                          style={activeSort !== 'latest' ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
+                          title="정렬"
+                        >
+                          <ArrowUpDown size={12} className="shrink-0" /> {activeSort === 'views' ? '조회순' : '최신순'}
+                        </button>
+                        {/* 영상 종류 토글 (전체 → 쇼츠 → 롱폼) */}
+                        <button
+                          onClick={() => { setActiveVideoType((activeVideoType === '전체 리뷰' ? '쇼츠 리뷰' : activeVideoType === '쇼츠 리뷰' ? '롱폼 리뷰' : '전체 리뷰') as any); setSelectedCluster(null); }}
+                          className={`inline-flex items-center gap-1 rounded-full text-[11px] font-bold px-2.5 py-1.5 transition-all active:scale-95 cursor-pointer ${activeVideoType !== '전체 리뷰' ? 'text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                          style={activeVideoType !== '전체 리뷰' ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
+                          title="영상 종류"
+                        >
+                          <PlayCircle size={12} className="shrink-0" /> {activeVideoType === '쇼츠 리뷰' ? '쇼츠' : activeVideoType === '롱폼 리뷰' ? '롱폼' : '영상'}
+                        </button>
 
-                        {/* 2. 정렬 방식 — 드롭다운 왼쪽 방향 */}
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              if (activeDropdown === 'sort') {
-                                setActiveDropdown(null);
-                                setDropdownAnchor(null);
-                              } else {
-                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                                setDropdownAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-                                setActiveDropdown('sort');
-                              }
-                            }}
-                            className={`py-1.5 px-2.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                              activeSort !== 'latest'
-                                ? 'shadow-sm'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                            }`}
-                            style={activeSort !== 'latest' ? {
-                              backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #ef4444, #f97316)',
-                              backgroundOrigin: 'border-box',
-                              backgroundClip: 'padding-box, border-box',
-                              border: '1.5px solid transparent',
-                              color: '#ef4444',
-                            } : undefined}
-                          >
-                            <ArrowUpDown size={12} className="shrink-0" />
-                            <span
-                              className="truncate"
-                              style={activeSort !== 'latest' ? {
-                                backgroundImage: 'linear-gradient(135deg, #ef4444, #f97316)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                              } : undefined}
-                            >{activeSort === 'latest' ? '최신' : '조회'}</span>
-                            <ChevronDown size={12} className={activeDropdown === 'sort' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
-                          </button>
-                          {activeDropdown === 'sort' && dropdownAnchor && createPortal(
-                            <motion.div
-                              initial={{ opacity: 0, y: 6, scale: 0.97 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              transition={{ duration: 0.15, ease: 'easeOut' }}
-                              style={{ position: 'fixed', top: dropdownAnchor.top, right: dropdownAnchor.right, zIndex: 9999 }}
-                              className="w-[130px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 grid grid-cols-1 gap-1"
-                            >
-                              {[{ id: 'latest', label: '최신순' }, { id: 'views', label: '조회수순' }].map((sort) => (
-                                <button
-                                  key={sort.id}
-                                  onClick={() => {
-                                    setActiveSort(sort.id as any);
-                                    setSelectedCluster(null);
-                                    setActiveDropdown(null);
-                                    setDropdownAnchor(null);
-                                  }}
-                                  className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
-                                    activeSort === sort.id ? 'font-black' : 'hover:bg-slate-50 text-slate-600'
-                                  }`}
-                                  style={activeSort === sort.id ? {
-                                    backgroundImage: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.12))',
-                                    color: '#ef4444',
-                                  } : undefined}
-                                >
-                                  {sort.label}
-                                </button>
-                              ))}
-                            </motion.div>,
-                            document.body
-                          )}
-                        </div>
-
-                        {/* 3. 영상 종류 — 드롭다운 왼쪽 방향 */}
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              if (activeDropdown === 'videoType') {
-                                setActiveDropdown(null);
-                                setDropdownAnchor(null);
-                              } else {
-                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                                setDropdownAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-                                setActiveDropdown('videoType');
-                              }
-                            }}
-                            className={`py-1.5 px-2.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                              activeVideoType !== '전체 리뷰'
-                                ? 'shadow-sm'
-                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                            }`}
-                            style={activeVideoType !== '전체 리뷰' ? {
-                              backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, #ef4444, #f97316)',
-                              backgroundOrigin: 'border-box',
-                              backgroundClip: 'padding-box, border-box',
-                              border: '1.5px solid transparent',
-                              color: '#ef4444',
-                            } : undefined}
-                          >
-                            <PlayCircle size={12} className="shrink-0" />
-                            <span
-                              className="truncate"
-                              style={activeVideoType !== '전체 리뷰' ? {
-                                backgroundImage: 'linear-gradient(135deg, #ef4444, #f97316)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                              } : undefined}
-                            >{activeVideoType === '전체 리뷰' ? '영상' : activeVideoType === '쇼츠 리뷰' ? '쇼츠' : '롱폼'}</span>
-                            <ChevronDown size={12} className={activeDropdown === 'videoType' ? 'rotate-180 transition-transform shrink-0' : 'transition-transform shrink-0'} />
-                          </button>
-                          {activeDropdown === 'videoType' && dropdownAnchor && createPortal(
-                            <motion.div
-                              initial={{ opacity: 0, y: 6, scale: 0.97 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              transition={{ duration: 0.15, ease: 'easeOut' }}
-                              style={{ position: 'fixed', top: dropdownAnchor.top, right: dropdownAnchor.right, zIndex: 9999 }}
-                              className="w-[160px] bg-white border border-slate-100 rounded-2xl shadow-xl p-2 grid grid-cols-1 gap-1"
-                            >
-                              {[
-                                { id: '전체 리뷰', label: '전체 리뷰' },
-                                { id: '쇼츠 리뷰', label: '쇼츠 리뷰' },
-                                { id: '롱폼 리뷰', label: '롱폼 리뷰' }
-                              ].map((type) => (
-                                <button
-                                  key={type.id}
-                                  onClick={() => {
-                                    setActiveVideoType(type.id as any);
-                                    setSelectedCluster(null);
-                                    setActiveDropdown(null);
-                                    setDropdownAnchor(null);
-                                  }}
-                                  className={`py-1.5 px-1 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
-                                    activeVideoType === type.id ? 'font-black' : 'hover:bg-slate-50 text-slate-600'
-                                  }`}
-                                  style={activeVideoType === type.id ? {
-                                    backgroundImage: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.12))',
-                                    color: '#ef4444',
-                                  } : undefined}
-                                >
-                                  {type.label}
-                                </button>
-                              ))}
-                            </motion.div>,
-                            document.body
-                          )}
-                        </div>
                       </div>
                     </div>
 
-                    {/* A: 테마 큐레이션 필터 칩 (스티키 헤더) */}
-                    {!selectedCluster && curationRail.length > 0 && (
-                      <div className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar mb-2" style={{ scrollbarWidth: 'none' }}>
-                        {curationRail.map((c) => {
-                          const on = activeCuration === c.key;
-                          return (
-                            <button
-                              key={c.key}
-                              onClick={() => setActiveCuration(on ? null : c.key)}
-                              className={`shrink-0 inline-flex items-center gap-1 rounded-full text-[11px] font-bold px-2.5 py-1.5 transition-all active:scale-95 ${on ? 'text-white border border-transparent' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
-                              style={on ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
-                            >
-                              <span>{c.emoji}</span>
-                              <span>{c.label}</span>
-                              <span className={`text-[9.5px] font-bold tabular-nums ${on ? 'text-white/85' : 'text-slate-400'}`}>{c.count}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {/* A(deep): 통합 필터 레일 — 음식 카테고리 칩 + 테마 큐레이션 칩 (스티키, 가로 스크롤) */}
+                    <div className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar mb-2" style={{ scrollbarWidth: 'none' }}>
+                      {[{ l: '전체', v: '전체' }, { l: '한식', v: '한식' }, { l: '일식', v: '일식' }, { l: '중식', v: '중식' }, { l: '양식', v: '양식' }, { l: '아시안', v: '아시안' }, { l: '분식', v: '분식' }, { l: '카페·디저트', v: '카페/디저트' }, { l: '술집', v: '술집' }].map((o) => {
+                        const on = activeCategory === o.v;
+                        return (
+                          <button
+                            key={o.v}
+                            onClick={() => { setActiveCategory(o.v); setSelectedCluster(null); }}
+                            className={`shrink-0 rounded-full text-[11px] font-bold px-2.5 py-1.5 transition-all active:scale-95 ${on ? 'text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                            style={on ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
+                          >
+                            {o.l}
+                          </button>
+                        );
+                      })}
+                      {!selectedCluster && curationRail.length > 0 && (
+                        <span className="shrink-0 self-center w-px h-4 bg-slate-200 mx-0.5" />
+                      )}
+                      {!selectedCluster && curationRail.map((c) => {
+                        const on = activeCuration === c.key;
+                        return (
+                          <button
+                            key={c.key}
+                            onClick={() => setActiveCuration(on ? null : c.key)}
+                            className={`shrink-0 inline-flex items-center gap-1 rounded-full text-[11px] font-bold px-2.5 py-1.5 transition-all active:scale-95 ${on ? 'text-white border border-transparent' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                            style={on ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
+                          >
+                            <span>{c.emoji}</span>
+                            <span>{c.label}</span>
+                            <span className={`text-[9.5px] font-bold tabular-nums ${on ? 'text-white/85' : 'text-slate-400'}`}>{c.count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
 
                     {/* B: 결과 컨텍스트 줄 (개수 · 정렬 · 활성 테마) */}
                     <div className="shrink-0 flex items-center gap-2 text-[11px] mb-2">
