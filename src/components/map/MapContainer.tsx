@@ -2251,6 +2251,8 @@ export default function MapContainer({
     try { return typeof window !== 'undefined' ? localStorage.getItem('mm_taste') : null; } catch { return null; }
   });
   const [smartRecDismissed, setSmartRecDismissed] = useState(false);
+  // P4: 다녀온 곳 하단 접기
+  const [showVisited, setShowVisited] = useState(false);
   const smartRec = (() => {
     // 저장된 취향이 있으면 우선 — 없으면 현재 시간대 기반 추천
     if (savedTaste) {
@@ -2579,6 +2581,15 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
 
                       {/* 필터 3형제 - 우리동네맛집 우측 배치 */}
                       <div className="flex items-center gap-1.5 z-30 select-none">
+                        {/* 오늘 뭐 먹지? — 랜덤 뽑기 게임 (헤더 아이콘) */}
+                        <button
+                          onClick={() => setActiveGameModal('random')}
+                          className="inline-flex items-center justify-center rounded-full w-[30px] h-[30px] text-white active:scale-95 transition-transform shrink-0"
+                          style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}
+                          title="오늘 뭐 먹지? 랜덤 뽑기"
+                        >
+                          <Dices size={14} />
+                        </button>
                         {/* 1. 음식 종류 — 드롭다운 오른쪽 방향 */}
                         <div className="relative">
                           <button
@@ -2878,19 +2889,33 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                         </motion.div>
                       )}
 
-                      {/* 오늘 뭐 먹지? — 슬림 결정 바 (기존 게임 재사용) */}
-                      {!selectedCluster && filteredRestaurants.length > 0 && (
-                        <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-white shadow-sm" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00 60%,#FF9E40)' }}>
-                          <span className="text-[12px] font-black flex-1 flex items-center gap-1.5"><Dices size={14} /> 오늘 뭐 먹지?</span>
-                          <button onClick={() => setActiveGameModal('balance')} className="shrink-0 text-[10px] font-bold bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-full transition-colors">밸런스</button>
-                          <button onClick={() => setActiveGameModal('random')} className="shrink-0 text-[11px] font-black bg-white text-[#E4002B] px-3 py-1 rounded-full active:scale-95 transition-transform">돌리기</button>
-                        </div>
-                      )}
-
                       {/* 히어로 → 슬림 강조 행 (지금 뜨는) */}
                       {!selectedCluster && heroRestaurant && renderCompactRow(heroRestaurant, true)}
 
-                      {(selectedCluster || filteredRestaurants).filter(r => selectedCluster ? true : r.id !== heroRestaurant?.id).slice(0, 40).map((r) => renderCompactRow(r))}
+                      {(() => {
+                        const pool = (selectedCluster || filteredRestaurants).filter(r => selectedCluster ? true : r.id !== heroRestaurant?.id).slice(0, 40);
+                        if (selectedCluster) return <>{pool.map((r) => renderCompactRow(r))}</>;
+                        const unvisited = pool.filter(r => !visitedIds.has(r.id));
+                        const visited = pool.filter(r => visitedIds.has(r.id));
+                        return (
+                          <>
+                            {unvisited.map((r) => renderCompactRow(r))}
+                            {visited.length > 0 && (
+                              <>
+                                <button
+                                  onClick={() => setShowVisited(v => !v)}
+                                  className="w-full flex items-center gap-1.5 px-1 pt-2 pb-1 text-[11px] font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                                >
+                                  <span className="w-4 h-[2px] rounded-full bg-slate-200 shrink-0" />
+                                  다녀온 곳 {visited.length}
+                                  <ChevronDown size={13} className={`shrink-0 transition-transform ${showVisited ? 'rotate-180' : ''}`} />
+                                </button>
+                                {showVisited && visited.map((r) => renderCompactRow(r))}
+                              </>
+                            )}
+                          </>
+                        );
+                      })()}
 
                       {/* 빈 상태 */}
                       {!selectedCluster && filteredRestaurants.length === 0 && (
