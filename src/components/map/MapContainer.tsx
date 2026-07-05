@@ -2220,31 +2220,38 @@ export default function MapContainer({
   // 다중 필터 활성 개수 (음식 선택수 + 정렬 + 영상)
   const activeFilterCount = activeCategories.length + (activeSort !== 'latest' ? 1 : 0) + (activeVideoType !== '전체 리뷰' ? 1 : 0);
 
-  // 필터/유튜버 가로 칩 행: 마우스 드래그로도 스크롤 ([data-dragscroll])
+  // 필터/유튜버 가로 칩 행: 마우스 드래그로도 스크롤 (이벤트 위임 · [data-dragscroll])
   useEffect(() => {
-    const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-dragscroll]'));
-    const cleanups: (() => void)[] = [];
-    rows.forEach((el) => {
-      let active = false, startX = 0, startLeft = 0, moved = false;
-      const down = (e: MouseEvent) => { active = true; moved = false; startX = e.clientX; startLeft = el.scrollLeft; el.style.cursor = 'grabbing'; };
-      const move = (e: MouseEvent) => { if (!active) return; const dx = e.clientX - startX; if (Math.abs(dx) > 3) moved = true; el.scrollLeft = startLeft - dx; };
-      const up = () => { active = false; el.style.cursor = 'grab'; };
-      const clickCap = (e: MouseEvent) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } };
-      el.style.cursor = 'grab';
-      el.addEventListener('mousedown', down);
-      window.addEventListener('mousemove', move);
-      window.addEventListener('mouseup', up);
-      el.addEventListener('click', clickCap, true);
-      cleanups.push(() => {
-        el.removeEventListener('mousedown', down);
-        window.removeEventListener('mousemove', move);
-        window.removeEventListener('mouseup', up);
-        el.removeEventListener('click', clickCap, true);
-        el.style.cursor = '';
-      });
-    });
-    return () => cleanups.forEach(fn => fn());
-  }, [activeTab, selectedCluster, filteredRestaurants.length, areaYoutubers.length, activeCategories.length]);
+    let el: HTMLElement | null = null;
+    let startX = 0, startLeft = 0, moved = false;
+    const down = (e: MouseEvent) => {
+      const row = (e.target as HTMLElement)?.closest?.('[data-dragscroll]') as HTMLElement | null;
+      if (!row) return;
+      el = row; startX = e.clientX; startLeft = row.scrollLeft; moved = false;
+      row.style.cursor = 'grabbing';
+    };
+    const move = (e: MouseEvent) => {
+      if (!el) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 3) moved = true;
+      el.scrollLeft = startLeft - dx;
+      e.preventDefault();
+    };
+    const up = () => { if (el) el.style.cursor = 'grab'; el = null; };
+    const clickCap = (e: MouseEvent) => {
+      if (moved && (e.target as HTMLElement)?.closest?.('[data-dragscroll]')) { e.stopPropagation(); e.preventDefault(); moved = false; }
+    };
+    document.addEventListener('mousedown', down);
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+    document.addEventListener('click', clickCap, true);
+    return () => {
+      document.removeEventListener('mousedown', down);
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      document.removeEventListener('click', clickCap, true);
+    };
+  }, []);
 
   // 홈 테마 큐레이션 레일 — 현재 지도 내 맛집으로 각 테마 개수 집계 (빈 컬렉션은 숨김)
   const curationRail = useMemo(() => {
@@ -2627,7 +2634,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
 
                     {/* 음식 종류 다중 칩 (헤더 빠른 선택 · 저장탭 스타일) */}
                     {!selectedCluster && (
-                      <div data-dragscroll className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar mb-2" style={{ scrollbarWidth: 'none' }}>
+                      <div data-dragscroll className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar mb-2 cursor-grab" style={{ scrollbarWidth: 'none' }}>
                         <button
                           onClick={() => { setActiveCategories([]); setSelectedCluster(null); }}
                           className={`shrink-0 py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all cursor-pointer ${activeCategories.length === 0 ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
@@ -2646,7 +2653,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
 
                     {/* A: 테마 큐레이션 필터 칩 (스티키 헤더) */}
                     {!selectedCluster && curationRail.length > 0 && (
-                      <div data-dragscroll className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar mb-2" style={{ scrollbarWidth: 'none' }}>
+                      <div data-dragscroll className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar mb-2 cursor-grab" style={{ scrollbarWidth: 'none' }}>
                         {curationRail.map((c) => {
                           const on = activeCuration === c.key;
                           return (
@@ -2700,7 +2707,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                               <button onClick={() => setActiveYoutuber(null)} className="ml-auto text-[11px] font-bold text-orange-500 hover:text-orange-600">전체 보기</button>
                             )}
                           </div>
-                          <div data-dragscroll className="flex gap-2.5 overflow-x-auto no-scrollbar py-2.5 px-2">
+                          <div data-dragscroll className="flex gap-2.5 overflow-x-auto no-scrollbar py-2.5 px-2 cursor-grab">
                             {areaYoutubers.map((y) => {
                               const on = activeYoutuber === y.name;
                               return (
