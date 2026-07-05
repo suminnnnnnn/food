@@ -2836,7 +2836,12 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                                       <span className="w-full h-full bg-slate-200 flex items-center justify-center text-[13px] font-bold text-slate-500">{y.name[0]}</span>
                                     )}
                                   </span>
-                                  <span className={`text-[9.5px] font-bold leading-tight text-center truncate max-w-full ${on ? 'text-orange-600' : 'text-slate-600'}`}>{y.name}</span>
+                                  <span className="flex flex-col items-center leading-tight w-full min-w-0">
+                                    <span className={`text-[9.5px] font-bold text-center truncate w-full ${on ? 'text-orange-600' : 'text-slate-600'}`}>{y.name}</span>
+                                    {y.subs > 0 && (
+                                      <span className={`text-[8.5px] font-semibold tabular-nums ${on ? 'text-orange-500' : 'text-slate-400'}`}>{formatViewCount(y.subs)}</span>
+                                    )}
+                                  </span>
                                 </button>
                               );
                             })}
