@@ -292,7 +292,7 @@ svg path[stroke="#FF6F00"] {
   position: absolute;
   width: 32px;
   height: 32px;
-  background-color: rgba(59, 130, 246, 0.4); /* Blue-500 semi-transparent */
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(249, 115, 22, 0.4)); /* Red/Orange gradient semi-transparent */
   border-radius: 50%;
   animation: locate-pulse 2s infinite ease-out;
 }
@@ -301,10 +301,10 @@ svg path[stroke="#FF6F00"] {
   position: relative;
   width: 14px;
   height: 14px;
-  background-color: #3b82f6; /* Blue-500 */
+  background: linear-gradient(135deg, #ef4444, #f97316); /* Red-to-Orange gradient */
   border: 2px solid #ffffff;
   border-radius: 50%;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
 }
 
 /* =========================================
@@ -351,4 +351,13 @@ svg path[stroke="#FF6F00"] {
 }
 .group:hover .restaurant-card-img {
   filter: brightness(1.12) saturate(1.25);
+}
+
+/* 숨김 스크롤바 유틸 */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }

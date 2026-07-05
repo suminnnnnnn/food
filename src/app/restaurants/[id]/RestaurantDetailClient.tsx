@@ -12,6 +12,7 @@ import { useState, useEffect, useRef } from 'react';
 import { MichelinIcon, BlueRibbonIcon } from '@/components/icons/CustomIcons';
 import { openExternal } from '@/lib/external-link';
 import { supabase } from '@/lib/supabase/client';
+import { getOrCreateDefaultFolder, addRestaurantToFolder, removeRestaurantFromFolder, getAllUserFolderRelations } from '@/lib/supabase/folders';
 import { AffiliateDisclosure } from '@/components/AffiliateDisclosure';
 import Link from 'next/link';
 import { getRestaurantRatings } from '@/lib/constants/ratings';
@@ -377,6 +378,7 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
 
   // ─── State ─────────────────────────────────────────────────────────
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [savingFavorite, setSavingFavorite] = useState(false);
   const [isBookmarkHovered, setIsBookmarkHovered] = useState(false);
   const [isShareHovered, setIsShareHovered] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
@@ -388,28 +390,59 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
     setTimeout(() => setCopiedAddress(false), 2000);
   };
 
+  // 저장 상태 로드: 로그인 시 Supabase 폴더가 진실의 원천, 비로그인은 localStorage 폴백
   useEffect(() => {
-    const saved = localStorage.getItem('modoo-matjip-favorites');
-    if (saved) {
+    let mounted = true;
+    (async () => {
       try {
-        setFavorites(JSON.parse(saved));
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const relations = await getAllUserFolderRelations();
+          if (mounted) setFavorites(relations.map(r => r.restaurant_id));
+          return;
+        }
       } catch (e) {
-        console.error("Failed to parse favorites", e);
+        console.error('Failed to load saved state', e);
       }
-    }
+      const saved = localStorage.getItem('modoo-matjip-favorites');
+      if (saved && mounted) {
+        try { setFavorites(JSON.parse(saved)); } catch (e) { console.error('Failed to parse favorites', e); }
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
-  const toggleFavorite = (id: string) => {
-    let updated;
-    if (favorites.includes(id)) {
-      updated = favorites.filter(favId => favId !== id);
-    } else {
-      updated = [...favorites, id];
+  // 저장 토글: 앱의 정식 저장소(folder_restaurants)에 반영 → 지도/내 저장 목록과 동기화
+  const toggleFavorite = async (id: string) => {
+    if (savingFavorite) return;
+    const wasSaved = favorites.includes(id);
+    const optimistic = wasSaved ? favorites.filter(favId => favId !== id) : [...favorites, id];
+    setFavorites(optimistic); // 낙관적 업데이트
+    setSavingFavorite(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        // 비로그인: localStorage 폴백 저장 + 안내
+        localStorage.setItem('modoo-matjip-favorites', JSON.stringify(optimistic));
+        localStorage.setItem('favorite_restaurants', JSON.stringify(optimistic));
+        window.dispatchEvent(new Event('favoritesUpdated'));
+        alert('로그인하면 저장한 맛집이 내 지도에 표시돼요.');
+        return;
+      }
+      const folder = await getOrCreateDefaultFolder();
+      if (wasSaved) {
+        await removeRestaurantFromFolder(folder.id, id);
+      } else {
+        await addRestaurantToFolder(folder.id, id, '', []);
+      }
+      window.dispatchEvent(new Event('favoritesUpdated'));
+    } catch (e) {
+      console.error('Failed to toggle save', e);
+      setFavorites(favorites); // 실패 시 롤백
+      alert('저장 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setSavingFavorite(false);
     }
-    setFavorites(updated);
-    localStorage.setItem('modoo-matjip-favorites', JSON.stringify(updated));
-    localStorage.setItem('favorite_restaurants', JSON.stringify(updated));
-    window.dispatchEvent(new Event('favoritesUpdated'));
   };
 
   const sortedVideos = restaurant.videos ? [...restaurant.videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)) : [];
@@ -571,7 +604,7 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
                     onError={(e) => { (e.target as HTMLImageElement).src = getFallbackThumbnail(restaurant.category || ''); }}
                   />
                   {activeVideo.is_short && (
-                    <div className="absolute bottom-3 right-3 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg z-20">
+                    <div className="absolute bottom-3 right-3 bg-black/35 backdrop-blur-md border border-white/10 text-white text-[9px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm z-20">
                       <Play size={7} fill="currentColor" /> SHORTS
                     </div>
                   )}
@@ -692,10 +725,11 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
 
           {/* 즐겨찾기 */}
           <button
-            onClick={() => toggleFavorite && toggleFavorite(restaurant.id)}
+            onClick={() => toggleFavorite(restaurant.id)}
+            disabled={savingFavorite}
             onMouseEnter={() => setIsBookmarkHovered(true)}
             onMouseLeave={() => setIsBookmarkHovered(false)}
-            className={`flex flex-col items-center justify-center py-2.5 border rounded-2xl transition-all gap-1 cursor-pointer group ${
+            className={`flex flex-col items-center justify-center py-2.5 border rounded-2xl transition-all gap-1 cursor-pointer group disabled:opacity-60 ${
               (favorites.includes(restaurant.id) || isBookmarkHovered)
                 ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-[0_2px_10px_rgba(255,75,0,0.15)]'
                 : 'bg-zinc-800/40 hover:bg-zinc-800/80 border-white/5 text-zinc-400 hover:text-white'

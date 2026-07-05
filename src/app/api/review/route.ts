@@ -49,7 +49,7 @@ async function getGeminiEmbedding(text: string, apiKey: string): Promise<number[
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { submission_id } = body;
+    const { submission_id, force } = body; // force: 관리자 강제 승인 (AI 신뢰도 게이트 우회)
 
     if (!submission_id) {
       return NextResponse.json({ error: 'Missing submission_id' }, { status: 400 });
@@ -324,7 +324,8 @@ ${matchedCandidates.length > 0
     }
 
     // 5. 심사 결과(신뢰도 70점 기준) 판정 분기 및 데이터 이관 처리
-    const status = aiResult.is_valid && aiResult.confidence_score >= 70 ? 'approved' : 'rejected';
+    // force=true (관리자 강제 승인)이면 신뢰도 게이트를 우회하고 승인 인제스천을 수행
+    const status = force || (aiResult.is_valid && aiResult.confidence_score >= 70) ? 'approved' : 'rejected';
     let finalRestaurantId: string | null = null;
 
     if (status === 'approved') {

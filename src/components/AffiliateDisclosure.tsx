@@ -38,8 +38,8 @@ export function AffiliateDisclosure({ variant = 'compact', className = '' }: Pro
     <section className={`prose prose-sm text-gray-700 ${className}`}>
       <h2 className="text-base font-semibold">제휴 마케팅 고지</h2>
       <p>
-        "모두의맛집"은 쿠팡파트너스 활동의 일환으로 일정 수수료를 제공받을 수
-        있습니다. 이 수수료는 상품 가격에 영향을 주지 않으며, 모두의맛집은
+        "모두의맛집"은 쿠팡파트너스 활동의 일환으로 일정 수수료를 지급받습니다.
+        이 수수료는 상품 가격에 영향을 주지 않으며, 모두의맛집은
         독립적으로 식당과 콘텐츠를 큐레이션합니다.
       </p>
       <p>

@@ -114,9 +114,13 @@ const getCategoryIcon = (category?: string | null): React.ReactElement => {
 };
 
 const formatViewCount = (count: number) => {
-  if (count >= 1000000) return `${(count / 1000000).toFixed(1).replace('.0', '')}M`;
-  if (count >= 1000) return `${(count / 1000).toFixed(1).replace('.0', '')}K`;
-  return count.toString();
+  if (count >= 10000) {
+    return `${(count / 10000).toFixed(1).replace('.0', '')}만`;
+  }
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1).replace('.0', '')}천`;
+  }
+  return count.toLocaleString();
 };
 
 
@@ -590,6 +594,12 @@ export default function RestaurantInfoCard({
     return () => window.removeEventListener('resize', updateConstraints);
   }, [sortedVideos.length]);
 
+  // 맛집 변경 시 스토리 캐러셀 위치 초기화 (첫 번째 크리에이터가 "리"자 위치로 복귀)
+  useEffect(() => {
+    storyX.set(0);
+    setTimeout(() => updateConstraints(), 50);
+  }, [restaurant?.id]);
+
   // 마우스 휠 스크롤 감속 감쇄 감지 핸들러
   const handleStoryWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     const currentX = storyX.get();
@@ -899,7 +909,7 @@ export default function RestaurantInfoCard({
                           </div>
                         ) : <div />}
                         {activeVideo?.is_short && (
-                          <div className="bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-black px-1.5 py-[2px] rounded-md flex items-center gap-0.5 shadow-sm">
+                          <div className="bg-black/35 backdrop-blur-md border border-white/10 text-white text-[10px] font-black px-1.5 py-[2px] rounded-md flex items-center gap-0.5 shadow-sm">
                             <Play size={8} fill="currentColor" /> SHORTS
                           </div>
                         )}
@@ -1258,7 +1268,7 @@ export default function RestaurantInfoCard({
                     style={{ x: storyX }}
                     drag="x"
                     dragConstraints={dragConstraints}
-                    dragElastic={0.15}
+                    dragElastic={{ left: 0.12, right: 0 }}
                     className="flex flex-nowrap gap-4 w-max"
                   >
                     {sortedVideos.map((vid, idx) => {

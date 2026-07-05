@@ -116,17 +116,21 @@ export async function POST(req: Request) {
 
     // 3. 채널 썸네일 조회 (선택적)
     let profileImageUrl = null;
+    let subscriberCount: number | null = null;
     try {
       const isHandle = channelId.startsWith('@');
       const paramName = isHandle ? 'forHandle' : 'id';
       const channelRes = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=snippet&${paramName}=${encodeURIComponent(channelId)}&key=${YOUTUBE_API_KEY}`
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&${paramName}=${encodeURIComponent(channelId)}&key=${YOUTUBE_API_KEY}`
       );
       const channelData = await channelRes.json();
-      const snippets = channelData.items?.[0]?.snippet;
+      const chItem = channelData.items?.[0];
+      const snippets = chItem?.snippet;
       profileImageUrl = snippets?.thumbnails?.high?.url || snippets?.thumbnails?.medium?.url || snippets?.thumbnails?.default?.url || null;
+      // 구독자수 (비공개 채널은 hiddenSubscriberCount=true → null)
+      subscriberCount = chItem?.statistics?.hiddenSubscriberCount ? null : (parseInt(chItem?.statistics?.subscriberCount) || null);
     } catch (e) {
-      console.warn('채널 썸네일 조회 실패', e);
+      console.warn('채널 정보 조회 실패', e);
     }
 
     // 유튜브 프로필 이미지 엑박 방지용 영구 이니셜 아바타 폴백 세팅
@@ -141,7 +145,8 @@ export async function POST(req: Request) {
       .upsert({
         youtube_channel_id: channelId,
         name: channelTitle,
-        profile_image_url: profileImageUrl
+        profile_image_url: profileImageUrl,
+        subscriber_count: subscriberCount
       }, { onConflict: 'youtube_channel_id' })
       .select('id')
       .single();

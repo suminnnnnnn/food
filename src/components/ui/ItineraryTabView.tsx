@@ -1,165 +1,613 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Calendar, PlusCircle, Trash2, Edit3, Compass, MapPin } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Trash2, Edit3, Compass, MapPin, ChevronLeft, ChevronRight, Cloud, Plus, X } from 'lucide-react';
 import { getLocalItineraries, deleteLocalItinerary } from '@/lib/supabase/itineraries';
 import { Itinerary } from '@/types';
 
 interface ItineraryTabViewProps {
   onOpenItineraryPlanner: (itinerary?: any) => void;
+  onCreateItinerary?: (itinerary: any) => void;
   onSelectTab: (tab: any) => void;
 }
 
-export default function ItineraryTabView({ onOpenItineraryPlanner, onSelectTab }: ItineraryTabViewProps) {
+function parseDate(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function toYMD(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+const WEEKDAYS_SHORT = ['일','월','화','수','목','금','토'];
+
+// ── 날씨 아이콘 — 갤럭시(One UI) 캘린더풍 채움형 플랫 아이콘 ──────────
+// 라인이 아닌 단색 실루엣 + 절제된 팔레트(골드 해 · 쿨그레이 구름 · 블루 강수)
+const WI_SUN = '#FFB300';
+const WI_CLOUD = '#9AA7B6';
+const WI_CLOUD_DARK = '#7A8797';
+const WI_RAIN = '#4F9BF5';
+const WI_SNOW = '#8FC3FF';
+const WI_BOLT = '#FFC531';
+// One UI 톤의 부드러운 구름 실루엣 (viewBox 24)
+const WI_CLOUD_PATH = 'M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z';
+
+function SunGlyph({ cx = 12, cy = 12, r = 4.6 }: { cx?: number; cy?: number; r?: number }) {
+  const rays = [0, 45, 90, 135, 180, 225, 270, 315];
+  return (
+    <g>
+      <g stroke={WI_SUN} strokeWidth={2} strokeLinecap="round">
+        {rays.map(d => {
+          const rad = (d * Math.PI) / 180;
+          return (
+            <line key={d}
+              x1={cx + (r + 1.9) * Math.cos(rad)} y1={cy + (r + 1.9) * Math.sin(rad)}
+              x2={cx + (r + 3.6) * Math.cos(rad)} y2={cy + (r + 3.6) * Math.sin(rad)} />
+          );
+        })}
+      </g>
+      <circle cx={cx} cy={cy} r={r} fill={WI_SUN} />
+    </g>
+  );
+}
+
+function WeatherIcon({ code, size = 12 }: { code: number; size?: number }) {
+  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none' as const };
+  const cloudUp = 'translate(2.2,-1.8) scale(0.82)';
+
+  // 맑음
+  if (code === 0)
+    return <svg {...p}><SunGlyph /></svg>;
+  // 구름 조금 (해 + 구름)
+  if (code >= 1 && code <= 3)
+    return (
+      <svg {...p}>
+        <SunGlyph cx={8} cy={7.5} r={3.3} />
+        <path d={WI_CLOUD_PATH} transform="translate(3.6,3.2) scale(0.7)" fill={WI_CLOUD} />
+      </svg>
+    );
+  // 안개
+  if (code === 45 || code === 48)
+    return (
+      <svg {...p}>
+        <path d={WI_CLOUD_PATH} transform="translate(2.2,-2.4) scale(0.82)" fill={WI_CLOUD} />
+        <g stroke={WI_CLOUD_DARK} strokeWidth={2} strokeLinecap="round" opacity={0.75}>
+          <line x1="5" y1="18.5" x2="19" y2="18.5" />
+          <line x1="7" y1="22" x2="17" y2="22" />
+        </g>
+      </svg>
+    );
+  // 눈
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86)
+    return (
+      <svg {...p}>
+        <path d={WI_CLOUD_PATH} transform={cloudUp} fill={WI_CLOUD} />
+        <g fill={WI_SNOW}>
+          <circle cx="8" cy="19" r="1.5" />
+          <circle cx="12" cy="21.5" r="1.5" />
+          <circle cx="16" cy="19" r="1.5" />
+        </g>
+      </svg>
+    );
+  // 뇌우
+  if (code >= 95)
+    return (
+      <svg {...p}>
+        <path d={WI_CLOUD_PATH} transform={cloudUp} fill={WI_CLOUD_DARK} />
+        <polygon points="13,15 9.3,20.2 11.7,20.2 10.6,24 15.2,18 12.6,18 13.9,15" fill={WI_BOLT} />
+      </svg>
+    );
+  // 비
+  if (code >= 51)
+    return (
+      <svg {...p}>
+        <path d={WI_CLOUD_PATH} transform={cloudUp} fill={WI_CLOUD} />
+        <g stroke={WI_RAIN} strokeWidth={2} strokeLinecap="round">
+          <line x1="8" y1="18.2" x2="7" y2="22" />
+          <line x1="12" y1="18.2" x2="11" y2="22" />
+          <line x1="16" y1="18.2" x2="15" y2="22" />
+        </g>
+      </svg>
+    );
+  // 흐림
+  return <svg {...p}><path d={WI_CLOUD_PATH} transform="translate(2.2,-1) scale(0.82)" fill={WI_CLOUD} /></svg>;
+}
+
+// 날씨 설명 텍스트
+function wmoToLabel(code: number): string {
+  if (code === 0) return '맑음';
+  if (code >= 1 && code <= 3) return '구름 조금';
+  if (code === 45 || code === 48) return '안개';
+  if (code >= 51 && code <= 67) return '비';
+  if (code >= 71 && code <= 77) return '눈';
+  if (code >= 80 && code <= 82) return '소나기';
+  if (code >= 85 && code <= 86) return '눈소나기';
+  if (code >= 95) return '뇌우';
+  return '흐림';
+}
+
+// 이벤트 바 색상 팔레트
+const BAR_COLORS = ['#ef4444','#f97316','#3b82f6','#8b5cf6','#10b981','#ec4899'];
+
+export default function ItineraryTabView({ onOpenItineraryPlanner, onCreateItinerary, onSelectTab }: ItineraryTabViewProps) {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
+  type WeatherDay = { code: number; tempMin: number; tempMax: number };
+  const [weatherMap, setWeatherMap] = useState<Record<string, WeatherDay>>({});
 
-  const loadItineraries = () => {
+  const today = new Date();
+  const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState<string>(toYMD(today));
+
+  // ── 사이드바 내 일정 생성 폼 상태 (제목 + 기간만) ──────────────
+  const [creating, setCreating] = useState(false);
+  const [formTitle, setFormTitle] = useState('');
+  const [formStart, setFormStart] = useState('');
+  const [formEnd, setFormEnd] = useState('');
+  // 인라인 삭제 확인 대상
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // ── 날씨 API ────────────────────────────────────────────────
+  const fetchWeather = useCallback(async () => {
+    let lat = 37.5665, lon = 126.9780;
     try {
-      setItineraries(getLocalItineraries());
-    } catch (e) {
-      console.error('Failed to load itineraries', e);
-    }
-  };
-
-  useEffect(() => {
-    loadItineraries();
-    // 일정이 갱신되는 다른 액션이 있을 시 동기화
-    window.addEventListener('itinerariesUpdated', loadItineraries);
-    return () => {
-      window.removeEventListener('itinerariesUpdated', loadItineraries);
-    };
+      const pos = await new Promise<GeolocationPosition>((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 3000 })
+      );
+      lat = pos.coords.latitude; lon = pos.coords.longitude;
+    } catch {}
+    try {
+      const res = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+        `&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Asia/Seoul&forecast_days=16`
+      );
+      const data = await res.json();
+      if (data?.daily) {
+        const map: Record<string, WeatherDay> = {};
+        (data.daily.time as string[]).forEach((d: string, i: number) => {
+          map[d] = {
+            code: data.daily.weathercode[i],
+            tempMin: Math.round(data.daily.temperature_2m_min[i]),
+            tempMax: Math.round(data.daily.temperature_2m_max[i]),
+          };
+        });
+        setWeatherMap(map);
+      }
+    } catch (e) { console.warn('Weather fetch failed', e); }
   }, []);
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  useEffect(() => { fetchWeather(); }, [fetchWeather]);
+
+  // ── 일정 로드 ────────────────────────────────────────────────
+  const loadItineraries = () => {
+    try { setItineraries(getLocalItineraries()); }
+    catch (e) { console.error('Failed to load itineraries', e); }
+  };
+  useEffect(() => {
+    loadItineraries();
+    window.addEventListener('itinerariesUpdated', loadItineraries);
+    return () => window.removeEventListener('itinerariesUpdated', loadItineraries);
+  }, []);
+
+  // 인라인 삭제 확정
+  const confirmDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('이 일정을 삭제하시겠습니까?')) {
-      const updated = deleteLocalItinerary(id);
-      setItineraries(updated);
-      window.dispatchEvent(new Event('itinerariesUpdated'));
-    }
+    setItineraries(deleteLocalItinerary(id));
+    window.dispatchEvent(new Event('itinerariesUpdated'));
+    setConfirmDeleteId(null);
   };
 
-  const handleActivate = (itinerary: Itinerary) => {
-    // 카드 클릭 시 다이렉트로 편집 플래너 진입
-    onOpenItineraryPlanner(itinerary);
+  // ── 새 일정 생성 (사이드바 인라인, 제목 + 기간) ────────────────
+  const openCreate = () => {
+    setFormTitle('');
+    setFormStart(selectedDate);
+    setFormEnd(selectedDate);
+    setConfirmDeleteId(null);
+    setCreating(true);
+  };
+  const cancelCreate = () => setCreating(false);
+  // 시작일 변경 시 종료일이 더 이르면 함께 맞춰줌
+  const changeStart = (v: string) => {
+    setFormStart(v);
+    if (v && (!formEnd || formEnd < v)) setFormEnd(v);
+  };
+  const validRange = !!formStart && !!formEnd && formEnd >= formStart;
+  const tripDays = validRange
+    ? Math.round((parseDate(formEnd).getTime() - parseDate(formStart).getTime()) / 86400000) + 1
+    : 0;
+  const submitCreate = () => {
+    if (!validRange) return;
+    const title = formTitle.trim() || `${tripDays > 1 ? `${tripDays - 1}박 ${tripDays}일` : '당일'} 맛집 여행`;
+    const newItinerary = {
+      id: `itinerary-${Date.now()}`,
+      title,
+      start_date: formStart,
+      end_date: formEnd,
+      days: Array.from({ length: tripDays }, (_, i) => ({ day: i + 1, items: [] })),
+      created_at: new Date().toISOString(),
+    };
+    onCreateItinerary?.(newItinerary);
+    setCreating(false);
   };
 
-  return (
-    <div className="space-y-5 pb-8 text-slate-700">
-      {/* 상단 액션 및 소개 헤더 */}
-      <div className="flex justify-between items-center bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm">
-        <div className="space-y-0.5">
-          <h4 className="text-sm font-black text-slate-700">간편한 경로 설계</h4>
-          <p className="text-[13px] text-slate-500 leading-relaxed">지도 위에 직접 미식 루트를 그리고 나만의 맛집 코스를 계획하세요.</p>
+  // ── 캘린더 그리드 계산 ────────────────────────────────────────
+  const calendarDays = useMemo(() => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [currentMonth]);
+
+  const todayYMD = toYMD(today);
+
+  // 주(row) 단위로 분리
+  const weeks = useMemo(() => {
+    const rows: (Date | null)[][] = [];
+    for (let i = 0; i < calendarDays.length; i += 7) rows.push(calendarDays.slice(i, i+7));
+    return rows;
+  }, [calendarDays]);
+
+  // 이벤트 바: 각 일정에 색상 할당
+  const itineraryColors = useMemo(() => {
+    const map: Record<string, string> = {};
+    itineraries.forEach((it, i) => { map[it.id] = BAR_COLORS[i % BAR_COLORS.length]; });
+    return map;
+  }, [itineraries]);
+
+  // 특정 날짜에 걸치는 일정 목록
+  const itinerariesOnDate = useCallback((ymd: string) =>
+    itineraries.filter(it => it.start_date && it.end_date && it.start_date <= ymd && it.end_date >= ymd),
+  [itineraries]);
+
+  // 선택 날짜 정보
+  const selectedDateObj = useMemo(() => parseDate(selectedDate), [selectedDate]);
+  const selectedDateLabel = useMemo(() => {
+    const d = selectedDateObj;
+    const weekday = ['일','월','화','수','목','금','토'][d.getDay()];
+    return { day: d.getDate(), weekday, month: d.getMonth()+1 };
+  }, [selectedDateObj]);
+  const selectedWeather = weatherMap[selectedDate];
+  const selectedItineraries = useMemo(() => itinerariesOnDate(selectedDate), [selectedDate, itinerariesOnDate]);
+
+  // 오늘이 속한 달로 복귀 + 오늘 선택
+  const goToday = () => {
+    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+    setSelectedDate(todayYMD);
+  };
+
+  // ── 캘린더 렌더 ──────────────────────────────────────────────
+  const renderCalendar = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+
+    return (
+      <div className="bg-white rounded-3xl border border-slate-200/70 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.12)] overflow-hidden mb-0">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-4 py-3.5">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[19px] font-black tracking-tight bg-clip-text text-transparent"
+              style={{ backgroundImage: 'linear-gradient(135deg,#ef4444,#f97316)' }}>
+              {month + 1}월
+            </span>
+            <span className="text-[12px] font-bold text-slate-400">{year}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            {!isCurrentMonth && (
+              <button onClick={goToday}
+                className="mr-1 px-2.5 h-7 flex items-center rounded-full text-[11px] font-black text-orange-600 bg-orange-50 hover:bg-orange-100 transition-colors cursor-pointer">
+                오늘
+              </button>
+            )}
+            <button onClick={() => setCurrentMonth(new Date(year, month-1, 1))} aria-label="이전 달"
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+              <ChevronLeft size={17}/>
+            </button>
+            <button onClick={() => setCurrentMonth(new Date(year, month+1, 1))} aria-label="다음 달"
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+              <ChevronRight size={17}/>
+            </button>
+          </div>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => onOpenItineraryPlanner()}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-red-500 to-[#ff6f00] text-sm font-black text-white shadow-md shadow-orange-500/10 active:scale-[0.98] transition-transform cursor-pointer shrink-0"
-        >
-          <PlusCircle size={13} />
-          일정 추가
-        </motion.button>
+
+        {/* 요일 헤더 */}
+        <div className="grid grid-cols-7 bg-slate-50/60 border-y border-slate-100">
+          {WEEKDAYS_SHORT.map((w, i) => (
+            <div key={w} className={`text-center text-[10px] font-black py-2 tracking-wide
+              ${i===0?'text-red-400':i===6?'text-sky-400':'text-slate-400'}`}>
+              {w}
+            </div>
+          ))}
+        </div>
+
+        {/* 주(row) 단위 렌더링 */}
+        {weeks.map((week, wi) => (
+          <div key={wi} className="relative grid grid-cols-7" style={{ minHeight: 56 }}>
+            {/* 날짜 셀 */}
+            {week.map((date, di) => {
+              if (!date) return <div key={`e-${di}`} className="border-b border-slate-100 border-r last:border-r-0" />;
+              const ymd = toYMD(date);
+              const isToday = ymd === todayYMD;
+              const isSelected = ymd === selectedDate;
+              const dow = date.getDay();
+              const weather = weatherMap[ymd];
+              const eventsHere = itinerariesOnDate(ymd);
+
+              return (
+                <div
+                  key={ymd}
+                  onClick={() => setSelectedDate(ymd)}
+                  className={`relative flex flex-col border-b border-r last:border-r-0 border-slate-100 cursor-pointer transition-colors
+                    ${isSelected ? 'bg-orange-50/70' : isToday ? 'bg-amber-50/40' : 'hover:bg-slate-50'}`}
+                  style={{ minHeight: 58 }}
+                >
+                  {/* 날짜 + 날씨 아이콘 */}
+                  <div className="flex items-center justify-between px-1.5 pt-1.5 gap-0.5">
+                    {/* 날짜 숫자 */}
+                    <div className={`w-[22px] h-[22px] flex items-center justify-center rounded-full text-[11px] font-black transition-all shrink-0
+                      ${isSelected
+                        ? 'text-white shadow-sm'
+                        : isToday
+                          ? 'text-orange-600'
+                          : dow===0 ? 'text-red-500' : dow===6 ? 'text-sky-500' : 'text-slate-700'
+                      }`}
+                      style={isSelected ? { background:'linear-gradient(135deg,#ef4444,#f97316)', boxShadow:'0 2px 8px rgba(249,115,22,0.4)' }
+                        : isToday ? { boxShadow:'inset 0 0 0 1.5px #fdba74' } : undefined}
+                    >
+                      {date.getDate()}
+                    </div>
+                    {/* 날씨 아이콘 (예보 있을 때만) */}
+                    {weather && (
+                      <div className="shrink-0 opacity-90">
+                        <WeatherIcon code={weather.code} size={11}/>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 이벤트 바 (셀 하단) - 최대 3개 + 초과 카운트 */}
+                  <div className="absolute bottom-1 left-0 right-0 flex flex-col gap-[2px] px-0.5">
+                    {eventsHere.slice(0, 3).map((it) => {
+                      const isStart = toYMD(date) === it.start_date;
+                      const isEnd = toYMD(date) === it.end_date;
+                      return (
+                        <div key={it.id}
+                          className="h-[4px]"
+                          style={{
+                            background: itineraryColors[it.id],
+                            borderRadius: isStart && isEnd ? 9999
+                              : isStart ? '9999px 0 0 9999px'
+                              : isEnd ? '0 9999px 9999px 0'
+                              : 0,
+                            marginLeft: isStart ? 2 : 0,
+                            marginRight: isEnd ? 2 : 0,
+                          }}
+                        />
+                      );
+                    })}
+                    {eventsHere.length > 3 && (
+                      <span className="text-[7px] font-black text-slate-400 leading-none pl-0.5">+{eventsHere.length - 3}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ── 선택 날짜 상세 패널 ──────────────────────────────────────
+  const renderDetailPanel = () => (
+    <div className="bg-white rounded-3xl border border-slate-200/70 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.12)] overflow-hidden">
+      {/* 날짜 + 날씨 헤더 */}
+      <div className="flex items-center justify-between px-5 pt-4 pb-3.5 border-b border-slate-100">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[30px] font-black text-slate-800 leading-none tracking-tight">{selectedDateLabel.day}</span>
+          <div className="flex flex-col leading-none gap-0.5">
+            <span className="text-[13px] font-black text-slate-600">{selectedDateLabel.weekday}요일</span>
+            <span className="text-[10px] font-bold text-slate-400">{selectedDateLabel.month}월</span>
+          </div>
+        </div>
+        {selectedWeather ? (
+          <div className="flex items-center gap-2 pl-3 pr-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
+            <WeatherIcon code={selectedWeather.code} size={20}/>
+            <div className="flex flex-col leading-none gap-0.5">
+              <span className="text-[11px] font-black text-slate-600">{wmoToLabel(selectedWeather.code)}</span>
+              <span className="text-[10px] font-bold">
+                <span className="text-orange-500">{selectedWeather.tempMax}°</span>
+                <span className="text-slate-300 mx-0.5">/</span>
+                <span className="text-sky-500">{selectedWeather.tempMin}°</span>
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 text-slate-400 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
+            <Cloud size={14}/>
+            <span className="text-[11px] font-semibold">예보 없음</span>
+          </div>
+        )}
       </div>
 
-      {/* 일정 목록 영역 */}
-      <div className="space-y-3">
-        {itineraries.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-3xl py-12 px-6 text-center bg-slate-50/50"
-          >
-            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 mb-3 shadow-inner">
-              <Calendar size={18} />
-            </div>
-            <h5 className="text-sm font-black text-slate-700">계획된 일정이 없습니다</h5>
-            <p className="text-xs text-slate-400 mt-1 max-w-[200px] leading-relaxed">
-              새로운 맛집 탐방 일정을 만들고 지도에 동선을 띄워 보세요!
-            </p>
-          </motion.div>
+      {/* 일정 리스트 */}
+      <div className="px-4 py-2">
+        {selectedItineraries.length === 0 ? (
+          <div className="py-5 text-center">
+            <p className="text-[12px] text-slate-400 font-medium">이 날짜에 일정이 없습니다</p>
+          </div>
         ) : (
-          <div className="space-y-3">
-            {itineraries.map((itinerary, index) => {
-              const totalPlaces = itinerary.days.reduce((acc, d) => acc + d.items.length, 0);
+          <div className="space-y-0">
+            {selectedItineraries.map((it, idx) => {
+              const totalPlaces = it.days.reduce((acc, d) => acc + d.items.length, 0);
+              const color = itineraryColors[it.id];
               return (
                 <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  key={itinerary.id}
-                  onClick={() => handleActivate(itinerary)}
-                  className="group relative bg-slate-50/55 hover:bg-slate-100/70 border border-slate-200/60 rounded-2xl p-4 shadow-sm cursor-pointer transition-all duration-300 overflow-hidden"
+                  key={it.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  onClick={() => onOpenItineraryPlanner(it)}
+                  className="flex items-start gap-3 py-3 border-b border-slate-100 last:border-b-0 cursor-pointer group"
                 >
-                  {/* 카드 내부 데코용 그라데이션 라인 */}
-                  <div className="absolute top-0 left-0 bottom-0 w-1 bg-gradient-to-b from-red-500 to-[#ff6b00] opacity-80 group-hover:opacity-100 transition-opacity" />
-                  
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <h5 className="text-[14px] font-black text-slate-800 tracking-tight truncate group-hover:text-orange-600 transition-colors">
-                        {itinerary.title}
-                      </h5>
-                      <p className="text-xs text-slate-400 font-bold">
-                        {itinerary.start_date} ~ {itinerary.end_date}
-                      </p>
-                      
-                      <div className="flex items-center gap-1.5 pt-1">
-                        <span className="inline-flex items-center gap-0.5 text-[11.5px] text-orange-600 font-extrabold bg-orange-50 border border-orange-100/55 px-1.5 py-0.5 rounded">
-                          <Compass size={9} />
-                          {itinerary.days.length}일 코스
-                        </span>
-                        <span className="inline-flex items-center gap-0.5 text-[11.5px] text-sky-600 font-extrabold bg-sky-50 border border-sky-100/55 px-1.5 py-0.5 rounded">
-                          <MapPin size={9} />
-                          장소 {totalPlaces}곳
-                        </span>
-                      </div>
-                      
-                      {/* 태그 표시 */}
-                      {(itinerary.companion || itinerary.theme) && (
-                        <div className="flex items-center gap-1 pt-1 flex-wrap">
-                          {itinerary.companion && (
-                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200/55">
-                              {itinerary.companion}
-                            </span>
-                          )}
-                          {itinerary.theme && (
-                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-100/55">
-                              {itinerary.theme}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                  {/* 타임라인 컬러 바 */}
+                  <div className="flex flex-col items-center pt-1 shrink-0">
+                    <div className="w-0.5 h-full min-h-[36px] rounded-full" style={{ background: color }}/>
+                  </div>
 
-                    {/* 액션 버튼 */}
-                    <div className="flex items-center gap-1 shrink-0 relative z-10">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenItineraryPlanner(itinerary);
-                        }}
-                        className="p-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-700 border border-slate-200 transition-colors cursor-pointer"
-                        title="수정"
-                      >
-                        <Edit3 size={11} />
-                      </button>
-                      <button
-                        onClick={(e) => handleDelete(itinerary.id, e)}
-                        className="p-1.5 rounded-lg bg-red-50 hover:bg-red-500 border border-red-100 text-red-500 hover:text-white transition-colors cursor-pointer"
-                        title="삭제"
-                      >
-                        <Trash2 size={11} />
-                      </button>
+                  {/* 일정 정보 */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-black text-slate-800 group-hover:text-orange-600 transition-colors truncate">
+                      {it.title}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {it.start_date} ~ {it.end_date}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-orange-600 font-bold bg-orange-50 px-1.5 py-0.5 rounded">
+                        <Compass size={8}/> {it.days.length}일
+                      </span>
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-sky-600 font-bold bg-sky-50 px-1.5 py-0.5 rounded">
+                        <MapPin size={8}/> {totalPlaces}곳
+                      </span>
                     </div>
                   </div>
+
+                  {/* 액션 버튼 — 삭제는 인라인 확인 */}
+                  {confirmDeleteId === it.id ? (
+                    <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                      <button onClick={e => confirmDelete(it.id, e)}
+                        className="px-2 h-7 flex items-center rounded-lg text-[10px] font-black text-white bg-red-500 hover:bg-red-600 transition-colors cursor-pointer">
+                        삭제
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                        className="px-2 h-7 flex items-center rounded-lg text-[10px] font-black text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
+                        취소
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={e => { e.stopPropagation(); onOpenItineraryPlanner(it); }}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+                        <Edit3 size={11}/>
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); setConfirmDeleteId(it.id); }}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors cursor-pointer">
+                        <Trash2 size={11}/>
+                      </button>
+                    </div>
+                  )}
                 </motion.div>
               );
             })}
           </div>
         )}
       </div>
+    </div>
+  );
+
+  // ── 새 일정 생성 폼 (사이드바 내부, 제목 + 기간) ──────────────
+  const renderCreateForm = () => {
+    const dateInput = 'h-11 px-3 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-800 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition cursor-pointer';
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-3xl border border-slate-200/70 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.12)] overflow-hidden"
+      >
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-7 h-7 rounded-full text-white"
+              style={{ background:'linear-gradient(135deg,#ef4444,#f97316)' }}>
+              <Plus size={15} strokeWidth={3}/>
+            </span>
+            <span className="text-[15px] font-black text-slate-800 tracking-tight">새 일정</span>
+          </div>
+          <button onClick={cancelCreate} aria-label="닫기"
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+            <X size={16}/>
+          </button>
+        </div>
+
+        <div className="px-5 py-4 flex flex-col gap-4">
+          {/* 여행 기간 (핵심) */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-black text-slate-500">여행 기간</label>
+            <div className="flex items-center gap-2">
+              <input type="date" value={formStart} max={formEnd || undefined}
+                onChange={e => changeStart(e.target.value)}
+                className={`flex-1 ${dateInput}`} />
+              <span className="text-slate-300 font-black shrink-0">→</span>
+              <input type="date" value={formEnd} min={formStart || undefined}
+                onChange={e => setFormEnd(e.target.value)}
+                className={`flex-1 ${dateInput}`} />
+            </div>
+            {validRange && (
+              <span className="text-[11px] font-black text-orange-600 pl-0.5">
+                {tripDays > 1 ? `${tripDays - 1}박 ${tripDays}일` : '당일 여행'}
+              </span>
+            )}
+          </div>
+
+          {/* 제목 (선택) */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-black text-slate-500">
+              여행 이름 <span className="text-slate-300 font-bold">(선택)</span>
+            </label>
+            <input
+              value={formTitle}
+              onChange={e => setFormTitle(e.target.value)}
+              placeholder="비워두면 자동으로 지어드려요"
+              className="w-full h-11 px-3 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition"
+            />
+          </div>
+
+          {/* 액션 */}
+          <div className="flex items-center gap-2 pt-1">
+            <button onClick={cancelCreate}
+              className="h-11 px-4 rounded-xl text-[13px] font-black text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
+              취소
+            </button>
+            <button onClick={submitCreate} disabled={!validRange}
+              className="flex-1 h-11 rounded-xl text-[13px] font-black text-white transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background:'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: validRange ? '0 6px 18px -4px rgba(249,115,22,0.5)' : 'none' }}>
+              맛집 담으러 가기
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-2 pb-6 text-slate-700">
+      {renderCalendar()}
+
+      {creating ? renderCreateForm() : (
+        <>
+          {renderDetailPanel()}
+
+          {/* 새 일정 추가 CTA (사이드바 인라인) */}
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={openCreate}
+            className="mt-1 flex items-center justify-center gap-2 w-full h-12 rounded-2xl text-[14px] font-black text-white cursor-pointer"
+            style={{
+              background: 'linear-gradient(135deg, #ef4444, #f97316)',
+              boxShadow: '0 8px 24px -6px rgba(249,115,22,0.45), inset 0 1px 0 rgba(255,255,255,0.25)',
+            }}
+          >
+            <Plus size={18} strokeWidth={3}/>
+            <span className="tracking-tight">새 일정 추가</span>
+          </motion.button>
+        </>
+      )}
     </div>
   );
 }

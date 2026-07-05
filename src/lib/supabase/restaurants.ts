@@ -16,7 +16,7 @@ export async function getRestaurantsInBounds(
         quote, mention_time, keywords,
         videos (
           id, youtube_video_id, title, thumbnail_url, is_short, view_count, published_at,
-          channels ( id, name, profile_image_url, youtube_channel_id ),
+          channels ( id, name, profile_image_url, youtube_channel_id, subscriber_count ),
           series ( id, name, host_name )
         )
       ),
@@ -62,7 +62,8 @@ export async function getRestaurantsInBounds(
           id: c?.id || '',
           name: c?.name || 'Unknown',
           profile_image: c?.profile_image_url || '',
-          channel_url: c?.youtube_channel_id ? 'https://youtube.com/channel/' + c.youtube_channel_id : ''
+          channel_url: c?.youtube_channel_id ? 'https://youtube.com/channel/' + c.youtube_channel_id : '',
+          subscriber_count: c?.subscriber_count ?? null
         }
       };
     }) || [];
@@ -136,7 +137,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
         quote, mention_time, keywords,
         videos (
           id, youtube_video_id, title, thumbnail_url, is_short, view_count, published_at,
-          channels ( id, name, profile_image_url, youtube_channel_id ),
+          channels ( id, name, profile_image_url, youtube_channel_id, subscriber_count ),
           series ( id, name, host_name )
         )
       ),
@@ -245,7 +246,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
         quote, mention_time, keywords,
         videos (
           id, youtube_video_id, title, thumbnail_url, is_short, view_count, published_at,
-          channels ( id, name, profile_image_url, youtube_channel_id ),
+          channels ( id, name, profile_image_url, youtube_channel_id, subscriber_count ),
           series ( id, name, host_name )
         )
       ),
@@ -280,7 +281,8 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
           id: c?.id || '',
           name: c?.name || 'Unknown',
           profile_image: c?.profile_image_url || '',
-          channel_url: c?.youtube_channel_id ? 'https://youtube.com/channel/' + c.youtube_channel_id : ''
+          channel_url: c?.youtube_channel_id ? 'https://youtube.com/channel/' + c.youtube_channel_id : '',
+          subscriber_count: c?.subscriber_count ?? null
         }
       };
     }) || [];

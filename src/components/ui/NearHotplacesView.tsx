@@ -17,7 +17,7 @@ interface NearHotplacesViewProps {
 const formatViewCount = (count: number) => {
   if (count >= 10000) return `${(count / 10000).toFixed(1).replace('.0', '')}만`;
   if (count >= 1000) return `${(count / 1000).toFixed(1).replace('.0', '')}천`;
-  return count.toString();
+  return count.toLocaleString();
 };
 
 export default function NearHotplacesView({
@@ -131,7 +131,7 @@ export default function NearHotplacesView({
 
                     {/* 비디오 재생 표시기 또는 뱃지 */}
                     {video?.is_short && (
-                      <div className="absolute top-1.5 left-1.5 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-red-500/30 tracking-tight shadow-sm">
+                      <div className="absolute top-1.5 left-1.5 bg-black/35 backdrop-blur-md border border-white/10 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-0.5 tracking-tight shadow-sm">
                         <Play size={7} fill="currentColor" /> SHORTS
                       </div>
                     )}

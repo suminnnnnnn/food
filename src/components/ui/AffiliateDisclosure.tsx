@@ -1,11 +1,19 @@
+import { Info } from 'lucide-react';
+
+// 제휴 마케팅 고지 — .md 인포메이션(admonition) 형식: 옅은 주황 배경 + 아이콘 + "안내" 라벨
 export default function AffiliateDisclosure() {
   return (
-    <div className="mt-6 p-4 bg-gray-50/50 dark:bg-brand-gray/50 rounded-2xl flex flex-col items-center justify-center text-center border border-gray-100 dark:border-white/5">
-      <p className="text-[12px] text-gray-500 dark:text-white/40 leading-relaxed">
-        본 서비스 내 외부 링크(지도, 영상 등) 및 제휴 배너를 통한<br />
-        구매/이용 시 일정액의 수수료를 제공받을 수 있습니다.
+    <div
+      className="mt-3 p-3 rounded-xl"
+      style={{ background: 'rgba(255, 111, 0, 0.08)', border: '1px solid rgba(255, 111, 0, 0.16)' }}
+    >
+      <div className="flex items-center gap-1.5 mb-1">
+        <Info size={14} style={{ color: '#FF6F00' }} />
+        <span className="text-[11px] font-extrabold" style={{ color: '#FF6F00' }}>안내</span>
+      </div>
+      <p className="text-[11.5px] leading-relaxed" style={{ color: '#8a4b18' }}>
+        본 서비스는 쿠팡파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
       </p>
     </div>
   );
 }
-

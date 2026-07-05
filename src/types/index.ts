@@ -5,6 +5,7 @@ export interface Youtuber {
   name: string;
   profile_image: string;
   channel_url: string;
+  subscriber_count?: number | null;
 }
 
 export interface Video {
@@ -93,6 +94,34 @@ export interface Itinerary {
   transport?: string;
   days: DailyItinerary[];
   created_at: string;
+}export interface UserFolder {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  creator_id: string;
+  is_collaborative: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
+export interface FolderMember {
+  folder_id: string;
+  user_id: string;
+  role: 'owner' | 'editor' | 'viewer';
+  created_at: string;
+  nickname?: string;
+  avatar_url?: string;
+}
 
+export interface FolderRestaurantRelation {
+  folder_id: string;
+  restaurant_id: string;
+  user_id: string;
+  memo?: string;
+  visited: boolean;
+  visit_count: number;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}

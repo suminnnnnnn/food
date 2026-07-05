@@ -1,0 +1,593 @@
+<title>모두의맛집 디자인 시스템</title>
+<style>
+  /* =========================================================
+     모두의맛집 — 디자인 시스템
+     의도적 다크 싱글 테마: 앱 셸이 Sleek Charcoal 전용이므로
+     이 문서도 제품의 실제 세계(네온 나이트 맵)에 커밋한다.
+     프로덕션 폰트는 SUIT Variable — 아티팩트 CSP가 웹폰트를
+     차단하므로 한글 시스템 스택 + 굵기·자간으로 톤을 근사한다.
+     ========================================================= */
+  :root {
+    /* 그라운드 — 순수 회색이 아니라 살짝 따뜻하게 기운 차콜 */
+    --ground:       #121212;
+    --ground-2:     #191817;
+    --surface:      #1e1e1e;
+    --surface-2:    #262524;
+    --hairline:     rgba(255,255,255,0.08);
+    --hairline-2:   rgba(255,255,255,0.05);
+
+    /* 엠버 — 브랜드 시그니처(레드→오렌지→앰버) */
+    --ember-red:    #ff3b30;
+    --ember-orange: #ff6f00;
+    --ember-amber:  #ff9e40;
+    --ember: linear-gradient(100deg, #ff3b30 0%, #ff6f00 52%, #ff9e40 100%);
+
+    /* 텍스트 */
+    --ink:      #ffffff;
+    --ink-sub:  rgba(255,255,255,0.62);
+    --ink-mute: rgba(255,255,255,0.40);
+    --ink-faint:rgba(255,255,255,0.26);
+
+    /* 시맨틱 배지 — 액센트와 분리된 별도 축 */
+    --trending:  oklch(0.62 0.20 25);
+    --michelin:  oklch(0.58 0.15 255);
+    --blueribbon:oklch(0.55 0.18 285);
+
+    /* 지도 스킨 */
+    --skin-silver:#f2f4f6;
+    --skin-navy:  #0f172a;
+    --skin-sand:  #f5ead9;
+
+    /* 타입 */
+    --font-body: 'SUIT Variable','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',system-ui,-apple-system,sans-serif;
+    --font-mono: ui-monospace,'SF Mono','Cascadia Code',Consolas,'D2Coding',monospace;
+
+    /* 시그니처 이징 & 듀레이션 */
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur:  0.4s;
+
+    --maxw: 1080px;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* 상단에 은은한 엠버 열기가 스미는 나이트 그라운드 */
+    background-image:
+      radial-gradient(120% 60% at 12% -8%, rgba(255,111,0,0.10), transparent 60%),
+      radial-gradient(90% 50% at 100% 0%, rgba(255,59,48,0.07), transparent 55%);
+    background-attachment: fixed;
+  }
+  h1,h2,h3,h4 { letter-spacing: -0.03em; line-height: 1.12; text-wrap: balance; margin: 0; }
+  p { margin: 0; }
+  code, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  a { color: inherit; }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
+
+  /* eyebrow */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .eyebrow::before {
+    content: ""; width: 22px; height: 2px; border-radius: 2px;
+    background: var(--ember);
+  }
+
+  /* ---------- HERO ---------- */
+  header.hero { padding: 92px 0 40px; position: relative; }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 48px; align-items: center; }
+  .hero h1 {
+    font-size: clamp(44px, 7vw, 88px);
+    font-weight: 800;
+    margin: 22px 0 0;
+  }
+  .hero h1 .flame {
+    background: var(--ember);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+  .hero-lede {
+    margin-top: 22px; max-width: 44ch;
+    font-size: 17px; color: var(--ink-sub); font-weight: 500;
+  }
+  .hero-meta {
+    margin-top: 30px; display: flex; flex-wrap: wrap; gap: 10px;
+  }
+  .chip {
+    font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.02em;
+    padding: 7px 12px; border-radius: 999px;
+    border: 1px solid var(--hairline); color: var(--ink-sub);
+    background: rgba(255,255,255,0.02);
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* Signature — 살아있는 엠버 스펙트럼 위의 네온 마커 */
+  .hero-stage {
+    position: relative; aspect-ratio: 4/5; border-radius: 22px;
+    border: 1px solid var(--hairline);
+    background:
+      linear-gradient(180deg, #171615, #100f0e);
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .hero-stage .mapgrid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 34px 34px;
+    mask-image: radial-gradient(120% 100% at 50% 40%, #000 40%, transparent 88%);
+  }
+  .hero-stage .ember-bar {
+    position: absolute; left: 22px; right: 22px; bottom: 22px; height: 12px;
+    border-radius: 999px;
+    background: linear-gradient(100deg,#ff3b30,#ff6f00,#ff9e40,#ff6f00,#ff3b30);
+    background-size: 260% 100%;
+    animation: emberShift 9s var(--ease) infinite alternate;
+    box-shadow: 0 0 22px rgba(255,111,0,0.55), 0 0 44px rgba(255,59,48,0.3);
+  }
+  .hero-stage .ember-label {
+    position: absolute; left: 24px; bottom: 42px;
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-mute);
+  }
+  @keyframes emberShift { to { background-position: 100% 0; } }
+
+  .pin {
+    position: absolute; top: 34%; left: 50%; transform: translate(-50%,-50%);
+    width: 58px; height: 58px; border-radius: 50% 50% 50% 6px;
+    transform-origin: bottom;
+    rotate: 45deg;
+    background: var(--ember);
+    box-shadow: 0 0 20px rgba(255,111,0,0.7);
+    filter: drop-shadow(0 0 8px rgba(255,111,0,0.5));
+    animation: pinFloat 3.4s var(--ease) infinite alternate;
+  }
+  .pin::after {
+    content: "🍜"; position: absolute; inset: 0; rotate: -45deg;
+    display: grid; place-items: center; font-size: 22px;
+  }
+  .pin-ping {
+    position: absolute; top: 34%; left: 50%; transform: translate(-50%,-50%);
+    width: 58px; height: 58px; border-radius: 50%;
+    border: 2px solid var(--ember-orange);
+    animation: ping 2.6s var(--ease) infinite;
+  }
+  @keyframes pinFloat { to { top: 31%; } }
+  @keyframes ping {
+    0% { transform: translate(-50%,-50%) scale(0.7); opacity: 0.7; }
+    70%,100% { transform: translate(-50%,-50%) scale(2.6); opacity: 0; }
+  }
+
+  /* ---------- SECTION SCAFFOLD ---------- */
+  section { padding: 64px 0; border-top: 1px solid var(--hairline-2); }
+  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 34px; flex-wrap: wrap; }
+  .sec-idx { font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint); letter-spacing: 0.1em; }
+  .sec-head h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; }
+  .sec-head p { color: var(--ink-sub); font-size: 15px; margin-left: auto; max-width: 40ch; }
+
+  /* ---------- COLOR ---------- */
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px,1fr)); gap: 14px; }
+  .sw {
+    border-radius: 14px; overflow: hidden; border: 1px solid var(--hairline);
+    background: var(--surface);
+  }
+  .sw .chip-face { height: 92px; display: flex; align-items: flex-end; padding: 10px; }
+  .sw .meta { padding: 11px 13px 13px; }
+  .sw .nm { font-weight: 700; font-size: 13.5px; }
+  .sw .hex { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-mute); margin-top: 3px; }
+  .sw .use { font-size: 11.5px; color: var(--ink-faint); margin-top: 6px; letter-spacing: 0; }
+
+  .ember-strip {
+    grid-column: 1 / -1; height: 108px; border-radius: 14px; border: 1px solid var(--hairline);
+    background: var(--ember);
+    position: relative; display: flex; align-items: flex-end; padding: 14px 16px;
+    box-shadow: 0 0 30px rgba(255,111,0,0.25);
+  }
+  .ember-strip .lab { font-weight: 800; color: #1a0d00; font-size: 15px; }
+  .ember-strip .tokens { position: absolute; top: 12px; left: 16px; right: 16px; display: flex; justify-content: space-between; }
+  .ember-strip .tk { font-family: var(--font-mono); font-size: 11px; color: rgba(26,13,0,0.72); font-weight: 600; }
+
+  /* ---------- TYPE ---------- */
+  .type-scale { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--hairline-2); }
+  .type-row {
+    display: grid; grid-template-columns: 92px 1fr auto; align-items: baseline; gap: 18px;
+    padding: 16px 0; border-bottom: 1px solid var(--hairline-2);
+  }
+  .type-row .tag { font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute); letter-spacing: 0.06em; }
+  .type-row .spec { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); text-align: right; white-space: nowrap; }
+  .type-row .sample { overflow: hidden; text-overflow: ellipsis; }
+  .t-display { font-size: 46px; font-weight: 800; letter-spacing: -0.035em; }
+  .t-title   { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; }
+  .t-head    { font-size: 20px; font-weight: 700; letter-spacing: -0.025em; }
+  .t-body    { font-size: 15px; font-weight: 500; }
+  .t-cap     { font-size: 12.5px; font-weight: 500; color: var(--ink-sub); }
+  .weights { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 30px; }
+  .weights .w { text-align: center; }
+  .weights .w .g { font-size: 40px; line-height: 1; }
+  .weights .w .n { font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute); margin-top: 8px; }
+
+  /* ---------- ELEVATION / GLASS ---------- */
+  .cards-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 16px; }
+  .demo-card { border-radius: 16px; padding: 22px; min-height: 148px; display: flex; flex-direction: column; justify-content: space-between; }
+  .glass-panel { background: rgba(30,30,30,0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.08); }
+  .glass-card  { background: rgba(255,255,255,0.03); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.05); }
+  .solid-card  { background: var(--surface); border: 1px solid var(--hairline); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+  .demo-card .k { font-weight: 700; font-size: 15px; }
+  .demo-card .d { font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute); line-height: 1.5; }
+
+  .radius-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 26px; align-items: flex-end; }
+  .radius-row .r { text-align: center; }
+  .radius-row .box { width: 72px; height: 72px; background: var(--surface-2); border: 1px solid var(--hairline); }
+  .radius-row .n { font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute); margin-top: 9px; }
+
+  /* ---------- MOTION ---------- */
+  .motion-grid { display: grid; grid-template-columns: 300px 1fr; gap: 30px; align-items: center; }
+  .curve-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: 16px; padding: 20px; }
+  .curve-card svg { width: 100%; height: auto; display: block; }
+  .curve-card .cap { font-family: var(--font-mono); font-size: 12px; color: var(--ink-sub); margin-top: 12px; text-align: center; }
+  .motion-demos { display: flex; flex-direction: column; gap: 14px; }
+  .mo-row {
+    display: flex; align-items: center; gap: 18px; padding: 14px 18px;
+    border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface);
+    cursor: pointer;
+  }
+  .mo-row .lab { font-family: var(--font-mono); font-size: 12px; color: var(--ink-sub); min-width: 132px; }
+  .mo-track { flex: 1; height: 3px; background: var(--hairline); border-radius: 2px; position: relative; }
+  .mo-dot { position: absolute; top: 50%; left: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--ember); transform: translate(0,-50%); box-shadow: 0 0 12px rgba(255,111,0,0.6); }
+  .mo-row:hover .mo-dot { animation: slide 0.9s var(--ease) forwards; }
+  @keyframes slide { to { left: calc(100% - 16px); } }
+  .mo-glow {
+    width: 46px; height: 46px; border-radius: 12px; border: 1px solid var(--hairline);
+    background: var(--surface-2);
+    transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .mo-row:hover .mo-glow { box-shadow: 0 12px 30px rgba(255,111,0,0.15), 0 0 20px rgba(255,111,0,0.25); border-color: rgba(255,111,0,0.4); transform: scale(1.04); }
+
+  /* ---------- COMPONENTS ---------- */
+  .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 18px; }
+  .comp {
+    border: 1px solid var(--hairline); border-radius: 16px; padding: 22px; background: var(--surface);
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .comp > .lbl { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+  .comp .demo-line { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+
+  .btn {
+    font-family: var(--font-body); font-weight: 700; font-size: 14px; letter-spacing: -0.01em;
+    border: none; border-radius: 999px; padding: 11px 22px; cursor: pointer;
+    transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), opacity var(--dur) var(--ease);
+  }
+  .btn-primary { background: var(--ember); color: #fff; box-shadow: 0 8px 24px rgba(255,111,0,0.28); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(255,111,0,0.42); }
+  .btn-ghost { background: rgba(255,255,255,0.04); color: var(--ink); border: 1px solid var(--hairline); }
+  .btn-ghost:hover { border-color: rgba(255,111,0,0.4); box-shadow: 0 0 20px rgba(255,111,0,0.18); }
+
+  .badge {
+    font-size: 11.5px; font-weight: 700; letter-spacing: -0.01em;
+    padding: 5px 11px 5px 9px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; color: #fff;
+  }
+  .b-trending  { background: var(--trending); }
+  .b-michelin  { background: var(--michelin); }
+  .b-blueribbon{ background: var(--blueribbon); }
+  .b-ghost { background: rgba(255,255,255,0.06); color: var(--ink-sub); border: 1px solid var(--hairline); }
+
+  .pillrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--hairline); color: var(--ink-sub); background: rgba(255,255,255,0.02); cursor: pointer; transition: all var(--dur) var(--ease); }
+  .pill.on { background: var(--ember); color: #fff; border-color: transparent; box-shadow: 0 4px 16px rgba(255,111,0,0.3); }
+
+  /* restaurant card mini */
+  .rcard { border-radius: 14px; overflow: hidden; border: 1px solid var(--hairline); background: var(--ground-2); width: 220px; }
+  .rcard .thumb { height: 118px; position: relative; background: linear-gradient(135deg,#3a2a1e,#241a13); display: grid; place-items: center; font-size: 40px; }
+  .rcard .thumb .story-ring { position: absolute; top: 10px; left: 10px; width: 34px; height: 34px; border-radius: 50%; padding: 2px; background: linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
+  .rcard .thumb .story-ring i { display: block; width: 100%; height: 100%; border-radius: 50%; background: var(--ground); display: grid; place-items: center; font-style: normal; font-size: 15px; }
+  .rcard .thumb .rank { position: absolute; top: 10px; right: 10px; }
+  .rcard .body { padding: 13px 14px 15px; }
+  .rcard .body .nm { font-weight: 700; font-size: 15px; }
+  .rcard .body .cat { font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
+  .rcard .body .stat { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-sub); }
+
+  /* toast */
+  .toast { display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px;
+    background: rgba(30,30,30,0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08); font-size: 13.5px; font-weight: 600; }
+  .toast .ic { width: 20px; height: 20px; border-radius: 50%; background: var(--ember); display: grid; place-items: center; font-size: 12px; }
+
+  /* map skins */
+  .skins { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+  .skin { border-radius: 14px; overflow: hidden; border: 1px solid var(--hairline); }
+  .skin .tile { height: 82px; }
+  .skin .cap { padding: 10px 13px; display: flex; justify-content: space-between; align-items: center; }
+  .skin .cap .n { font-weight: 700; font-size: 13px; }
+  .skin .cap .h { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-mute); }
+
+  /* ---------- PRINCIPLES ---------- */
+  .principles { display: grid; grid-template-columns: repeat(auto-fit,minmax(300px,1fr)); gap: 16px; }
+  .pr { border: 1px solid var(--hairline); border-radius: 16px; padding: 22px; background: var(--surface); }
+  .pr .h { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 15px; margin-bottom: 14px; }
+  .pr .h .tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; padding: 3px 8px; border-radius: 6px; }
+  .pr.do .h .tag { background: rgba(52,211,120,0.14); color: #56d68a; }
+  .pr.dont .h .tag { background: rgba(255,59,48,0.14); color: #ff6a60; }
+  .pr ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 11px; }
+  .pr li { display: flex; gap: 10px; font-size: 13.5px; color: var(--ink-sub); line-height: 1.5; }
+  .pr li::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; margin-top: 8px; }
+  .pr.do li::before { background: #56d68a; }
+  .pr.dont li::before { background: #ff6a60; }
+  .pr li b { color: var(--ink); font-weight: 700; }
+
+  footer { padding: 54px 0 80px; border-top: 1px solid var(--hairline-2); color: var(--ink-faint); font-size: 12.5px; }
+  footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  footer .mono { font-family: var(--font-mono); }
+
+  @media (max-width: 780px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 34px; }
+    .hero-stage { max-width: 360px; }
+    .motion-grid { grid-template-columns: 1fr; }
+    .type-row { grid-template-columns: 1fr; gap: 6px; }
+    .type-row .spec { text-align: left; }
+    .sec-head p { margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">모두의맛집 · Design System</span>
+      <h1>흩어진 화면을<br>하나의 <span class="flame">불씨</span>로.</h1>
+      <p class="hero-lede">
+        그 유튜버가 갔던 그 집을 지도 위에 모으는 앱.
+        차콜 나이트 위에서 엠버 그라데이션 하나로 온도를 낸다 —
+        이 문서는 색·타입·모션·컴포넌트가 제각각 흐르지 않도록 잡아두는 단 하나의 기준이다.
+      </p>
+      <div class="hero-meta">
+        <span class="chip"><span class="dot" style="background:var(--ember-orange)"></span>Sleek Charcoal #121212</span>
+        <span class="chip"><span class="dot" style="background:linear-gradient(100deg,#ff3b30,#ff9e40)"></span>Ember Gradient</span>
+        <span class="chip">SUIT Variable · 100–900</span>
+      </div>
+    </div>
+
+    <div class="hero-stage" aria-hidden="true">
+      <div class="mapgrid"></div>
+      <div class="pin-ping"></div>
+      <div class="pin"></div>
+      <div class="ember-label">Ember spectrum · #FF3B30 → #FF9E40</div>
+      <div class="ember-bar"></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- 01 COLOR -->
+  <section class="wrap">
+    <div class="sec-head">
+      <span class="sec-idx">01 — 색</span>
+      <h2>불판의 온도, 밤의 지도</h2>
+      <p>액센트는 오직 엠버 그라데이션 한 곳에서만 쓴다. 나머지는 조용한 차콜과 흰 잉크로 뒤로 물러난다.</p>
+    </div>
+
+    <div class="swatches">
+      <div class="ember-strip">
+        <div class="tokens">
+          <span class="tk">#FF3B30</span><span class="tk">#FF6F00</span><span class="tk">#FF9E40</span>
+        </div>
+        <span class="lab">Ember — 브랜드 시그니처 · 강조·활성·프로필 링에만</span>
+      </div>
+
+      <div class="sw"><div class="chip-face" style="background:#121212"></div><div class="meta"><div class="nm">Charcoal</div><div class="hex">#121212</div><div class="use">앱 셸 기본 그라운드</div></div></div>
+      <div class="sw"><div class="chip-face" style="background:#1e1e1e"></div><div class="meta"><div class="nm">Surface</div><div class="hex">#1E1E1E</div><div class="use">패널·카드 표면</div></div></div>
+      <div class="sw"><div class="chip-face" style="background:#262524"></div><div class="meta"><div class="nm">Surface 2</div><div class="hex">#262524</div><div class="use">떠 있는 요소</div></div></div>
+      <div class="sw"><div class="chip-face" style="background:#ffffff"><span class="mono" style="color:#121212;font-size:11px">Aa</span></div><div class="meta"><div class="nm">Ink</div><div class="hex">#FFFFFF</div><div class="use">주 텍스트</div></div></div>
+      <div class="sw"><div class="chip-face" style="background:rgba(255,255,255,0.62)"></div><div class="meta"><div class="nm">Ink Sub</div><div class="hex">rgba 255·62%</div><div class="use">보조 텍스트</div></div></div>
+
+      <div class="sw"><div class="chip-face" style="background:oklch(0.62 0.20 25)"></div><div class="meta"><div class="nm">Trending</div><div class="hex">oklch .62 .20 25</div><div class="use">인기·불꽃 배지</div></div></div>
+      <div class="sw"><div class="chip-face" style="background:oklch(0.58 0.15 255)"></div><div class="meta"><div class="nm">Michelin</div><div class="hex">oklch .58 .15 255</div><div class="use">미쉐린 배지</div></div></div>
+      <div class="sw"><div class="chip-face" style="background:oklch(0.55 0.18 285)"></div><div class="meta"><div class="nm">Blue Ribbon</div><div class="hex">oklch .55 .18 285</div><div class="use">블루리본 배지</div></div></div>
+    </div>
+  </section>
+
+  <!-- 02 TYPE -->
+  <section class="wrap">
+    <div class="sec-head">
+      <span class="sec-idx">02 — 타입</span>
+      <h2>SUIT Variable, 굵기로 말한다</h2>
+      <p>한 가족 안에서 100–900을 오간다. 자간은 음수로 조이고, 줄바꿈은 <code>keep-all</code>로 단어를 지킨다.</p>
+    </div>
+
+    <div class="type-scale">
+      <div class="type-row"><span class="tag">Display</span><span class="sample t-display">오늘 뭐 먹지</span><span class="spec">46 / 800 / -0.035em</span></div>
+      <div class="type-row"><span class="tag">Title</span><span class="sample t-title">성수동 라멘 지도</span><span class="spec">28 / 700 / -0.03em</span></div>
+      <div class="type-row"><span class="tag">Head</span><span class="sample t-head">근처 핫플레이스 24곳</span><span class="spec">20 / 700 / -0.025em</span></div>
+      <div class="type-row"><span class="tag">Body</span><span class="sample t-body">그 유튜버가 다녀간 집만 지도 위에 모아, 기간을 정하고 담으면 하루 코스가 된다.</span><span class="spec">15 / 500 / -0.01em</span></div>
+      <div class="type-row"><span class="tag">Caption</span><span class="sample t-cap">조회수 기준 · 최근 30일 · 반경 2km</span><span class="spec">12.5 / 500 / mono 병기</span></div>
+    </div>
+
+    <div class="weights">
+      <div class="w"><div class="g" style="font-weight:300">맛</div><div class="n">Light 300</div></div>
+      <div class="w"><div class="g" style="font-weight:500">맛</div><div class="n">Medium 500</div></div>
+      <div class="w"><div class="g" style="font-weight:700">맛</div><div class="n">Bold 700</div></div>
+      <div class="w"><div class="g" style="font-weight:800">맛</div><div class="n">Heavy 800</div></div>
+      <div class="w"><div class="g" style="font-weight:900">맛</div><div class="n">Black 900</div></div>
+    </div>
+  </section>
+
+  <!-- 03 ELEVATION -->
+  <section class="wrap">
+    <div class="sec-head">
+      <span class="sec-idx">03 — 표면</span>
+      <h2>유리로 띄운다</h2>
+      <p>지도 위 UI는 배경을 가리지 않고 스민다. 불투명 카드보다 글래스를 먼저 고른다.</p>
+    </div>
+
+    <div class="cards-3">
+      <div class="demo-card glass-panel"><span class="k">Glass Panel</span><span class="d">rgba(30,30,30,.6)<br>blur 16 · border w/8%</span></div>
+      <div class="demo-card glass-card"><span class="k">Glass Card</span><span class="d">rgba(255,255,255,.03)<br>blur 8 · border w/5%</span></div>
+      <div class="demo-card solid-card"><span class="k">Solid</span><span class="d">#1E1E1E<br>shadow 0·12·40 / 40%</span></div>
+    </div>
+
+    <div class="radius-row">
+      <div class="r"><div class="box" style="border-radius:8px"></div><div class="n">8 · 인풋</div></div>
+      <div class="r"><div class="box" style="border-radius:14px"></div><div class="n">14 · 카드</div></div>
+      <div class="r"><div class="box" style="border-radius:22px"></div><div class="n">22 · 시트</div></div>
+      <div class="r"><div class="box" style="border-radius:999px"></div><div class="n">999 · 필·버튼</div></div>
+    </div>
+  </section>
+
+  <!-- 04 MOTION -->
+  <section class="wrap">
+    <div class="sec-head">
+      <span class="sec-idx">04 — 모션</span>
+      <h2>단 하나의 이징</h2>
+      <p>모든 전환은 <code>cubic-bezier(.16, 1, .3, 1)</code> 하나로. 빠르게 튀어나와 부드럽게 멎는다. 카드 위에 커서를 올려보라.</p>
+    </div>
+
+    <div class="motion-grid">
+      <div class="curve-card">
+        <svg viewBox="0 0 200 200" role="img" aria-label="시그니처 이징 곡선">
+          <defs><linearGradient id="cg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ff3b30"/><stop offset="1" stop-color="#ff9e40"/></linearGradient></defs>
+          <line x1="20" y1="180" x2="180" y2="180" stroke="rgba(255,255,255,0.12)"/>
+          <line x1="20" y1="180" x2="20" y2="20" stroke="rgba(255,255,255,0.12)"/>
+          <path d="M20,180 C45.6,20 68,44 180,20" fill="none" stroke="url(#cg)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="20" cy="180" r="3.5" fill="#fff"/>
+          <circle cx="180" cy="20" r="3.5" fill="#fff"/>
+        </svg>
+        <div class="cap">--ease · 400ms</div>
+      </div>
+
+      <div class="motion-demos">
+        <div class="mo-row"><span class="lab">panTo · 카메라 이동</span><div class="mo-track"><span class="mo-dot"></span></div></div>
+        <div class="mo-row"><span class="lab">neon glow · 호버</span><div class="mo-track"><span class="mo-dot"></span></div><div class="mo-glow"></div></div>
+        <div class="mo-row"><span class="lab">acrylic · scale 1.02</span><div class="mo-track"><span class="mo-dot"></span></div><div class="mo-glow"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 COMPONENTS -->
+  <section class="wrap">
+    <div class="sec-head">
+      <span class="sec-idx">05 — 컴포넌트</span>
+      <h2>실물 명세</h2>
+      <p>토큰이 실제로 조립된 모습. 배지·마커·카드 모두 위 색·모션에서만 파생된다.</p>
+    </div>
+
+    <div class="comp-grid">
+      <div class="comp">
+        <span class="lbl">Buttons</span>
+        <div class="demo-line">
+          <button class="btn btn-primary">지도에 담기</button>
+          <button class="btn btn-ghost">나중에</button>
+        </div>
+      </div>
+
+      <div class="comp">
+        <span class="lbl">Badges</span>
+        <div class="demo-line">
+          <span class="badge b-trending">🔥 인기</span>
+          <span class="badge b-michelin">미쉐린</span>
+          <span class="badge b-blueribbon">블루리본</span>
+          <span class="badge b-ghost">신규</span>
+        </div>
+      </div>
+
+      <div class="comp">
+        <span class="lbl">Filter pills</span>
+        <div class="pillrow">
+          <span class="pill on">전체</span>
+          <span class="pill">고기·구이</span>
+          <span class="pill">라멘·면</span>
+          <span class="pill">카페·디저트</span>
+        </div>
+      </div>
+
+      <div class="comp">
+        <span class="lbl">Toast</span>
+        <div class="demo-line">
+          <span class="toast"><span class="ic">✓</span> 나만의 맛집 지도에 담았어요</span>
+        </div>
+      </div>
+
+      <div class="comp">
+        <span class="lbl">Restaurant card</span>
+        <div class="demo-line">
+          <div class="rcard">
+            <div class="thumb">🍜
+              <span class="story-ring"><i>▶</i></span>
+              <span class="rank badge b-trending" style="padding:3px 8px">#1</span>
+            </div>
+            <div class="body">
+              <div class="nm">멘야 산다이메</div>
+              <div class="cat">일식 · 라멘 · 성수동</div>
+              <div class="stat">👁 128만 · 📍 320m · ★ 4.8</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="comp">
+        <span class="lbl">Map skins · 타일 필터</span>
+        <div class="skins" style="width:100%">
+          <div class="skin"><div class="tile" style="background:var(--skin-silver)"></div><div class="cap"><span class="n">Silver</span><span class="h">grayscale</span></div></div>
+          <div class="skin"><div class="tile" style="background:var(--skin-navy)"></div><div class="cap"><span class="n">Navy</span><span class="h">invert</span></div></div>
+          <div class="skin"><div class="tile" style="background:var(--skin-sand)"></div><div class="cap"><span class="n">Sand</span><span class="h">sepia</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 PRINCIPLES -->
+  <section class="wrap">
+    <div class="sec-head">
+      <span class="sec-idx">06 — 원칙</span>
+      <h2>이것만은 지킨다</h2>
+      <p>프로젝트 위키에서 뽑아낸, 어기면 화면이 무너지는 규칙들.</p>
+    </div>
+
+    <div class="principles">
+      <div class="pr do">
+        <div class="h"><span class="tag">DO</span> 이렇게</div>
+        <ul>
+          <li><b>엠버는 한 곳에.</b> 강조·활성·프로필 링·마커 글로우에만. 나머지는 차콜과 흰 잉크로.</li>
+          <li><b>지도 이동은 panTo.</b> 카메라는 <code>map.panTo()</code>로 옮기고 <code>center</code>는 최초 상수 1회만 바인딩.</li>
+          <li><b>썸네일 3중 폴백.</b> onError → 카테고리 기본 이미지 → 이니셜 아바타로 엑박을 막는다.</li>
+          <li><b>글래스 먼저.</b> 지도 위 UI는 불투명 대신 <code>backdrop-filter</code>로 배경을 살린다.</li>
+        </ul>
+      </div>
+      <div class="pr dont">
+        <div class="h"><span class="tag">DON'T</span> 이건 금지</div>
+        <ul>
+          <li><b>center에 state 바인딩 금지.</b> 드래그할 때 지도가 최초 좌표로 튕겨 돌아온다.</li>
+          <li><b>그라데이션 남발 금지.</b> 본문·배경·비활성까지 엠버를 쓰면 시그니처가 죽는다.</li>
+          <li><b>토스 웹뷰 분기 금지.</b> <code>isInAIT()</code>·<code>window.AppsInToss</code> 없이 표준 반응형 웹으로만.</li>
+          <li><b>이중 저장 금지.</b> 저장은 Supabase <code>folder_restaurants</code>가 정식 — localStorage는 레거시.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>모두의맛집 — 디자인 시스템 · 실제 <span class="mono">globals.css</span> 토큰 기준</span>
+    <span class="mono">Sleek Charcoal · Ember Gradient · SUIT Variable</span>
+  </div>
+</footer>

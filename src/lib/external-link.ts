@@ -17,6 +17,10 @@
 interface OpenOptions {
   /** 분석/로깅용 사유 식별자 (예: 'affiliate_click', 'creator_youtube') */
   reason?: string;
+  /** 제휴 클릭 로깅용 (reason이 'affiliate_click…'일 때 /api/affiliate/events로 보고) */
+  productId?: string;
+  videoId?: string;
+  platform?: string;
 }
 
 /**
@@ -28,11 +32,22 @@ export async function openExternal(
 ): Promise<void> {
   if (!url || typeof url !== 'string') return;
 
-  // 분석 이벤트 (선택)
-  if (options.reason) {
+  // 제휴 클릭 로깅 — keepalive로 새 탭 전환 중에도 전송 보장
+  if (options.reason && options.reason.startsWith('affiliate_click')) {
     try {
-      // [선택] /api/affiliate/events 등으로 비동기 보고
-      // fetch('/api/events/external-link', { method: 'POST', body: JSON.stringify({ url, reason: options.reason }) });
+      fetch('/api/affiliate/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({
+          event_type: 'click',
+          reason: options.reason,
+          url,
+          product_id: options.productId ?? null,
+          video_id: options.videoId ?? null,
+          platform: options.platform ?? null,
+        }),
+      }).catch(() => { /* 로깅 실패 무시 */ });
     } catch (_) {
       // 무시
     }

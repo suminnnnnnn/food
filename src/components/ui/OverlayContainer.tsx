@@ -48,7 +48,7 @@ export default function OverlayContainer({ activeTab, onClose, children }: Overl
             {/* 헤더 바 */}
             <div className="px-6 pb-4 border-b border-zinc-800/30 flex items-center justify-between">
               <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-[#ff6b00] rounded-full inline-block animate-pulse" />
+                <span className="w-2.5 h-2.5 bg-[#ff6b00] rounded-full inline-block" />
                 {titles[activeTab]}
               </h2>
               <button
