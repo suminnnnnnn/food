@@ -2236,7 +2236,6 @@ export default function MapContainer({
     const isFav = savedIds.has(r.id);
     const isSelected = selectedRestaurant?.id === r.id;
     const isVisited = visitedIds.has(r.id);
-    const catLabel = getFormattedCategory(r.category).split(' > ').pop() ?? getFormattedCategory(r.category);
     const youtubers = getUniqueYoutubers(r);
     const badges = getAuthorityBadges(r);
     const distKm = userLocation && typeof r.lat === 'number' && typeof r.lng === 'number'
@@ -2299,24 +2298,20 @@ export default function MapContainer({
               <span key={b.short} className="shrink-0 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: b.bg }}>{b.short}</span>
             ))}
           </div>
-          <div className="flex items-center gap-1 mt-0.5 min-w-0 text-[10.5px] text-slate-500">
-            <span className="shrink-0">{catLabel}</span>
-            {youtubers.length > 0 && (
-              <>
-                <span className="text-slate-300 shrink-0">·</span>
-                <span className="flex -space-x-1.5 shrink-0">
-                  {youtubers.slice(0, 3).map((y, i) => (
-                    y.profile_image ? (
-                      <img key={i} src={y.profile_image} className="w-3.5 h-3.5 rounded-full object-cover ring-1 ring-white" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    ) : (
-                      <span key={i} className="w-3.5 h-3.5 rounded-full bg-slate-300 ring-1 ring-white flex items-center justify-center text-[6px] font-bold text-white">{y.name?.[0] ?? '?'}</span>
-                    )
-                  ))}
-                </span>
-                <span className="truncate">{youtubers[0].name}{youtubers.length > 1 ? ` 외 ${youtubers.length - 1}` : ''}</span>
-              </>
-            )}
-          </div>
+          {youtubers.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-1 min-w-0">
+              <span className="flex -space-x-2 shrink-0">
+                {youtubers.slice(0, 3).map((y, i) => (
+                  y.profile_image ? (
+                    <img key={i} src={y.profile_image} className="w-5 h-5 rounded-full object-cover ring-2 ring-white" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    <span key={i} className="w-5 h-5 rounded-full bg-slate-300 ring-2 ring-white flex items-center justify-center text-[8px] font-bold text-white">{y.name?.[0] ?? '?'}</span>
+                  )
+                ))}
+              </span>
+              <span className="text-[11px] font-semibold text-slate-600 truncate">{youtubers[0].name}{youtubers.length > 1 ? ` 외 ${youtubers.length - 1}` : ''}</span>
+            </div>
+          )}
           <div className="flex items-center gap-1 mt-1 text-[9.5px] tabular-nums">
             {metricRow}
           </div>
@@ -2766,6 +2761,42 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                       </div>
                     </div>
 
+                    {/* A: 테마 큐레이션 필터 칩 (스티키 헤더) */}
+                    {!selectedCluster && curationRail.length > 0 && (
+                      <div className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar mb-2" style={{ scrollbarWidth: 'none' }}>
+                        {curationRail.map((c) => {
+                          const on = activeCuration === c.key;
+                          return (
+                            <button
+                              key={c.key}
+                              onClick={() => setActiveCuration(on ? null : c.key)}
+                              className={`shrink-0 inline-flex items-center gap-1 rounded-full text-[11px] font-bold px-2.5 py-1.5 transition-all active:scale-95 ${on ? 'text-white border border-transparent' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                              style={on ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
+                            >
+                              <span>{c.emoji}</span>
+                              <span>{c.label}</span>
+                              <span className={`text-[9.5px] font-bold tabular-nums ${on ? 'text-white/85' : 'text-slate-400'}`}>{c.count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* B: 결과 컨텍스트 줄 (개수 · 정렬 · 활성 테마) */}
+                    <div className="shrink-0 flex items-center gap-2 text-[11px] mb-2">
+                      <span className="font-black text-slate-700 tabular-nums">{(selectedCluster || filteredRestaurants).length}곳</span>
+                      <span className="text-slate-300">·</span>
+                      <span className="text-slate-500 font-semibold">{activeSort === 'views' ? '조회수순' : '최신순'}</span>
+                      {!selectedCluster && activeCuration && (() => {
+                        const cur = CURATIONS.find(c => c.key === activeCuration);
+                        return cur ? (
+                          <button onClick={() => setActiveCuration(null)} className="ml-auto inline-flex items-center gap-1 text-white text-[10px] font-bold rounded-full pl-2 pr-1.5 py-0.5 active:scale-95 transition-transform" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}>
+                            {cur.emoji} {cur.label} <X size={10} />
+                          </button>
+                        ) : null;
+                      })()}
+                    </div>
+
                     <div className="space-y-1.5 overflow-y-auto flex-1 pb-4 pr-3 portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>
                       {/* P1: 첫 진입 1탭 온보딩 (개인화) */}
                       {!selectedCluster && showOnboarding && (
@@ -2804,37 +2835,8 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                         </div>
                       )}
 
-                      {/* 테마 큐레이션 — 필터 칩 한 줄 (기존 activeCuration 재사용) */}
-                      {!selectedCluster && curationRail.length > 0 && (
-                        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5" style={{ scrollbarWidth: 'none' }}>
-                          {curationRail.map((c) => {
-                            const on = activeCuration === c.key;
-                            return (
-                              <button
-                                key={c.key}
-                                onClick={() => setActiveCuration(on ? null : c.key)}
-                                className={`shrink-0 inline-flex items-center gap-1 rounded-full text-[11px] font-bold px-2.5 py-1.5 transition-all active:scale-95 ${on ? 'text-white border border-transparent' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
-                                style={on ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
-                              >
-                                <span>{c.emoji}</span>
-                                <span>{c.label}</span>
-                                <span className={`text-[9.5px] font-bold tabular-nums ${on ? 'text-white/85' : 'text-slate-400'}`}>{c.count}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
                       {/* 히어로 → 슬림 강조 행 (지금 뜨는) */}
                       {!selectedCluster && heroRestaurant && renderCompactRow(heroRestaurant, true)}
-
-                      {/* 활성 테마 필터 표시 + 해제 */}
-                      {!selectedCluster && activeCuration && (
-                        <div className="flex items-center gap-1.5 px-0.5 text-[11px]">
-                          <span className="font-bold text-slate-500">테마 필터 적용 중</span>
-                          <button onClick={() => setActiveCuration(null)} className="ml-auto font-bold text-orange-500 hover:text-orange-600 flex items-center gap-0.5">전체 보기 <X size={11} /></button>
-                        </div>
-                      )}
 
                       {(selectedCluster || filteredRestaurants).filter(r => selectedCluster ? true : r.id !== heroRestaurant?.id).slice(0, 40).map((r) => renderCompactRow(r))}
                     </div>
