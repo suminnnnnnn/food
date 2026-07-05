@@ -2253,6 +2253,24 @@ export default function MapContainer({
   const [smartRecDismissed, setSmartRecDismissed] = useState(false);
   // P4: 다녀온 곳 하단 접기
   const [showVisited, setShowVisited] = useState(false);
+  // 스크롤 포커스 행 확대: 뷰포트 중앙 근처 행 하나를 히어로 형식으로 확대
+  const [activeExpandedId, setActiveExpandedId] = useState<string | null>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (activeTab !== 'home') { setActiveExpandedId(null); return; }
+    const root = listScrollRef.current;
+    if (!root) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          const id = (e.target as HTMLElement).dataset.rid;
+          if (id) setActiveExpandedId(id);
+        }
+      }
+    }, { root, rootMargin: '-28% 0px -60% 0px', threshold: 0 });
+    root.querySelectorAll('[data-rid]').forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [activeTab, filteredRestaurants, selectedCluster, showVisited]);
   const smartRec = (() => {
     // 저장된 취향이 있으면 우선 — 없으면 현재 시간대 기반 추천
     if (savedTaste) {
@@ -2274,6 +2292,7 @@ export default function MapContainer({
     const isSelected = selectedRestaurant?.id === r.id;
     const isVisited = visitedIds.has(r.id);
     const isMapHovered = mapHoveredRestaurantId === r.id; // 지도 마커 hover → 이 행 강조
+    const isExpanded = !hero && activeTab === 'home' && r.id === activeExpandedId; // 스크롤 포커스 → 히어로 형식 확대
     const youtubers = getUniqueYoutubers(r);
     const badges = getAuthorityBadges(r);
     const distKm = userLocation && typeof r.lat === 'number' && typeof r.lng === 'number'
@@ -2307,61 +2326,115 @@ export default function MapContainer({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
         whileTap={{ scale: 0.98 }}
-        className={`group grid grid-cols-[84px_1fr_auto] gap-2.5 items-center rounded-xl cursor-pointer border p-2 transition-all ${isVisited ? 'opacity-65' : ''} ${hero ? '' : 'bg-white'} ${isSelected ? 'border-orange-400 shadow-md' : isMapHovered ? 'border-orange-300 shadow-md ring-2 ring-orange-100' : hero ? 'border-orange-200 shadow-sm hover:shadow-md' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}
-        style={hero ? { background: 'linear-gradient(100deg,#FFF4E9,#ffffff 62%)', transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' } : { transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' }}
+        className={isExpanded
+          ? `group relative flex flex-col rounded-xl overflow-hidden bg-white cursor-pointer border border-orange-300 shadow-lg transition-all ${isVisited ? 'opacity-65' : ''}`
+          : `group grid grid-cols-[84px_1fr_auto] gap-2.5 items-center rounded-xl cursor-pointer border p-2 transition-all ${isVisited ? 'opacity-65' : ''} ${hero ? '' : 'bg-white'} ${isSelected ? 'border-orange-400 shadow-md' : isMapHovered ? 'border-orange-300 shadow-md ring-2 ring-orange-100' : hero ? 'border-orange-200 shadow-sm hover:shadow-md' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}
+        style={{ transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)', ...(hero && !isExpanded ? { background: 'linear-gradient(100deg,#FFF4E9,#ffffff 62%)' } : {}) }}
       >
-        {/* 썸네일 */}
-        <div className="relative w-[84px] h-[56px] rounded-lg overflow-hidden bg-slate-100 shrink-0">
-          {vid?.thumbnail ? (
-            <img src={vid.thumbnail} className="w-full h-full object-cover" alt={r.name} />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center"><Utensils size={20} className="text-slate-500" /></div>
-          )}
-          {vid?.is_short && (
-            <span className="absolute bottom-1 right-1 bg-black/55 backdrop-blur-sm text-white text-[7px] font-black px-1 py-0.5 rounded flex items-center gap-0.5"><Play size={5} fill="currentColor" /> S</span>
-          )}
-          {isVisited && (
-            <span className="absolute top-1 left-1 bg-emerald-500 text-white text-[7px] font-black px-1 py-0.5 rounded-full">✓ 다녀옴</span>
-          )}
-        </div>
-
-        {/* 본문 */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-1 min-w-0">
-            <span className="text-[12.5px] font-extrabold text-slate-800 leading-tight truncate">{r.name}</span>
-            {hero && (
-              <span className="shrink-0 inline-flex items-center gap-0.5 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}><Flame size={8} fill="currentColor" /> 지금 뜨는</span>
-            )}
-            {isTrending && (
-              <span className="shrink-0 inline-flex items-center gap-0.5 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}><Flame size={8} fill="currentColor" /> 급상승</span>
-            )}
-            {badges.map((b) => (
-              <span key={b.short} className="shrink-0 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: b.bg }}>{b.short}</span>
-            ))}
-          </div>
-          {youtubers.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-1 min-w-0">
-              <span className="flex -space-x-2 shrink-0">
-                {youtubers.slice(0, 3).map((y, i) => (
-                  y.profile_image ? (
-                    <img key={i} src={y.profile_image} className="w-5 h-5 rounded-full object-cover ring-2 ring-white" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  ) : (
-                    <span key={i} className="w-5 h-5 rounded-full bg-slate-300 ring-2 ring-white flex items-center justify-center text-[8px] font-bold text-white">{y.name?.[0] ?? '?'}</span>
-                  )
-                ))}
-              </span>
-              <span className="text-[11px] font-semibold text-slate-600 truncate">{youtubers[0].name}{youtubers.length > 1 ? ` 외 ${youtubers.length - 1}` : ''}</span>
+        {isExpanded ? (
+          <>
+            {/* 확장 — 히어로 형식 (큰 썸네일) */}
+            <div className="relative w-full aspect-video bg-slate-100 overflow-hidden">
+              {vid?.thumbnail ? (
+                <img src={vid.thumbnail} className="w-full h-full object-cover" alt={r.name} />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center"><Utensils size={34} className="text-slate-500" /></div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/30 pointer-events-none" />
+              <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
+                {isTrending && <span className="inline-flex items-center gap-0.5 text-white text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}><Flame size={9} fill="currentColor" /> 급상승</span>}
+                {badges.map((b) => (<span key={b.short} className="text-white text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: b.bg }}>{b.short}</span>))}
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); toggleSave(r.id); }} className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center border border-white/15 hover:bg-black/65 transition-colors">
+                <Star size={14} className={isFav ? 'text-orange-400 fill-orange-400' : 'text-white/85'} />
+              </button>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="w-12 h-12 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center"><Play size={20} fill="currentColor" className="text-white ml-0.5" /></span>
+              </div>
+              <div className="absolute inset-x-0 bottom-0 z-10 p-3">
+                <p className="text-[16px] font-black text-white leading-tight tracking-tight line-clamp-1">{r.name}</p>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {youtubers.length > 0 && (
+                    <>
+                      <span className="flex -space-x-2 shrink-0">
+                        {youtubers.slice(0, 3).map((y, i) => (
+                          y.profile_image ? (
+                            <img key={i} src={y.profile_image} className="w-5 h-5 rounded-full object-cover ring-2 ring-white/70" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          ) : (
+                            <span key={i} className="w-5 h-5 rounded-full bg-white/25 ring-2 ring-white/70 flex items-center justify-center text-[8px] font-bold text-white">{y.name?.[0] ?? '?'}</span>
+                          )
+                        ))}
+                      </span>
+                      <span className="text-[11px] font-bold text-white/95 truncate">{youtubers[0].name}{youtubers.length > 1 ? ` 외 ${youtubers.length - 1}` : ''}</span>
+                    </>
+                  )}
+                  {vid && vid.view_count > 0 && (
+                    <span className="text-[11px] font-bold text-orange-300 tabular-nums shrink-0 ml-auto flex items-center gap-1"><Eye size={11} /> {formatViewCount(vid.view_count)}</span>
+                  )}
+                </div>
+              </div>
             </div>
-          )}
-          <div className="flex items-center gap-1 mt-1 text-[9.5px] tabular-nums">
-            {metricRow}
-          </div>
-        </div>
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+              <span className="flex items-center gap-1 text-[10px] tabular-nums min-w-0 truncate text-slate-500">{metricRow}</span>
+              <span className="text-[12px] font-black inline-flex items-center gap-1 shrink-0" style={{ color: '#FF6F00' }}>▶ 그 장면 보기</span>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* 썸네일 */}
+            <div className="relative w-[84px] h-[56px] rounded-lg overflow-hidden bg-slate-100 shrink-0">
+              {vid?.thumbnail ? (
+                <img src={vid.thumbnail} className="w-full h-full object-cover" alt={r.name} />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center"><Utensils size={20} className="text-slate-500" /></div>
+              )}
+              {vid?.is_short && (
+                <span className="absolute bottom-1 right-1 bg-black/55 backdrop-blur-sm text-white text-[7px] font-black px-1 py-0.5 rounded flex items-center gap-0.5"><Play size={5} fill="currentColor" /> S</span>
+              )}
+              {isVisited && (
+                <span className="absolute top-1 left-1 bg-emerald-500 text-white text-[7px] font-black px-1 py-0.5 rounded-full">✓ 다녀옴</span>
+              )}
+            </div>
 
-        {/* 저장 */}
-        <button onClick={(e) => { e.stopPropagation(); toggleSave(r.id); }} className="self-start p-1 -m-1">
-          <Star size={16} className={isFav ? 'text-orange-500 fill-orange-500' : 'text-slate-300'} />
-        </button>
+            {/* 본문 */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-[12.5px] font-extrabold text-slate-800 leading-tight truncate">{r.name}</span>
+                {hero && (
+                  <span className="shrink-0 inline-flex items-center gap-0.5 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}><Flame size={8} fill="currentColor" /> 지금 뜨는</span>
+                )}
+                {isTrending && (
+                  <span className="shrink-0 inline-flex items-center gap-0.5 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}><Flame size={8} fill="currentColor" /> 급상승</span>
+                )}
+                {badges.map((b) => (
+                  <span key={b.short} className="shrink-0 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: b.bg }}>{b.short}</span>
+                ))}
+              </div>
+              {youtubers.length > 0 && (
+                <div className="flex items-center gap-1.5 mt-1 min-w-0">
+                  <span className="flex -space-x-2 shrink-0">
+                    {youtubers.slice(0, 3).map((y, i) => (
+                      y.profile_image ? (
+                        <img key={i} src={y.profile_image} className="w-5 h-5 rounded-full object-cover ring-2 ring-white" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      ) : (
+                        <span key={i} className="w-5 h-5 rounded-full bg-slate-300 ring-2 ring-white flex items-center justify-center text-[8px] font-bold text-white">{y.name?.[0] ?? '?'}</span>
+                      )
+                    ))}
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-600 truncate">{youtubers[0].name}{youtubers.length > 1 ? ` 외 ${youtubers.length - 1}` : ''}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1 mt-1 text-[9.5px] tabular-nums">
+                {metricRow}
+              </div>
+            </div>
+
+            {/* 저장 */}
+            <button onClick={(e) => { e.stopPropagation(); toggleSave(r.id); }} className="self-start p-1 -m-1">
+              <Star size={16} className={isFav ? 'text-orange-500 fill-orange-500' : 'text-slate-300'} />
+            </button>
+          </>
+        )}
       </motion.div>
     );
   };
@@ -2847,7 +2920,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                       })()}
                     </div>
 
-                    <div className="space-y-1.5 overflow-y-auto flex-1 pb-4 pr-3 portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                    <div ref={listScrollRef} className="space-y-1.5 overflow-y-auto flex-1 pb-4 pr-3 portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>
                       {/* P2: 시간대·취향 스마트 추천 (재방문 시, 온보딩과 배타) */}
                       {!selectedCluster && !showOnboarding && !smartRecDismissed && (
                         <div className="flex items-center gap-2.5 rounded-xl border border-orange-100 bg-gradient-to-br from-orange-50/80 to-white px-3 py-2.5">
