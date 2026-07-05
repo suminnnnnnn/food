@@ -743,9 +743,8 @@ export default function MapContainer({
         setSelectedRestaurant(null);
         setSelectedCluster(null);
       }
-      if (activeTab !== 'shopping') {
-        setSelectedShoppingVideoId(null);
-      }
+      setSelectedShoppingVideoId(null); // 'shopping'은 위 분기에서 이미 처리됨 → 여기선 무조건 실행
+
       if (isAreaDrawingMode || filterPolygon) {
         clearAreaFilter();
       }
