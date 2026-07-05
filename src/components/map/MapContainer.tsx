@@ -13,23 +13,21 @@ import { getUserFolders, getAllUserFolderRelations, getOrCreateDefaultFolder, ad
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Locate, Dices, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool, ShoppingBag, Bell, CornerUpRight, ArrowUpDown, PlayCircle } from 'lucide-react';
+import { Locate, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool, ShoppingBag, Bell, CornerUpRight, ArrowUpDown, PlayCircle } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
 import SavedListView from '@/components/ui/SavedListView';
 import MyPageView from '@/components/ui/MyPageView';
+import LoginPromptModal from '@/components/ui/LoginPromptModal';
 import ItineraryTabView from '@/components/ui/ItineraryTabView';
 import BottomTabBar, { TabType } from '@/components/ui/BottomTabBar';
 import ShoppingTabView from '@/components/ui/ShoppingTabView';
 import OverlayContainer from '@/components/ui/OverlayContainer';
 import RestaurantSubmissionBottomSheet from '@/components/ui/RestaurantSubmissionBottomSheet';
-import LoginModal from '@/components/ui/LoginModal';
 import ItineraryPlannerBottomSheet from '@/components/ui/ItineraryPlannerBottomSheet';
 import FloatingItineraryPanel from '@/components/ui/FloatingItineraryPanel';
 import CustomModal from '@/components/ui/CustomModal';
-import RandomDrawModal from '@/components/game/RandomDrawModal';
-import BalanceGameModal from '@/components/game/BalanceGameModal';
 import Toast from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
 
@@ -562,6 +560,8 @@ export default function MapContainer({
   const [activeTag, setActiveTag] = useState<string | null>(null);
   // 홈 테마 큐레이션 레일 (미쉐린·또간집·10만+ 유튜버·심야 등) 활성 테마
   const [activeCuration, setActiveCuration] = useState<string | null>(null);
+  // 유튜버 발견 축: 특정 유튜버가 다녀간 맛집만 필터 (이름 기준)
+  const [activeYoutuber, setActiveYoutuber] = useState<string | null>(null);
 
   // 날씨 및 상황별 추천 테마 칩 상태
   type WeatherState = 'sunny' | 'rainy' | 'hot' | 'cold';
@@ -1882,23 +1882,6 @@ export default function MapContainer({
     }
   };
 
-  // 랜덤 맛집 추천 (오늘 뭐 먹지?)
-  const pickRandomRestaurant = () => {
-    if (restaurants.length === 0 || !map) {
-    alert('현재 표시된 맛집이 없습니다.');
-      return;
-    }
-    const randomIdx = Math.floor(Math.random() * restaurants.length);
-    const target = restaurants[randomIdx];
-    
-    // 랜덤 선택 후 지도 이동
-    map.setLevel(3, { animate: true });
-    setTimeout(() => {
-      map.panTo(new kakao.maps.LatLng(target.lat, target.lng));
-      setSelectedRestaurant(target);
-    }, 400); // 애니메이션 완료 대기
-  };
-
   // 맛집 핀 마커 Solid 물방울형 Teardrop 스타일 UI 렌더링
   const getMarkerUI = (restaurant: Restaurant) => {
     const testViewsMap: Record<string, number> = {
@@ -2168,6 +2151,11 @@ export default function MapContainer({
         if (cur && !cur.match(r)) return false;
       }
 
+      // 3-2. 유튜버 발견 축 — 특정 유튜버가 다녀간 맛집만
+      if (activeYoutuber) {
+        if (!r.videos?.some(v => v.youtuber?.name === activeYoutuber)) return false;
+      }
+
       // 4. 글로벌 검색어 필터
       if (globalSearchQuery.trim()) {
         const query = globalSearchQuery.toLowerCase().trim();
@@ -2212,7 +2200,22 @@ export default function MapContainer({
       });
     }
     return result;
-  }, [restaurants, activeCategory, activeSort, activeVideoType, filterPolygon, activeTag, activeCuration, globalSearchQuery, savedMapMode, savedStatusFilter, savedIds, visitedIds, activeThemeChip]);
+  }, [restaurants, activeCategory, activeSort, activeVideoType, filterPolygon, activeTag, activeCuration, activeYoutuber, globalSearchQuery, savedMapMode, savedStatusFilter, savedIds, visitedIds, activeThemeChip]);
+
+  // 유튜버 발견 축: 현재 지도 내 맛집에 등장한 유튜버 집계 (많은 순)
+  // 주의: 이 파일은 react-kakao-maps-sdk의 Map을 import하므로 전역 Map 대신 plain object 사용
+  const areaYoutubers = useMemo(() => {
+    const acc: Record<string, { name: string; profile_image: string; count: number }> = {};
+    restaurants.forEach((r) => {
+      getUniqueYoutubers(r).forEach((y) => {
+        if (!y.name || y.name === 'Unknown') return;
+        const ex = acc[y.name];
+        if (ex) { ex.count++; if (!ex.profile_image && y.profile_image) ex.profile_image = y.profile_image; }
+        else acc[y.name] = { name: y.name, profile_image: y.profile_image, count: 1 };
+      });
+    });
+    return Object.values(acc).sort((a, b) => b.count - a.count).slice(0, 15);
+  }, [restaurants]);
 
   // 홈 테마 큐레이션 레일 — 현재 지도 내 맛집으로 각 테마 개수 집계 (빈 컬렉션은 숨김)
   const curationRail = useMemo(() => {
@@ -2233,8 +2236,6 @@ export default function MapContainer({
     }, filteredRestaurants[0]);
   }, [filteredRestaurants, activeVideoType, savedMapMode, filterPolygon]);
 
-  // "오늘 뭐 먹지?" 게임 모달 (랜덤 뽑기 / 밸런스 게임)
-  const [activeGameModal, setActiveGameModal] = useState<'random' | 'balance' | null>(null);
 
   // P1: 첫 진입 1탭 온보딩 (blank-slate 해소 · localStorage로 1회만 노출)
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
@@ -2398,7 +2399,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
       {/* ========================================================
           1. 컬럼 1단계 사이드바 (브랜드-아이콘 내비게이션) - md 이상 표시
           ======================================================== */}
-      <div className="hidden md:flex flex-col w-[62px] h-full shrink-0 bg-gradient-to-b from-[#ff3b30] to-[#ff6f00] py-6 justify-between items-center relative z-30 shadow-[4px_0_24px_rgba(0,0,0,0.12)]">
+      <div className="hidden md:flex flex-col w-[62px] h-full shrink-0 bg-gradient-to-b from-[#ff3b30] to-[#ff6f00] py-6 items-center relative z-30 shadow-[4px_0_24px_rgba(0,0,0,0.12)]">
         {/* 상단 로고 아이콘 영역 */}
         <div className="flex flex-col items-center gap-1">
           <div
@@ -2419,8 +2420,8 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
           </div>
         </div>
 
-        {/* 메인 탭 내비게이션 메뉴 버튼 목록 */}
-        <div className="flex flex-col gap-5 w-full items-center">
+        {/* 메인 탭 내비게이션 메뉴 버튼 목록 (세로 중앙 배치) */}
+        <div className="flex-1 flex flex-col gap-5 w-full items-center justify-center">
           {[
             { id: 'home' as TabType,      label: '홈',      icon: Home,          desc: '지도에서 맛집 탐색' },
             { id: 'near' as TabType,      label: '주변맛집', icon: NearbyIcon,    desc: '내 주변 핫플 탐색' },
@@ -2474,47 +2475,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
           })}
         </div>
 
-        {/* 하단 영역 (맛집 제보 & 로그인/프로필) */}
-        <div className="flex flex-col items-center gap-4">
-          {/* 맛집 제보 버튼 + 툴팁 */}
-          <div className="group relative">
-            <button
-              onClick={() => {
-                if (!user) setIsLoginModalOpen(true);
-                else setIsSubmissionOpen(true);
-              }}
-              className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 hover:border-white/50 text-white active:scale-[0.95] flex items-center justify-center transition-all duration-200 cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.12)] hover:shadow-[0_0_16px_rgba(255,255,255,0.22)]"
-            >
-              <Plus size={20} strokeWidth={2.5} />
-            </button>
-            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 bg-zinc-900/95 text-white rounded-xl px-3 py-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap z-50 shadow-xl border border-white/10">
-              <div className="text-[13px] font-bold">맛집 제보하기</div>
-              <div className="text-[11px] text-white/55 mt-0.5">아직 없는 맛집을 알려주세요</div>
-              <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-zinc-900/95" />
-            </div>
-          </div>
-
-          {/* 로그인 / 프로필 */}
-          <button
-            onClick={() => {
-              if (!user) setIsLoginModalOpen(true);
-              else {
-                setActiveTab('mypage');
-                setSelectedRestaurant(null);
-                setSelectedCluster(null);
-                setSelectedShoppingVideoId(null);
-              }
-            }}
-            className="w-10 h-10 rounded-full overflow-hidden border border-white/20 hover:border-white/40 flex items-center justify-center transition-all duration-200 active:scale-[0.95] cursor-pointer text-white/60 hover:text-white"
-            title={user ? `${user.name} 님` : "로그인"}
-          >
-            {user?.avatarUrl ? (
-              <img src={user.avatarUrl} className="w-full h-full object-cover" alt="Avatar" />
-            ) : (
-              <User size={18} className="text-white" />
-            )}
-          </button>
-        </div>
+        {/* (좌측 툴바 하단의 제보·로그인/프로필 버튼 제거됨 — 제보는 지도 중앙 하단 버튼으로 이동) */}
       </div>
 
       {/* ========================================================
@@ -2579,15 +2540,6 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
 
                       {/* 필터 3형제 - 우리동네맛집 우측 배치 */}
                       <div className="flex items-center gap-1.5 z-30 select-none">
-                        {/* 오늘 뭐 먹지? — 랜덤 뽑기 게임 (헤더 아이콘) */}
-                        <button
-                          onClick={() => setActiveGameModal('random')}
-                          className="inline-flex items-center justify-center rounded-full w-[30px] h-[30px] text-white active:scale-95 transition-transform shrink-0"
-                          style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}
-                          title="오늘 뭐 먹지? 랜덤 뽑기"
-                        >
-                          <Dices size={14} />
-                        </button>
                         {/* 1. 음식 종류 — 드롭다운 오른쪽 방향 */}
                         <div className="relative">
                           <button
@@ -2835,17 +2787,61 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                       <span className="font-black text-slate-700 tabular-nums">{(selectedCluster || filteredRestaurants).length}곳</span>
                       <span className="text-slate-300">·</span>
                       <span className="text-slate-500 font-semibold">{activeSort === 'views' ? '조회수순' : '최신순'}</span>
-                      {!selectedCluster && activeCuration && (() => {
-                        const cur = CURATIONS.find(c => c.key === activeCuration);
-                        return cur ? (
-                          <button onClick={() => setActiveCuration(null)} className="ml-auto inline-flex items-center gap-1 text-white text-[10px] font-bold rounded-full pl-2 pr-1.5 py-0.5 active:scale-95 transition-transform" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}>
-                            {cur.emoji} {cur.label} <X size={10} />
-                          </button>
-                        ) : null;
-                      })()}
+                      {!selectedCluster && (activeYoutuber || activeCuration) && (
+                        <div className="ml-auto flex items-center gap-1.5 min-w-0">
+                          {activeYoutuber && (
+                            <button onClick={() => setActiveYoutuber(null)} className="inline-flex items-center gap-1 text-white text-[10px] font-bold rounded-full pl-2 pr-1.5 py-0.5 active:scale-95 transition-transform max-w-[120px]" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}>
+                              <span className="truncate">📺 {activeYoutuber}</span> <X size={10} className="shrink-0" />
+                            </button>
+                          )}
+                          {activeCuration && (() => {
+                            const cur = CURATIONS.find(c => c.key === activeCuration);
+                            return cur ? (
+                              <button onClick={() => setActiveCuration(null)} className="inline-flex items-center gap-1 text-white text-[10px] font-bold rounded-full pl-2 pr-1.5 py-0.5 active:scale-95 transition-transform" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}>
+                                {cur.emoji} {cur.label} <X size={10} />
+                              </button>
+                            ) : null;
+                          })()}
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-1.5 overflow-y-auto flex-1 pb-4 pr-3 portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                      {/* ① 유튜버 발견 축 — 이 지역을 다녀간 크리에이터 */}
+                      {!selectedCluster && areaYoutubers.length > 0 && (
+                        <div className="pt-0.5">
+                          <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
+                            <span className="w-3.5 h-[3px] rounded-full shrink-0" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF9E40)' }} />
+                            <span className="text-[12px] font-black text-slate-800 tracking-tight">이 지역 유튜버</span>
+                            {activeYoutuber && (
+                              <button onClick={() => setActiveYoutuber(null)} className="ml-auto text-[11px] font-bold text-orange-500 hover:text-orange-600">전체 보기</button>
+                            )}
+                          </div>
+                          <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1 px-0.5">
+                            {areaYoutubers.map((y) => {
+                              const on = activeYoutuber === y.name;
+                              return (
+                                <button
+                                  key={y.name}
+                                  onClick={() => { setActiveYoutuber(on ? null : y.name); setSelectedCluster(null); }}
+                                  className="shrink-0 flex flex-col items-center gap-1 w-[54px] active:scale-95 transition-transform"
+                                  title={`${y.name} · ${y.count}곳`}
+                                >
+                                  <span className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center ${on ? 'ring-2 ring-orange-500 ring-offset-2' : 'ring-1 ring-slate-200'}`}>
+                                    {y.profile_image ? (
+                                      <img src={y.profile_image} className="w-full h-full object-cover" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                    ) : (
+                                      <span className="w-full h-full bg-slate-200 flex items-center justify-center text-[13px] font-bold text-slate-500">{y.name[0]}</span>
+                                    )}
+                                  </span>
+                                  <span className={`text-[9.5px] font-bold leading-tight text-center truncate max-w-full ${on ? 'text-orange-600' : 'text-slate-600'}`}>{y.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       {/* P2: 시간대·취향 스마트 추천 (재방문 시, 온보딩과 배타) */}
                       {!selectedCluster && !showOnboarding && !smartRecDismissed && (
                         <div className="flex items-center gap-2.5 rounded-xl border border-orange-100 bg-gradient-to-br from-orange-50/80 to-white px-3 py-2.5">
@@ -2926,7 +2922,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                               <p className="text-[13px] font-bold text-slate-500">조건에 맞는 맛집이 없어요</p>
                               <p className="text-[11px] text-slate-400 mt-1">필터를 바꾸거나 초기화해 보세요</p>
                               <button
-                                onClick={() => { setActiveCategory('전체'); setActiveCuration(null); setActiveVideoType('전체 리뷰' as any); setGlobalSearchQuery(''); }}
+                                onClick={() => { setActiveCategory('전체'); setActiveCuration(null); setActiveYoutuber(null); setActiveVideoType('전체 리뷰' as any); setGlobalSearchQuery(''); }}
                                 className="mt-4 px-4 py-2 rounded-full text-[12px] font-bold text-white active:scale-95 transition-transform"
                                 style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}
                               >
@@ -4175,6 +4171,16 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
         </Map>
       </div>
 
+      {/* 지도 중앙 하단 — 맛집 영상 제보하기 */}
+      <button
+        onClick={() => { if (!user) setIsLoginModalOpen(true); else setIsSubmissionOpen(true); }}
+        className="absolute left-1/2 -translate-x-1/2 bottom-24 md:bottom-6 z-30 inline-flex items-center gap-2 px-5 py-3 rounded-full text-white font-bold text-[14px] shadow-[0_8px_24px_rgba(255,59,48,0.4)] hover:shadow-[0_10px_28px_rgba(255,59,48,0.5)] active:scale-95 transition-all"
+        style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}
+      >
+        <MapPinPlus size={18} strokeWidth={2.5} />
+        맛집 영상 제보하기
+      </button>
+
       {/* 지도 우측 하단 플로팅 액션 버튼 (FAB) 묶음 (제보, 일정 만들기, 랜덤 추천) */}
       <div className={`absolute right-4 z-20 flex flex-col items-end gap-2.5 transition-all duration-300 ${!selectedRestaurant ? 'bottom-[140px]' : 'bottom-10'}`}>
         
@@ -4471,23 +4477,6 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
       )}
 
 
-      {/* "오늘 뭐 먹지?" 게임 모달 (랜덤 뽑기 / 밸런스 게임) */}
-      <AnimatePresence>
-        {activeGameModal === 'random' && (
-          <RandomDrawModal
-            onClose={() => setActiveGameModal(null)}
-            restaurants={filteredRestaurants}
-            onSelect={(r) => { setActiveGameModal(null); handleSelectRestaurant(r); map?.panTo(new kakao.maps.LatLng(r.lat, r.lng)); }}
-          />
-        )}
-        {activeGameModal === 'balance' && (
-          <BalanceGameModal
-            onClose={() => setActiveGameModal(null)}
-            onWinner={() => {}}
-          />
-        )}
-      </AnimatePresence>
-
       {/* 저장 등 액션 피드백 토스트 */}
       <Toast message={toastMessage} isVisible={isToastVisible} />
 
@@ -4501,14 +4490,11 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
         initialRestaurant={submissionTarget}
       />
 
-      {/* SNS 로그인 모달 */}
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
+      {/* SNS 로그인 모달 — 저장/일정/마이 탭과 동일한 로그인 UI(handleDirectLogin) */}
+      <LoginPromptModal
+        isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
-        onLoginSuccess={(mockUser) => {
-          setUser(mockUser);
-          localStorage.setItem('modoo-matjip-user', JSON.stringify(mockUser));
-        }}
+        onLogin={handleDirectLogin}
       />
 
       {/* 여행 일정 편집 바텀시트 */}
