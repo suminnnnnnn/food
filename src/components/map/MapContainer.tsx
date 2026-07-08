@@ -2217,6 +2217,33 @@ export default function MapContainer({
     return Object.values(acc).sort((a, b) => (b.subs - a.subs) || (b.count - a.count)).slice(0, 15);
   }, [restaurants]);
 
+  // 패싯 필터 — 선택한 유튜버가 실제로 다녀간 음식 카테고리 집합.
+  // 유튜버 미선택 시 null(=제약 없음). 대부분 유튜버가 1~6곳(주로 한식)만 다뤄
+  // 나머지 음식 칩은 눌러도 항상 0건이 되므로, 죽은 클릭 방지를 위해 비활성 처리한다.
+  const availableCategories = useMemo(() => {
+    if (!activeYoutuber) return null;
+    const set = new Set<string>();
+    restaurants.forEach((r) => {
+      if (!r.videos?.some(v => v.youtuber?.name === activeYoutuber)) return;
+      const cat = r.category || '';
+      FOOD_CATEGORIES.forEach(ac => { if (matchCategory(cat, ac)) set.add(ac); });
+    });
+    return set;
+  }, [restaurants, activeYoutuber]);
+
+  // 패싯 필터(반대 방향) — 선택한 음식 카테고리를 실제로 다룬 유튜버 이름 집합.
+  // 음식 미선택 시 null(=제약 없음). 죽은 유튜버 아바타를 흐리게/비활성 처리하는 데 사용.
+  const availableYoutubers = useMemo(() => {
+    if (activeCategories.length === 0) return null;
+    const set = new Set<string>();
+    restaurants.forEach((r) => {
+      const cat = r.category || '';
+      if (!activeCategories.some(ac => matchCategory(cat, ac))) return;
+      getUniqueYoutubers(r).forEach(y => { if (y.name) set.add(y.name); });
+    });
+    return set;
+  }, [restaurants, activeCategories]);
+
   // 다중 필터 활성 개수 (음식 선택수 + 정렬 + 영상)
   const activeFilterCount = activeCategories.length + (activeSort !== 'latest' ? 1 : 0) + (activeVideoType !== '전체 리뷰' ? 1 : 0);
 
@@ -2233,7 +2260,8 @@ export default function MapContainer({
     const move = (e: MouseEvent) => {
       if (!el) return;
       const dx = e.clientX - startX;
-      if (Math.abs(dx) > 3) moved = true;
+      // 임계값을 넉넉히(8px) — 클릭 시 미세한 손떨림이 드래그로 오인돼 칩 클릭이 삼켜지는 것 방지
+      if (Math.abs(dx) > 8) moved = true;
       el.scrollLeft = startLeft - dx;
       e.preventDefault();
     };
@@ -2596,9 +2624,11 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                                 <div className="flex flex-wrap gap-1.5">
                                   {FOOD_CATEGORIES.map((c) => {
                                     const on = activeCategories.includes(c);
+                                    const dead = !on && availableCategories !== null && !availableCategories.has(c);
                                     return (
-                                      <button key={c} onClick={() => { setSelectedCluster(null); setActiveCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]); }}
-                                        className={`py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all cursor-pointer ${on ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                      <button key={c} disabled={dead} onClick={() => { if (dead) return; setSelectedCluster(null); setActiveCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]); }}
+                                        title={dead ? `${activeYoutuber} 님이 다녀간 이 지역엔 없는 종류예요` : undefined}
+                                        className={`py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all ${dead ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed' : on ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm cursor-pointer' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer'}`}>
                                         {c === '카페/디저트' ? '카페·디저트' : c}
                                       </button>
                                     );
@@ -2641,9 +2671,12 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                         >전체</button>
                         {FOOD_CATEGORIES.map((c) => {
                           const on = activeCategories.includes(c);
+                          // 선택된 유튜버가 해당 음식을 안 다뤘으면 죽은 칩 → 비활성(단, 이미 선택된 칩은 해제 가능하게 유지)
+                          const dead = !on && availableCategories !== null && !availableCategories.has(c);
                           return (
-                            <button key={c} onClick={() => { setSelectedCluster(null); setActiveCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]); }}
-                              className={`shrink-0 py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all cursor-pointer ${on ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                            <button key={c} disabled={dead} onClick={() => { if (dead) return; setSelectedCluster(null); setActiveCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]); }}
+                              title={dead ? `${activeYoutuber} 님이 다녀간 이 지역엔 없는 종류예요` : undefined}
+                              className={`shrink-0 py-1.5 px-3 rounded-full text-[12px] font-bold border transition-all ${dead ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed' : on ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-sm cursor-pointer' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer'}`}>
                               {c === '카페/디저트' ? '카페·디저트' : c}
                             </button>
                           );
@@ -2677,12 +2710,15 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                           <div data-dragscroll className="flex gap-2.5 overflow-x-auto no-scrollbar py-2.5 px-2 cursor-grab">
                             {areaYoutubers.map((y) => {
                               const on = activeYoutuber === y.name;
+                              // 선택한 음식 카테고리를 안 다룬 유튜버 → 죽은 아바타(흐리게·비활성). 이미 선택된 유튜버는 유지.
+                              const dead = !on && availableYoutubers !== null && !availableYoutubers.has(y.name);
                               return (
                                 <button
                                   key={y.name}
-                                  onClick={() => { setActiveYoutuber(on ? null : y.name); setSelectedCluster(null); }}
-                                  className="shrink-0 flex flex-col items-center gap-1 w-[54px] active:scale-95 transition-transform"
-                                  title={`${y.name} · ${y.count}곳`}
+                                  disabled={dead}
+                                  onClick={() => { if (dead) return; setActiveYoutuber(on ? null : y.name); setSelectedCluster(null); }}
+                                  className={`shrink-0 flex flex-col items-center gap-1 w-[54px] transition-all ${dead ? 'opacity-35 cursor-not-allowed' : 'active:scale-95 cursor-pointer'}`}
+                                  title={dead ? `${y.name} · 선택한 음식 종류는 안 다뤘어요` : `${y.name} · ${y.count}곳`}
                                 >
                                   <span className="relative flex">
                                     <span className={`w-11 h-11 rounded-full overflow-hidden flex items-center justify-center ${on ? 'ring-2 ring-orange-500 ring-offset-2' : 'ring-1 ring-slate-200'}`}>
