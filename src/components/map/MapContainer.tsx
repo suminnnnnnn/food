@@ -2301,7 +2301,7 @@ export default function MapContainer({
     if (hour >= 11 && hour < 14) return { emoji: '🍚', title: '점심 뭐 먹지?', sub: '지금 뜨는 맛집부터', apply: () => { setActiveSort('views'); setSelectedCluster(null); } };
     if (hour >= 14 && hour < 17) return { emoji: '🍰', title: '나른한 오후, 디저트 한 입', sub: '카페·디저트 볼까요', apply: () => { setActiveCategories(['카페/디저트']); setSelectedCluster(null); } };
     if (hour >= 17 && hour < 21) return { emoji: '🍖', title: '저녁 맛집 볼까요?', sub: '오늘 저녁은 여기서', apply: () => { setActiveSort('views'); setSelectedCluster(null); } };
-    return { emoji: '🌙', title: '출출한 밤, 야식 어때요?', sub: '심야 맛집 모아봤어요', apply: () => { setActiveCuration('night'); setSelectedCluster(null); } };
+    return { emoji: '🌙', title: '출출한 밤, 야식 어때요?', sub: '술집·포차 어때요', apply: () => { setActiveCategories(['술집']); setSelectedCluster(null); } };
   })();
 
   // 공용 컴팩트 행 렌더 (홈·히어로·주변맛집) — 다중 유튜버·권위 뱃지·거리·영상수·방문상태
@@ -2651,48 +2651,15 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                       </div>
                     )}
 
-                    {/* A: 테마 큐레이션 필터 칩 (스티키 헤더) */}
-                    {!selectedCluster && curationRail.length > 0 && (
-                      <div data-dragscroll className="shrink-0 flex gap-1.5 overflow-x-auto no-scrollbar mb-2 cursor-grab" style={{ scrollbarWidth: 'none' }}>
-                        {curationRail.map((c) => {
-                          const on = activeCuration === c.key;
-                          return (
-                            <button
-                              key={c.key}
-                              onClick={() => setActiveCuration(on ? null : c.key)}
-                              className={`shrink-0 inline-flex items-center gap-1 rounded-full text-[11px] font-bold px-2.5 py-1.5 transition-all active:scale-95 ${on ? 'text-white border border-transparent' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
-                              style={on ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
-                            >
-                              <span>{c.emoji}</span>
-                              <span>{c.label}</span>
-                              <span className={`text-[9.5px] font-bold tabular-nums ${on ? 'text-white/85' : 'text-slate-400'}`}>{c.count}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* B: 결과 컨텍스트 줄 (개수 · 정렬 · 활성 테마) */}
+                    {/* B: 결과 컨텍스트 줄 (개수 · 정렬 · 활성 유튜버) */}
                     <div className="shrink-0 flex items-center gap-2 text-[11px] mb-2">
                       <span className="font-black text-slate-700 tabular-nums">{(selectedCluster || filteredRestaurants).length}곳</span>
                       <span className="text-slate-300">·</span>
                       <span className="text-slate-500 font-semibold">{activeSort === 'views' ? '조회수순' : '최신순'}</span>
-                      {!selectedCluster && (activeYoutuber || activeCuration) && (
-                        <div className="ml-auto flex items-center gap-1.5 min-w-0">
-                          {activeYoutuber && (
-                            <button onClick={() => setActiveYoutuber(null)} className="inline-flex items-center gap-1 text-white text-[10px] font-bold rounded-full pl-2 pr-1.5 py-0.5 active:scale-95 transition-transform max-w-[120px]" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}>
-                              <span className="truncate">📺 {activeYoutuber}</span> <X size={10} className="shrink-0" />
-                            </button>
-                          )}
-                          {activeCuration && (() => {
-                            const cur = CURATIONS.find(c => c.key === activeCuration);
-                            return cur ? (
-                              <button onClick={() => setActiveCuration(null)} className="inline-flex items-center gap-1 text-white text-[10px] font-bold rounded-full pl-2 pr-1.5 py-0.5 active:scale-95 transition-transform" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}>
-                                {cur.emoji} {cur.label} <X size={10} />
-                              </button>
-                            ) : null;
-                          })()}
-                        </div>
+                      {!selectedCluster && activeYoutuber && (
+                        <button onClick={() => setActiveYoutuber(null)} className="ml-auto inline-flex items-center gap-1 text-white text-[10px] font-bold rounded-full pl-2 pr-1.5 py-0.5 active:scale-95 transition-transform max-w-[140px]" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}>
+                          <span className="truncate">📺 {activeYoutuber}</span> <X size={10} className="shrink-0" />
+                        </button>
                       )}
                     </div>
 
