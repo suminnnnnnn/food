@@ -2690,7 +2690,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                       )}
                     </div>
 
-                    <div className="space-y-1.5 overflow-y-auto flex-1 pb-4 pr-3 portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                    <div className="space-y-1.5 overflow-y-auto flex-1 pb-4 portal-sidebar-scrollbar" style={{ scrollbarWidth: 'none' }}>
                       {/* ① 유튜버 발견 축 — 이 지역을 다녀간 크리에이터 */}
                       {!selectedCluster && areaYoutubers.length > 0 && (
                         <div className="pt-0.5">
