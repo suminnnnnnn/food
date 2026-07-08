@@ -2351,10 +2351,9 @@ export default function MapContainer({
     const isTrending = !hero && daysSince <= 120 && vid != null && (vid.view_count || 0) / daysSince >= 5000;
 
     const metrics: any[] = [];
-    if (distLabel) metrics.push(<span key="d" className="font-bold text-slate-600 flex items-center gap-0.5"><MapPin size={9} className="shrink-0" />{distLabel}</span>);
-    if (vid && vid.view_count > 0) metrics.push(<span key="v" className="font-bold text-orange-500 flex items-center gap-0.5"><Eye size={9} />{formatViewCount(vid.view_count)}</span>);
+    if (distLabel) metrics.push(<span key="d" className="font-bold text-slate-600 flex items-center gap-0.5"><MapPin size={10} className="shrink-0" />{distLabel}</span>);
+    if (vid && vid.view_count > 0) metrics.push(<span key="v" className="font-bold text-orange-500 flex items-center gap-0.5"><Eye size={10} />{formatViewCount(vid.view_count)}</span>);
     if (vid?.published_at) metrics.push(<span key="t" className="text-slate-400">{formatRelativeTime(vid.published_at)}</span>);
-    if (r.videos && r.videos.length > 1) metrics.push(<span key="c" className="text-slate-400 flex items-center gap-0.5"><Play size={8} fill="currentColor" />{r.videos.length}</span>);
     const metricRow: any[] = [];
     metrics.forEach((m, i) => {
       if (i > 0) metricRow.push(<span key={`sep${i}`} className="text-slate-300">·</span>);
@@ -2372,57 +2371,60 @@ export default function MapContainer({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
         whileTap={{ scale: 0.98 }}
-        className={`group grid grid-cols-[84px_1fr_auto] gap-2.5 items-center rounded-xl cursor-pointer border p-2 transition-all bg-white ${isVisited ? 'opacity-65' : ''} ${isSelected ? 'border-orange-400 shadow-md' : isMapHovered ? 'border-orange-300 shadow-md ring-2 ring-orange-100' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}
+        className={`group grid grid-cols-[120px_1fr_auto] gap-3 items-center rounded-2xl cursor-pointer border p-2.5 transition-all bg-white ${isVisited ? 'opacity-65' : ''} ${isSelected ? 'border-orange-400 shadow-md' : isMapHovered ? 'border-orange-300 shadow-md ring-2 ring-orange-100' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}
         style={{ transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' }}
       >
         {/* 썸네일 */}
-        <div className="relative w-[84px] h-[56px] rounded-lg overflow-hidden bg-slate-100 shrink-0">
+        <div className="relative w-[120px] h-[68px] rounded-xl overflow-hidden bg-slate-100 shrink-0">
           {vid?.thumbnail ? (
             <img src={vid.thumbnail} className="w-full h-full object-cover" alt={r.name} />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center"><Utensils size={20} className="text-slate-500" /></div>
+            <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center"><Utensils size={24} className="text-slate-500" /></div>
           )}
           {vid?.is_short && (
-            <span className="absolute bottom-1 right-1 bg-black/55 backdrop-blur-sm text-white text-[7px] font-black px-1 py-0.5 rounded flex items-center gap-0.5"><Play size={5} fill="currentColor" /> S</span>
+            <span className="absolute bottom-1 right-1 bg-black/55 backdrop-blur-sm text-white text-[8px] font-black px-1 py-0.5 rounded flex items-center gap-0.5"><Play size={6} fill="currentColor" /> 쇼츠</span>
+          )}
+          {r.videos && r.videos.length > 1 && (
+            <span className="absolute bottom-1 left-1 bg-black/55 backdrop-blur-sm text-white text-[8px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><Play size={6} fill="currentColor" />{r.videos.length}</span>
           )}
           {isVisited && (
-            <span className="absolute top-1 left-1 bg-emerald-500 text-white text-[7px] font-black px-1 py-0.5 rounded-full">✓ 다녀옴</span>
+            <span className="absolute top-1 left-1 bg-emerald-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">✓ 다녀옴</span>
           )}
         </div>
 
         {/* 본문 */}
-        <div className="min-w-0">
+        <div className="min-w-0 self-center">
           <div className="flex items-center gap-1 min-w-0">
-            <span className="text-[12.5px] font-extrabold text-slate-800 leading-tight truncate">{r.name}</span>
+            <span className="text-[14px] font-extrabold text-slate-800 leading-tight truncate">{r.name}</span>
             {isTrending && (
-              <span className="shrink-0 inline-flex items-center gap-0.5 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}><Flame size={8} fill="currentColor" /> 급상승</span>
+              <span className="shrink-0 inline-flex items-center gap-0.5 text-white text-[8.5px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}><Flame size={9} fill="currentColor" /> 급상승</span>
             )}
             {badges.map((b) => (
-              <span key={b.short} className="shrink-0 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: b.bg }}>{b.short}</span>
+              <span key={b.short} className="shrink-0 text-white text-[8.5px] font-black px-1.5 py-0.5 rounded-full" style={{ background: b.bg }}>{b.short}</span>
             ))}
           </div>
           {youtubers.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-1 min-w-0">
+            <div className="flex items-center gap-1.5 mt-1.5 min-w-0">
               <span className="flex -space-x-2 shrink-0">
                 {youtubers.slice(0, 3).map((y, i) => (
                   y.profile_image ? (
-                    <img key={i} src={y.profile_image} className="w-5 h-5 rounded-full object-cover ring-2 ring-white" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    <img key={i} src={y.profile_image} className="w-[22px] h-[22px] rounded-full object-cover ring-2 ring-white" alt={y.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   ) : (
-                    <span key={i} className="w-5 h-5 rounded-full bg-slate-300 ring-2 ring-white flex items-center justify-center text-[8px] font-bold text-white">{y.name?.[0] ?? '?'}</span>
+                    <span key={i} className="w-[22px] h-[22px] rounded-full bg-slate-300 ring-2 ring-white flex items-center justify-center text-[9px] font-bold text-white">{y.name?.[0] ?? '?'}</span>
                   )
                 ))}
               </span>
-              <span className="text-[11px] font-semibold text-slate-600 truncate">{youtubers[0].name}{youtubers.length > 1 ? ` 외 ${youtubers.length - 1}` : ''}</span>
+              <span className="text-[11.5px] font-semibold text-slate-600 truncate">{youtubers[0].name}{youtubers.length > 1 ? ` 외 ${youtubers.length - 1}` : ''}</span>
             </div>
           )}
-          <div className="flex items-center gap-1 mt-1 text-[9.5px] tabular-nums">
+          <div className="flex items-center gap-1.5 mt-1.5 text-[10.5px] tabular-nums">
             {metricRow}
           </div>
         </div>
 
         {/* 저장 */}
         <button onClick={(e) => { e.stopPropagation(); toggleSave(r.id); }} className="self-start p-1 -m-1">
-          <Star size={16} className={isFav ? 'text-orange-500 fill-orange-500' : 'text-slate-300'} />
+          <Star size={18} className={isFav ? 'text-orange-500 fill-orange-500' : 'text-slate-300'} />
         </button>
       </motion.div>
     );
