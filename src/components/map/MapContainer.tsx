@@ -13,7 +13,7 @@ import { getUserFolders, getAllUserFolderRelations, getOrCreateDefaultFolder, ad
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Locate, Flame, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool, ShoppingBag, Bell, CornerUpRight, ArrowUpDown, PlayCircle, SlidersHorizontal } from 'lucide-react';
+import { Locate, Play, MapPin, Utensils, Heart, Star, Home, User, ChevronLeft, ChevronRight, ChevronDown, ArrowLeft, List, X, Calendar, Search, Plus, MapPinPlus, CalendarRange, Eye, Pentagon, PenTool, ShoppingBag, Bell, CornerUpRight, ArrowUpDown, PlayCircle, SlidersHorizontal } from 'lucide-react';
 import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
@@ -2345,11 +2345,6 @@ export default function MapContainer({
       ? getDistance(userLocation.lat, userLocation.lng, r.lat, r.lng) : null;
     const distLabel = distKm == null ? null : distKm < 1 ? `${Math.round(distKm * 1000)}m` : `${distKm.toFixed(1)}km`;
 
-    // 급상승(소셜 증거): 최근(120일 내) + 조회수 속도 높음 (하루 5천뷰 이상). 히어로엔 이미 '지금 뜨는'이 있어 제외
-    const pubMs = vid?.published_at ? new Date(vid.published_at).getTime() : 0;
-    const daysSince = pubMs ? Math.max(1, (Date.now() - pubMs) / 86400000) : Infinity;
-    const isTrending = !hero && daysSince <= 120 && vid != null && (vid.view_count || 0) / daysSince >= 5000;
-
     const metrics: any[] = [];
     if (distLabel) metrics.push(<span key="d" className="font-bold text-slate-600 flex items-center gap-0.5"><MapPin size={10} className="shrink-0" />{distLabel}</span>);
     if (vid && vid.view_count > 0) metrics.push(<span key="v" className="font-bold text-orange-500 flex items-center gap-0.5"><Eye size={10} />{formatViewCount(vid.view_count)}</span>);
@@ -2371,11 +2366,11 @@ export default function MapContainer({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
         whileTap={{ scale: 0.98 }}
-        className={`group grid grid-cols-[120px_1fr_auto] gap-3 items-center rounded-2xl cursor-pointer border p-2.5 transition-all bg-white ${isVisited ? 'opacity-65' : ''} ${isSelected ? 'border-orange-400 shadow-md' : isMapHovered ? 'border-orange-300 shadow-md ring-2 ring-orange-100' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}
+        className={`group grid grid-cols-[128px_1fr_auto] gap-2.5 items-center rounded-2xl cursor-pointer border p-1.5 transition-all bg-white ${isVisited ? 'opacity-65' : ''} ${isSelected ? 'border-orange-400 shadow-md' : isMapHovered ? 'border-orange-300 shadow-md ring-2 ring-orange-100' : 'border-slate-200 shadow-sm hover:border-slate-300 hover:shadow-md'}`}
         style={{ transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)' }}
       >
         {/* 썸네일 */}
-        <div className="relative w-[120px] h-[68px] rounded-xl overflow-hidden bg-slate-100 shrink-0">
+        <div className="relative w-[128px] h-[72px] rounded-lg overflow-hidden bg-slate-100 shrink-0">
           {vid?.thumbnail ? (
             <img src={vid.thumbnail} className="w-full h-full object-cover" alt={r.name} />
           ) : (
@@ -2396,9 +2391,6 @@ export default function MapContainer({
         <div className="min-w-0 self-center">
           <div className="flex items-center gap-1 min-w-0">
             <span className="text-[14px] font-extrabold text-slate-800 leading-tight truncate">{r.name}</span>
-            {isTrending && (
-              <span className="shrink-0 inline-flex items-center gap-0.5 text-white text-[8.5px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}><Flame size={9} fill="currentColor" /> 급상승</span>
-            )}
             {badges.map((b) => (
               <span key={b.short} className="shrink-0 text-white text-[8.5px] font-black px-1.5 py-0.5 rounded-full" style={{ background: b.bg }}>{b.short}</span>
             ))}
