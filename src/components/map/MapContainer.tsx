@@ -3159,7 +3159,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                     </div>
                   ) : (
                     <SavedListView
-                      defaultFolderId={defaultFolderId}
+                      folders={userFolders}
                       folderRelations={folderRelations}
                       onRefreshData={fetchFoldersAndRelations}
                       onSelectRestaurant={(lat, lng, id) => {
@@ -3174,6 +3174,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                       onToggleMapMode={setSavedMapMode}
                       statusFilter={savedStatusFilter}
                       onStatusChange={setSavedStatusFilter}
+                      userLocation={userLocation}
                     />
                   )}
                 </div>
