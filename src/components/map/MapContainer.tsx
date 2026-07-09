@@ -9,7 +9,7 @@ import { Map, CustomOverlayMap, MapMarker, MarkerClusterer, Polygon, Polyline, C
 
 import { supabase } from '@/lib/supabase/client';
 import { Restaurant, ItineraryItem, Itinerary, UserFolder, FolderRestaurantRelation } from '@/types';
-import { getUserFolders, getAllUserFolderRelations, getOrCreateDefaultFolder, addRestaurantToFolder, removeRestaurantFromFolder } from '@/lib/supabase/folders';
+import { getUserFolders, getAllUserFolderRelations, getOrCreateDefaultFolder, addRestaurantToFolder, removeRestaurantFromFolder, createFolder } from '@/lib/supabase/folders';
 import { MapBounds } from '@/hooks/useMapBounds';
 import RestaurantInfoCard from '@/components/ui/RestaurantInfoCard';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,7 @@ import { MichelinIcon } from '@/components/icons/CustomIcons';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
 import SavedListView from '@/components/ui/SavedListView';
+import SaveSheet from '@/components/ui/SaveSheet';
 import MyPageView from '@/components/ui/MyPageView';
 import LoginPromptModal from '@/components/ui/LoginPromptModal';
 import ItineraryTabView from '@/components/ui/ItineraryTabView';
@@ -479,6 +480,69 @@ export default function MapContainer({
     } catch (err) {
       console.error('Failed to toggle save:', err);
       showToast({ message: '저장에 실패했어요. 잠시 후 다시 시도해 주세요' });
+    }
+  };
+
+  // ── 저장 시트 (컬렉션 선택) ────────────────────────────────
+  const [saveSheetRestaurant, setSaveSheetRestaurant] = useState<Restaurant | null>(null);
+
+  // 폴더별 저장 개수 (시트/컬렉션 홈 공용)
+  const folderCounts = useMemo(() => {
+    const acc: Record<string, number> = {};
+    folderRelations.forEach(fr => { acc[fr.folder_id] = (acc[fr.folder_id] || 0) + 1; });
+    return acc;
+  }, [folderRelations]);
+
+  // 저장 시트 열기 — 별을 누르면 어느 컬렉션에 담을지 선택
+  const openSaveSheet = (restaurantId: string) => {
+    if (!user?.id) { setIsLoginModalOpen(true); return; }
+    const r = restaurants.find(x => x.id === restaurantId)
+      || (selectedRestaurant?.id === restaurantId ? selectedRestaurant : null);
+    if (r) setSaveSheetRestaurant(r);
+    else setSaveSheetRestaurant({ id: restaurantId, name: '' } as Restaurant);
+  };
+
+  // 열린 맛집이 현재 담겨있는 폴더 id들
+  const saveSheetCurrentFolderIds = useMemo(
+    () => saveSheetRestaurant
+      ? folderRelations.filter(fr => fr.restaurant_id === saveSheetRestaurant.id).map(fr => fr.folder_id)
+      : [],
+    [saveSheetRestaurant, folderRelations]
+  );
+
+  // 시트 확정 — 선택한 폴더 집합에 맞춰 추가/제거 조정
+  const handleSaveCommit = async (targetFolderIds: string[]) => {
+    if (!saveSheetRestaurant) return;
+    const rid = saveSheetRestaurant.id;
+    const target = new Set(targetFolderIds);
+    const current = new Set(saveSheetCurrentFolderIds);
+    try {
+      const toAdd = [...target].filter(fid => !current.has(fid));
+      const toRemove = [...current].filter(fid => !target.has(fid));
+      await Promise.all([
+        ...toAdd.map(fid => addRestaurantToFolder(fid, rid, '', [])),
+        ...toRemove.map(fid => removeRestaurantFromFolder(fid, rid)),
+      ]);
+      await fetchFoldersAndRelations();
+      if (target.size === 0) showToast({ message: '저장을 해제했어요' });
+      else showToast({ message: `⭐ ${target.size}개 컬렉션에 저장했어요` });
+    } catch (err) {
+      console.error('Failed to commit save sheet:', err);
+      showToast({ message: '저장에 실패했어요. 잠시 후 다시 시도해 주세요' });
+    }
+  };
+
+  // 시트에서 새 컬렉션 생성
+  const handleCreateFolder = async (name: string, emoji: string, color: string) => {
+    try {
+      const folder = await createFolder(name, emoji, color, false);
+      const foldersData = await getUserFolders();
+      setUserFolders(foldersData);
+      return folder;
+    } catch (err) {
+      console.error('Failed to create folder:', err);
+      showToast({ message: '컬렉션 생성에 실패했어요' });
+      return null;
     }
   };
 
@@ -2415,7 +2479,7 @@ export default function MapContainer({
         </div>
 
         {/* 저장 */}
-        <button onClick={(e) => { e.stopPropagation(); toggleSave(r.id); }} className="self-start p-1 -m-1">
+        <button onClick={(e) => { e.stopPropagation(); openSaveSheet(r.id); }} className="self-start p-1 -m-1">
           <Star size={18} className={isFav ? 'text-orange-500 fill-orange-500' : 'text-slate-300'} />
         </button>
       </motion.div>
@@ -3477,7 +3541,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
           setIsSubmissionOpen(true);
         }}
         favorites={Array.from(savedIds)}
-        toggleFavorite={(id) => toggleSave(id)}
+        toggleFavorite={(id) => openSaveSheet(id)}
         isPlanningMode={isPlanningMode}
         isRecommendedRouteItem={selectedRestaurant ? isRestaurantInPlanningBuffer(selectedRestaurant) : false}
         onAddToPlanning={(rest) => {
@@ -3966,7 +4030,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            toggleSave(restaurant.id);
+                            openSaveSheet(restaurant.id);
                           }}
                           className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/15 hover:bg-black/60 transition-colors"
                         >
@@ -4352,6 +4416,19 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
 
       {/* 저장 등 액션 피드백 토스트 */}
       <Toast message={toastMessage} isVisible={isToastVisible} />
+
+      {/* 저장 시트 — 어느 컬렉션에 담을지 선택 */}
+      <SaveSheet
+        open={!!saveSheetRestaurant}
+        restaurant={saveSheetRestaurant ? { id: saveSheetRestaurant.id, name: saveSheetRestaurant.name, thumbnail: getBestVideo(saveSheetRestaurant.videos, activeVideoType)?.thumbnail } : null}
+        folders={userFolders}
+        folderCounts={folderCounts}
+        currentFolderIds={saveSheetCurrentFolderIds}
+        defaultFolderId={defaultFolderId}
+        onClose={() => setSaveSheetRestaurant(null)}
+        onCommit={handleSaveCommit}
+        onCreateFolder={handleCreateFolder}
+      />
 
       {/* 맛집 제보 바텀시트 */}
       <RestaurantSubmissionBottomSheet
