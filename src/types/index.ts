@@ -122,6 +122,7 @@ export interface FolderRestaurantRelation {
   visited: boolean;
   visit_count: number;
   tags: string[];
+  rating?: number | null; // 개인 별점 1~5 (null=미평가)
   created_at: string;
   updated_at: string;
 }

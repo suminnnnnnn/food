@@ -362,7 +362,7 @@ export async function addRestaurantToFolder(
 export async function updateFolderRestaurantRelation(
   folderId: string,
   restaurantId: string,
-  updates: Partial<Pick<FolderRestaurantRelation, 'memo' | 'visited' | 'visit_count' | 'tags'>>
+  updates: Partial<Pick<FolderRestaurantRelation, 'memo' | 'visited' | 'visit_count' | 'tags' | 'rating'>>
 ): Promise<void> {
   try {
     const { error } = await supabase
@@ -522,6 +522,7 @@ export async function getFolderRestaurants(
           visited: relation?.visited || false,
           visit_count: relation?.visit_count || 0,
           tags: relation?.tags || [],
+          rating: relation?.rating ?? null,
           created_at: relation?.created_at || new Date().toISOString(),
           updated_at: relation?.updated_at || new Date().toISOString()
         };
@@ -536,7 +537,7 @@ export async function getFolderRestaurants(
     const { data, error } = await supabase
       .from('folder_restaurants')
       .select(`
-        folder_id, restaurant_id, user_id, memo, visited, visit_count, tags, created_at, updated_at,
+        folder_id, restaurant_id, user_id, memo, visited, visit_count, tags, rating, created_at, updated_at,
         restaurants (
           id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info, description_summary,
           restaurant_videos (
@@ -641,6 +642,7 @@ export async function getFolderRestaurants(
           visited: row.visited || false,
           visit_count: row.visit_count || 0,
           tags: row.tags || [],
+          rating: row.rating ?? null,
           created_at: row.created_at,
           updated_at: row.updated_at
         };
@@ -652,6 +654,140 @@ export async function getFolderRestaurants(
       });
   } catch (err) {
     console.warn('getFolderRestaurants failed, returning empty:', err);
+    return [];
+  }
+}
+
+// 사용자의 모든 폴더에 걸친 저장 맛집을 한 번에 조회 (컬렉션 홈/전체 뷰용).
+// 같은 맛집이 여러 폴더에 있으면 폴더 수만큼 행이 나온다(folder_relation.folder_id로 구분).
+export async function getAllSavedRestaurants(): Promise<
+  (Restaurant & { folder_relation: FolderRestaurantRelation })[]
+> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      // 비로그인: 로컬 관계 전체를 폴더별로 로드
+      const rels = getLocalRelations();
+      const folderIds = Array.from(new Set(rels.map(r => r.folder_id)));
+      const all: (Restaurant & { folder_relation: FolderRestaurantRelation })[] = [];
+      for (const fid of folderIds) {
+        const list = await getFolderRestaurants(fid);
+        all.push(...list);
+      }
+      return all;
+    }
+
+    const { data, error } = await supabase
+      .from('folder_restaurants')
+      .select(`
+        folder_id, restaurant_id, user_id, memo, visited, visit_count, tags, rating, created_at, updated_at,
+        restaurants (
+          id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, menu_info, description_summary,
+          restaurant_videos (
+            quote, mention_time, keywords,
+            videos (
+              id, youtube_video_id, title, thumbnail_url, is_short, view_count, published_at,
+              channels ( id, name, profile_image_url, youtube_channel_id ),
+              series ( id, name, host_name )
+            )
+          ),
+          restaurant_curations (
+            metadata,
+            curation_sources ( id, code, name )
+          )
+        )
+      `)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+    if (!data) return [];
+
+    return data
+      .filter((row: any) => row.restaurants !== null)
+      .map((row: any) => {
+        const r = row.restaurants;
+        const videos: Video[] = r.restaurant_videos?.map((rv: any) => {
+          const v = rv.videos;
+          const c = v.channels;
+          return {
+            id: v.id,
+            youtube_id: v.youtube_video_id,
+            thumbnail: v.thumbnail_url || '',
+            title: v.title,
+            published_at: v.published_at || '',
+            view_count: v.view_count || 0,
+            is_short: v.is_short || false,
+            keywords: rv.keywords || [],
+            quote: rv.quote || '',
+            youtuber: {
+              id: c?.id || '',
+              name: c?.name || 'Unknown',
+              profile_image: c?.profile_image_url || '',
+              channel_url: c?.youtube_channel_id ? 'https://youtube.com/channel/' + c.youtube_channel_id : ''
+            }
+          };
+        }) || [];
+
+        const content_tags: ContentTag[] = [];
+        r.restaurant_curations?.forEach((rc: any) => {
+          if (rc.curation_sources) {
+            content_tags.push({
+              source: rc.curation_sources.code,
+              label: rc.metadata?.label || rc.curation_sources.name,
+              year: rc.metadata?.year
+            });
+          }
+        });
+        r.restaurant_videos?.forEach((rv: any) => {
+          const series = rv.videos?.series;
+          if (series && series.name && !content_tags.some(t => t.label === series.name)) {
+            let sourceCode = 'youtube';
+            if (series.name.includes('또간집')) sourceCode = 'ddoganjib';
+            else if (series.name.includes('먹을텐데')) sourceCode = 'meogeultende';
+            content_tags.push({ source: sourceCode as any, label: series.name });
+          }
+        });
+
+        const primary_video = videos.length > 0 ? videos[0] : undefined;
+
+        const restaurantObj: Restaurant = {
+          id: r.id,
+          kakao_place_id: r.kakao_place_id,
+          name: r.name,
+          category: r.category,
+          address: r.address,
+          road_address: r.road_address,
+          lat: r.lat,
+          lng: r.lng,
+          phone: r.phone,
+          parking: r.parking,
+          packaging: r.packaging,
+          reservation: r.reservation,
+          business_hours: r.business_hours,
+          menu_info: r.menu_info,
+          description_summary: r.description_summary,
+          videos,
+          primary_video,
+          content_tags
+        };
+
+        const folder_relation: FolderRestaurantRelation = {
+          folder_id: row.folder_id,
+          restaurant_id: row.restaurant_id,
+          user_id: row.user_id,
+          memo: row.memo || '',
+          visited: row.visited || false,
+          visit_count: row.visit_count || 0,
+          tags: row.tags || [],
+          rating: row.rating ?? null,
+          created_at: row.created_at,
+          updated_at: row.updated_at
+        };
+
+        return { ...restaurantObj, folder_relation };
+      });
+  } catch (err) {
+    console.warn('getAllSavedRestaurants failed, returning empty:', err);
     return [];
   }
 }
