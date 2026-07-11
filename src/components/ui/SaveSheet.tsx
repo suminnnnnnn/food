@@ -4,9 +4,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Plus, Utensils } from 'lucide-react';
 import { UserFolder } from '@/types';
+import PinIcon from '@/components/ui/PinIcon';
 
 const EMOJI_PRESET = ['⭐', '❤️', '🍜', '🍲', '🍺', '☕', '🍰', '🔥', '🌸', '🎉', '🍚', '🐟'];
-const COLOR_PRESET = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
+// 빠른 선택용 대표 색상 (그 외 색은 하단 HTML 색상 피커로 자유 선택)
+const COLOR_PRESET = ['#EF4444', '#FF6F00', '#F59E0B', '#EAB308', '#10B981', '#06B6D4', '#3B82F6', '#8B5CF6', '#EC4899', '#64748B'];
 
 interface SaveSheetProps {
   open: boolean;
@@ -36,7 +38,7 @@ export default function SaveSheet({
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('⭐');
-  const [newColor, setNewColor] = useState('#f97316');
+  const [newColor, setNewColor] = useState('#FF6F00');
 
   // 시트가 열릴 때 초기 선택값 세팅: 이미 담긴 폴더, 신규 저장이면 기본 폴더 선택
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function SaveSheet({
     setCreating(false);
     setNewName('');
     setNewEmoji('⭐');
-    setNewColor('#f97316');
+    setNewColor('#FF6F00');
   }, [open, restaurant?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isNewSave = currentFolderIds.length === 0;
@@ -142,11 +144,8 @@ export default function SaveSheet({
                       on ? 'border-orange-400 bg-orange-50' : 'border-slate-100 hover:bg-slate-50'
                     }`}
                   >
-                    <span
-                      className="w-9 h-9 rounded-xl flex items-center justify-center text-[17px] shrink-0"
-                      style={{ background: (f.color || '#f97316') + '22' }}
-                    >
-                      {f.emoji || '⭐'}
+                    <span className="w-9 h-9 flex items-center justify-center shrink-0">
+                      <PinIcon color={f.color || '#FF6F00'} filled size={30} emoji={f.emoji || undefined} />
                     </span>
                     <span className="text-[14px] font-bold text-slate-800 text-left truncate flex-1">{f.name}</span>
                     <span className="text-[11px] font-bold text-slate-400 tabular-nums">{folderCounts[f.id] || 0}곳</span>
@@ -165,7 +164,7 @@ export default function SaveSheet({
               {creating ? (
                 <div className="p-3 rounded-2xl border border-orange-200 bg-orange-50/40 mb-1.5">
                   <div className="flex items-center gap-2 mb-2.5">
-                    <span className="w-9 h-9 rounded-xl flex items-center justify-center text-[17px] shrink-0" style={{ background: newColor + '22' }}>{newEmoji}</span>
+                    <span className="w-9 h-9 flex items-center justify-center shrink-0"><PinIcon color={newColor} filled size={30} emoji={newEmoji} /></span>
                     <input
                       autoFocus
                       value={newName}
@@ -181,10 +180,18 @@ export default function SaveSheet({
                       <button key={e} onClick={() => setNewEmoji(e)} className={`w-7 h-7 rounded-lg text-[15px] flex items-center justify-center transition-all ${newEmoji === e ? 'bg-white ring-2 ring-orange-400' : 'hover:bg-white/60'}`}>{e}</button>
                     ))}
                   </div>
-                  <div className="flex gap-1.5 mb-3">
+                  <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                     {COLOR_PRESET.map(c => (
-                      <button key={c} onClick={() => setNewColor(c)} className={`w-6 h-6 rounded-full transition-transform ${newColor === c ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''}`} style={{ background: c }} />
+                      <button key={c} onClick={() => setNewColor(c)} className={`w-6 h-6 rounded-full transition-transform ${newColor.toUpperCase() === c ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''}`} style={{ background: c }} />
                     ))}
+                    {/* HTML 색상 피커 — 전체 색상표에서 자유 선택 */}
+                    <label className="w-6 h-6 rounded-full relative overflow-hidden cursor-pointer ring-1 ring-slate-300"
+                      style={{ background: 'conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)' }}
+                      title="원하는 색 직접 선택">
+                      <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer" />
+                      <Plus size={12} className="absolute inset-0 m-auto text-white drop-shadow" />
+                    </label>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => setCreating(false)} className="flex-1 py-2 rounded-xl text-[12px] font-bold text-slate-500 bg-white border border-slate-200">취소</button>

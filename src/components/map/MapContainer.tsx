@@ -19,6 +19,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
 import SavedListView from '@/components/ui/SavedListView';
 import SaveSheet from '@/components/ui/SaveSheet';
+import PinIcon from '@/components/ui/PinIcon';
 import MyPageView from '@/components/ui/MyPageView';
 import LoginPromptModal from '@/components/ui/LoginPromptModal';
 import ItineraryTabView from '@/components/ui/ItineraryTabView';
@@ -492,6 +493,19 @@ export default function MapContainer({
     folderRelations.forEach(fr => { acc[fr.folder_id] = (acc[fr.folder_id] || 0) + 1; });
     return acc;
   }, [folderRelations]);
+
+  // 저장 표시용: 맛집이 담긴 대표(가장 최근) 폴더의 색상. 미저장이면 null.
+  const folderColorMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    userFolders.forEach(f => { m[f.id] = f.color || '#FF6F00'; });
+    return m;
+  }, [userFolders]);
+  const savedColorFor = (restaurantId: string): string | null => {
+    const rels = folderRelations.filter(fr => fr.restaurant_id === restaurantId);
+    if (rels.length === 0) return null;
+    const rel = [...rels].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    return folderColorMap[rel.folder_id] || '#FF6F00';
+  };
 
   // 저장 시트 열기 — 별을 누르면 어느 컬렉션에 담을지 선택
   const openSaveSheet = (restaurantId: string) => {
@@ -2479,8 +2493,8 @@ export default function MapContainer({
         </div>
 
         {/* 저장 */}
-        <button onClick={(e) => { e.stopPropagation(); openSaveSheet(r.id); }} className="self-start p-1 -m-1">
-          <Star size={18} className={isFav ? 'text-orange-500 fill-orange-500' : 'text-slate-300'} />
+        <button onClick={(e) => { e.stopPropagation(); openSaveSheet(r.id); }} className="self-start p-1 -m-1" title={isFav ? '저장됨' : '저장'}>
+          <PinIcon color={isFav ? (savedColorFor(r.id) || '#FF6F00') : '#cbd5e1'} filled={isFav} size={20} />
         </button>
       </motion.div>
     );
@@ -4034,8 +4048,9 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                             openSaveSheet(restaurant.id);
                           }}
                           className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/15 hover:bg-black/60 transition-colors"
+                          title={isFav ? '저장됨' : '저장'}
                         >
-                          <Star size={12} className={isFav ? 'text-orange-400 fill-orange-400' : 'text-white/80'} />
+                          <PinIcon color={isFav ? (savedColorFor(restaurant.id) || '#FF6F00') : '#ffffff'} filled={isFav} size={15} />
                         </button>
                       </div>
 

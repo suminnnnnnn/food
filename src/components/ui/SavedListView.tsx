@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, Search, ArrowUpDown, Plus, Pencil, X,
 } from 'lucide-react';
 import { Restaurant, FolderRestaurantRelation, UserFolder, Video } from '@/types';
+import PinIcon from '@/components/ui/PinIcon';
 import {
   getAllSavedRestaurants,
   removeRestaurantFromFolder,
@@ -78,8 +79,6 @@ const regionOf = (address?: string): string => {
   return parts[0] || '';
 };
 
-const TAG_PRESET = ['주차편함', '웨이팅있음', '분위기좋음', '가성비', '재방문', '데이트', '혼밥', '단체'];
-
 type SavedRestaurant = Restaurant & { folder_relation: FolderRestaurantRelation };
 
 export default function SavedListView({
@@ -107,7 +106,6 @@ export default function SavedListView({
   // 카드별 인라인 편집 상태
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
   const [memoDraft, setMemoDraft] = useState('');
-  const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
 
   // 전체 폴더의 저장 맛집 로드 (관계 변동 시 동기화)
   useEffect(() => {
@@ -207,13 +205,6 @@ export default function SavedListView({
     setEditingMemoId(null);
     try { await updateFolderRestaurantRelation(rel.folder_id, it.id, { memo }); }
     catch (e) { console.error('save memo failed', e); }
-  };
-
-  const handleUpdateTags = async (it: SavedRestaurant, tags: string[]) => {
-    const rel = it.folder_relation;
-    patchRelation(rel.folder_id, it.id, { tags });
-    try { await updateFolderRestaurantRelation(rel.folder_id, it.id, { tags }); }
-    catch (e) { console.error('update tags failed', e); }
   };
 
   const handleRemove = async (it: SavedRestaurant) => {
@@ -397,7 +388,6 @@ export default function SavedListView({
               const dist = userLocation ? getDistance(userLocation.lat, userLocation.lng, it.lat, it.lng) : null;
               const distLabel = dist == null ? null : dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)}km`;
               const isEditingMemo = editingMemoId === it.id;
-              const isEditingTags = editingTagsId === it.id;
               return (
                 <motion.div key={rel.folder_id + it.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
                   className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm">
@@ -408,13 +398,13 @@ export default function SavedListView({
                       : <div className="absolute inset-0 bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center"><Utensils size={30} className="text-slate-500" /></div>}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/20" />
 
-                    <button onClick={e => { e.stopPropagation(); handleToggleVisited(it); }}
+                    <span
                       className={`absolute top-2.5 left-2.5 text-[9.5px] font-black px-2.5 py-1 rounded-full flex items-center gap-0.5 shadow-md ${rel.visited ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white'}`}>
                       {rel.visited ? <><Check size={9} strokeWidth={3} /> 방문완료{rel.visit_count > 1 ? ` (${rel.visit_count})` : ''}</> : '가고싶은곳'}
-                    </button>
+                    </span>
                     <button onClick={e => { e.stopPropagation(); handleRemove(it); }}
-                      className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/15 hover:bg-black/60 transition-colors" title="이 컬렉션에서 빼기">
-                      <Star size={12} className="text-orange-400 fill-orange-400" />
+                      className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/15 hover:bg-black/60 transition-colors" title="이 컬렉션에서 빼기">
+                      <PinIcon color={activeFolder?.color || '#FF6F00'} filled size={17} />
                     </button>
 
                     <div className="absolute bottom-0 inset-x-0 px-3.5 pb-3 z-10">
@@ -471,28 +461,18 @@ export default function SavedListView({
                       </button>
                     )}
 
-                    {/* 태그 */}
-                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                      {(rel.tags || []).map(t => (
-                        <span key={t} className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-500 bg-slate-100 pl-2 pr-1.5 py-1 rounded-full">
-                          #{t}
-                          <button onClick={() => handleUpdateTags(it, (rel.tags || []).filter(x => x !== t))} className="text-slate-400 hover:text-red-500"><X size={10} /></button>
-                        </span>
-                      ))}
-                      {isEditingTags ? (
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {TAG_PRESET.filter(t => !(rel.tags || []).includes(t)).map(t => (
-                            <button key={t} onClick={() => handleUpdateTags(it, [...(rel.tags || []), t])}
-                              className="text-[10.5px] font-bold text-orange-500 bg-orange-50 border border-orange-200 px-2 py-1 rounded-full hover:bg-orange-100">+ {t}</button>
-                          ))}
-                          <button onClick={() => setEditingTagsId(null)} className="text-[10.5px] font-bold text-slate-400 px-1">닫기</button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setEditingTagsId(it.id)} className="inline-flex items-center gap-0.5 text-[10.5px] font-bold text-slate-400 hover:text-orange-500 border border-dashed border-slate-200 px-2 py-1 rounded-full">
-                          <Plus size={11} /> 태그
-                        </button>
-                      )}
-                    </div>
+                    {/* 방문완료 버튼 */}
+                    <button
+                      onClick={() => handleToggleVisited(it)}
+                      className={`mt-2.5 w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12.5px] font-black transition-colors ${
+                        rel.visited
+                          ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Check size={14} strokeWidth={3} />
+                      {rel.visited ? `방문완료${rel.visit_count > 1 ? ` · ${rel.visit_count}회` : ''}` : '방문 체크'}
+                    </button>
                   </div>
                 </motion.div>
               );
