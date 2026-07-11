@@ -1183,7 +1183,27 @@ export default function RestaurantInfoCard({
                           {renderStatusBadge()}
                         </div>
                       );
-                    })() : <span className="text-[14px] font-bold text-zinc-400 md:text-slate-400 block">영업시간 정보 없음</span>}
+                    })() : (
+                      restaurant.kakao_place_id ? (
+                        <a
+                          href={`https://place.map.kakao.com/${restaurant.kakao_place_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[14px] font-bold text-orange-400 md:text-orange-600 hover:underline"
+                        >
+                          영업시간 확인 (카카오맵) <ExternalLink size={12} />
+                        </a>
+                      ) : (
+                        <a
+                          href={`https://map.naver.com/v5/search/${encodeURIComponent(restaurant.name)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[14px] font-bold text-orange-400 md:text-orange-600 hover:underline"
+                        >
+                          영업시간 확인 (네이버) <ExternalLink size={12} />
+                        </a>
+                      )
+                    )}
                   </div>
                 </div>
 
@@ -1228,18 +1248,27 @@ export default function RestaurantInfoCard({
                   <span className="text-[10.5px] text-zinc-500 md:text-slate-400 font-medium leading-snug">
                     영업시간·메뉴는 <b className="font-bold text-zinc-400 md:text-slate-500">제보·자동수집 기반</b>이라 실제와 다를 수 있어요.
                   </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                     {restaurant.kakao_place_id && (
                       <a
                         href={`https://place.map.kakao.com/${restaurant.kakao_place_id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-[10.5px] font-bold text-zinc-300 md:text-slate-600 bg-white/5 md:bg-white border border-white/10 md:border-slate-200 px-2.5 py-1 rounded-full hover:bg-white/10 md:hover:bg-slate-100 transition-colors"
-                        title="카카오맵 공식 정보"
+                        title="카카오맵에서 영업시간 등 공식 정보 확인"
                       >
-                        공식 정보 <ExternalLink size={10} />
+                        카카오맵 <ExternalLink size={10} />
                       </a>
                     )}
+                    <a
+                      href={`https://map.naver.com/v5/search/${encodeURIComponent(restaurant.name)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[10.5px] font-bold text-zinc-300 md:text-slate-600 bg-white/5 md:bg-white border border-white/10 md:border-slate-200 px-2.5 py-1 rounded-full hover:bg-white/10 md:hover:bg-slate-100 transition-colors"
+                      title="네이버 지도에서 영업시간 등 공식 정보 확인"
+                    >
+                      네이버 <ExternalLink size={10} />
+                    </a>
                     <button
                       onClick={() => setIsSuggestOpen(true)}
                       className="inline-flex items-center gap-1 text-[10.5px] font-bold text-zinc-300 md:text-slate-600 bg-white/5 md:bg-white border border-white/10 md:border-slate-200 px-2.5 py-1 rounded-full hover:bg-white/10 md:hover:bg-slate-100 transition-colors cursor-pointer"
