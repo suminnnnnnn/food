@@ -129,7 +129,7 @@ export default function HoursReportModal({ isOpen, onClose, restaurantId, restau
             <div className="px-5 pt-3 sm:pt-5 pb-4 shrink-0 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-[17px] font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  <Clock size={17} className="text-slate-400" />
+                  <Clock size={17} className="text-orange-500" />
                   영업시간 알려주기
                 </h3>
                 <p className="text-[11.5px] text-slate-400 font-medium mt-1 truncate">{restaurantName} · 문 여는 요일과 시간을 골라주세요</p>
@@ -159,7 +159,7 @@ export default function HoursReportModal({ isOpen, onClose, restaurantId, restau
                       const on = openDays.has(i);
                       return (
                         <button key={d} onClick={() => toggleDay(i)} aria-pressed={on}
-                          className={`flex-1 h-11 rounded-xl text-[14px] font-black transition-all active:scale-95 ${on ? 'bg-white border border-slate-200 text-slate-800' : 'bg-slate-100 text-slate-300 line-through'}`}>
+                          className={`flex-1 h-11 rounded-xl text-[14px] font-black transition-all active:scale-95 border ${on ? 'bg-orange-50 border-orange-400 text-orange-600' : 'bg-slate-50 border-slate-200 text-slate-300 line-through'}`}>
                           {d}
                         </button>
                       );
@@ -196,7 +196,7 @@ export default function HoursReportModal({ isOpen, onClose, restaurantId, restau
                           return (
                             <div key={d} className="flex items-center gap-2">
                               <button onClick={() => toggleDay(i)} aria-pressed={on}
-                                className={`w-10 h-10 rounded-xl text-[14px] font-black shrink-0 transition-all active:scale-95 ${on ? 'bg-white border border-slate-200 text-slate-800' : 'bg-slate-100 text-slate-300 line-through'}`}>{d}</button>
+                                className={`w-10 h-10 rounded-xl text-[14px] font-black shrink-0 transition-all active:scale-95 border ${on ? 'bg-orange-50 border-orange-400 text-orange-600' : 'bg-slate-50 border-slate-200 text-slate-300 line-through'}`}>{d}</button>
                               {on ? (
                                 <div className="flex items-center gap-1.5 flex-1">
                                   <input type="time" value={times[i].start} onChange={e => setDayTime(i, 'start', e.target.value)}
@@ -218,7 +218,7 @@ export default function HoursReportModal({ isOpen, onClose, restaurantId, restau
 
                 {/* 오늘 미리보기 */}
                 <div className="rounded-2xl px-4 py-3 flex items-center gap-3 border bg-slate-50 border-slate-100">
-                  <span className="w-11 h-11 rounded-xl grid place-items-center shrink-0 text-[13px] font-black bg-white border border-slate-200 text-slate-700">{DAYS[ti]}</span>
+                  <span className={`w-11 h-11 rounded-xl grid place-items-center shrink-0 text-[13px] font-black border ${todayOpen ? 'bg-orange-50 border-orange-400 text-orange-600' : 'bg-white border-slate-200 text-slate-400'}`}>{DAYS[ti]}</span>
                   <div className="min-w-0">
                     <p className="text-[10.5px] font-black text-slate-400">오늘 미리보기</p>
                     <p className="text-[15px] font-black text-slate-800 tracking-tight">
