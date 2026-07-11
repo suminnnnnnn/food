@@ -485,8 +485,9 @@ ${matchedCandidates.length > 0
           category: submission.source_type === 'youtube' ? '유튜브 맛집' : '제보 맛집',
           menu: aiResult.extracted_menu && aiResult.extracted_menu !== '정보 없음' ? aiResult.extracted_menu : null,
           description: aiResult.reason || null,
-          media: authorName ? [authorName] : [],
-          nearby_landmarks: [],
+          media: [], // 방송 시리즈명만 media로 사용 — 제보 시점엔 미지정이므로 비움(개별 채널명은 검색어 아님)
+          lat: submission.lat ?? null,
+          lng: submission.lng ?? null,
         });
         if (tags.length > 0) {
           await supabaseAdmin.from('restaurants').update({ tags }).eq('id', finalRestaurantId);
