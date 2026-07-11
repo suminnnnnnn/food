@@ -7,7 +7,6 @@ import {
   ChevronLeft, ChevronRight, Search, ArrowUpDown, Plus, Pencil, X,
 } from 'lucide-react';
 import { Restaurant, FolderRestaurantRelation, UserFolder, Video } from '@/types';
-import PinIcon from '@/components/ui/PinIcon';
 import {
   getAllSavedRestaurants,
   removeRestaurantFromFolder,
@@ -403,8 +402,8 @@ export default function SavedListView({
                       {rel.visited ? <><Check size={9} strokeWidth={3} /> 방문완료{rel.visit_count > 1 ? ` (${rel.visit_count})` : ''}</> : '가고싶은곳'}
                     </span>
                     <button onClick={e => { e.stopPropagation(); handleRemove(it); }}
-                      className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/15 hover:bg-black/60 transition-colors" title="이 컬렉션에서 빼기">
-                      <PinIcon color={activeFolder?.color || '#FF6F00'} filled size={17} />
+                      className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/15 hover:bg-black/60 transition-colors" title="이 컬렉션에서 빼기">
+                      <Star size={12} className="text-orange-400 fill-orange-400" />
                     </button>
 
                     <div className="absolute bottom-0 inset-x-0 px-3.5 pb-3 z-10">

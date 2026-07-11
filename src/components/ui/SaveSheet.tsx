@@ -145,7 +145,7 @@ export default function SaveSheet({
                     }`}
                   >
                     <span className="w-9 h-9 flex items-center justify-center shrink-0">
-                      <PinIcon color={f.color || '#FF6F00'} filled size={30} emoji={f.emoji || undefined} />
+                      <PinIcon color={f.color || '#FF6F00'} filled size={26} />
                     </span>
                     <span className="text-[14px] font-bold text-slate-800 text-left truncate flex-1">{f.name}</span>
                     <span className="text-[11px] font-bold text-slate-400 tabular-nums">{folderCounts[f.id] || 0}곳</span>
@@ -164,7 +164,7 @@ export default function SaveSheet({
               {creating ? (
                 <div className="p-3 rounded-2xl border border-orange-200 bg-orange-50/40 mb-1.5">
                   <div className="flex items-center gap-2 mb-2.5">
-                    <span className="w-9 h-9 flex items-center justify-center shrink-0"><PinIcon color={newColor} filled size={30} emoji={newEmoji} /></span>
+                    <span className="w-9 h-9 flex items-center justify-center shrink-0"><PinIcon color={newColor} filled size={26} /></span>
                     <input
                       autoFocus
                       value={newName}
