@@ -98,67 +98,38 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
     return url.includes('youtu');
   };
 
-  // 1단계: 링크 → 장소 매칭 단계로. manual=true면 AI 추출을 건너뛰고 사용자가 직접 검색.
-  const handleExtractLink = async (manual = false) => {
-    if (!youtubeUrl) {
-      showToast({ message: "유튜브 영상 링크를 입력해주세요." });
-      return;
-    }
-    if (!isValidYoutube(youtubeUrl)) {
-      showToast({ message: "올바른 유튜브 링크(youtu가 포함된 URL)를 입력해주세요." });
-      return;
-    }
-
+  // 2단계: 입력한 유튜브 링크의 메타(제목·썸네일·채널)를 가져와 미리보기 (AI 추출 없이 skipAi)
+  const fetchVideoMeta = async (url: string) => {
+    if (!url || !isValidYoutube(url)) return;
     setIsExtracting(true);
     try {
       const res = await fetch('/api/review/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ youtubeUrl: youtubeUrl.trim(), skipAi: manual }),
+        body: JSON.stringify({ youtubeUrl: url.trim(), skipAi: true }),
       });
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || '영상 분석에 실패했습니다.');
+      if (res.ok) {
+        setVideoMeta({ title: data.videoTitle, author: data.authorName, thumbnail: data.thumbnailUrl });
       }
-
-      setVideoMeta({
-        title: data.videoTitle,
-        author: data.authorName,
-        thumbnail: data.thumbnailUrl,
-      });
-
-      if (manual) {
-        // 직접 검색: AI 추출 없이 사용자가 검색
-        setExtractedName('');
-        setExtractedAddress('');
-        setSearchQuery('');
-      } else if (data.extracted && data.extracted.name) {
-        setExtractedName(data.extracted.name);
-        setExtractedAddress(data.extracted.address || '');
-        setSearchQuery(data.extracted.name); // 장소 자동 검색 연계
-      } else {
-        showToast({ message: "AI가 상호명을 찾지 못했어요. 직접 검색해 주세요." });
-        setExtractedName('');
-        setSearchQuery('');
-      }
-
-      setStep(2); // 다음 장소 매칭 단계로 이동
-    } catch (err: any) {
-      console.error("AI extraction error", err);
-      showToast({ message: err.message || '영상 처리 중 오류가 발생했습니다.' });
+    } catch (err) {
+      console.warn('video meta fetch failed', err);
     } finally {
       setIsExtracting(false);
     }
   };
 
-  // 2단계: 최종 제보 및 AI 팩트체크 심사 요청
+  // 최종 제보 — 서버(/api/review)가 이 영상이 선택한 맛집을 소개한 게 맞는지 매칭·검증
   const handleSubmit = async () => {
     if (!initialRestaurant && !selectedPlace) {
-      showToast({ message: "장소를 리스트에서 최종 선택해주세요." });
+      showToast({ message: "먼저 맛집을 검색해서 선택해 주세요." });
       return;
     }
-    
+    if (!youtubeUrl || !isValidYoutube(youtubeUrl)) {
+      showToast({ message: "유튜브 영상 링크를 입력해 주세요." });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (initialRestaurant) {
@@ -303,9 +274,9 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 transition-all duration-300 ${
           step >= 1 ? 'text-white shadow-lg shadow-orange-500/25' : 'bg-slate-100 text-slate-400 border border-slate-200'
         }`} style={step >= 1 ? { background: EMBER } : undefined}>
-          {videoMeta ? <CheckCircle2 size={14} /> : '1'}
+          {selectedPlace ? <CheckCircle2 size={14} /> : '1'}
         </div>
-        <span className={`text-[11px] font-bold transition-colors ${step >= 1 ? 'text-slate-800' : 'text-slate-400'}`}>링크 분석</span>
+        <span className={`text-[11px] font-bold transition-colors ${step >= 1 ? 'text-slate-800' : 'text-slate-400'}`}>맛집 선택</span>
       </div>
       <div className="flex-1 h-[2px] rounded-full overflow-hidden bg-slate-200">
         <motion.div
@@ -317,7 +288,7 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
         />
       </div>
       <div className="flex items-center gap-2 flex-1 justify-end">
-        <span className={`text-[11px] font-bold transition-colors ${step >= 2 ? 'text-slate-800' : 'text-slate-400'}`}>장소 매칭</span>
+        <span className={`text-[11px] font-bold transition-colors ${step >= 2 ? 'text-slate-800' : 'text-slate-400'}`}>영상 링크</span>
         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 transition-all duration-300 ${
           step >= 2 ? 'text-white shadow-lg shadow-orange-500/25' : 'bg-slate-100 text-slate-400 border border-slate-200'
         }`} style={step >= 2 ? { background: EMBER } : undefined}>
@@ -333,8 +304,8 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
         isOpen={isOpen}
         onClose={resetForm}
         light
-        title={aiResult ? undefined : (initialRestaurant ? "영상 추가하기" : (step === 1 ? "유튜브 링크만 붙여넣으세요" : "이 맛집이 맞나요?"))}
-        subtitle={aiResult ? undefined : (initialRestaurant ? "이 맛집에 유튜브 리뷰 영상을 더해요" : (step === 1 ? "나머지는 AI가 알아서 채워드려요" : "영상 속 그곳을 골라주세요"))}
+        title={aiResult ? undefined : (initialRestaurant ? "영상 추가하기" : (step === 1 ? "어떤 맛집인가요?" : "영상 링크를 넣어주세요"))}
+        subtitle={aiResult ? undefined : (initialRestaurant ? "이 맛집에 유튜브 리뷰 영상을 더해요" : (step === 1 ? "제보할 맛집을 검색해 선택해 주세요" : "이 영상이 그 맛집을 소개하는지 AI가 확인해요"))}
       >
         <div className="py-1 min-h-[350px]">
           {aiResult ? (
@@ -490,88 +461,99 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
 
               <AnimatePresence mode="wait">
                 {step === 1 && !initialRestaurant ? (
-                  /* ───── 스텝 1: 유튜브 영상 링크 입력 및 AI 추출 ───── */
-                  <motion.div 
-                    key="linkStep"
+                  /* ───── 스텝 1: 맛집 검색·선택 ───── */
+                  <motion.div
+                    key="searchStep"
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
-                    className="space-y-6"
+                    className="space-y-4"
                   >
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 px-1">
-                        <Play size={14} className="text-red-500 fill-red-500" />
-                        <span className="text-[13px] font-bold text-slate-600">유튜브 영상 링크</span>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={youtubeUrl}
-                          onChange={(e) => setYoutubeUrl(e.target.value)}
-                          placeholder="https://youtube.com/watch?v=... 또는 단축 주소"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-[14px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400 transition-all"
-                        />
-                      </div>
-                      {/* AI가 자동으로 채워주는 것 */}
-                      <div className="flex flex-wrap gap-1.5 px-1 pt-1">
-                        {['상호명', '위치', '대표 메뉴', '주차', '크리에이터'].map((t) => (
-                          <span key={t} className="text-[10.5px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full">{t}</span>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-slate-400 font-bold px-1">
-                        링크만 넣으면 위 정보를 AI가 영상에서 자동으로 찾아드려요.
-                      </p>
+                    <div className="relative">
+                      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        autoFocus
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="맛집 상호명으로 검색 (예: 부뚜막 짜글이)"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-11 pr-4 text-[14px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400 transition-all"
+                      />
                     </div>
 
-                    <button
-                      onClick={() => handleExtractLink(false)}
-                      disabled={isExtracting}
-                      className={`w-full py-4 rounded-2xl text-[14px] font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        isExtracting ? 'bg-slate-100 text-slate-400' : 'bg-gradient-to-r from-red-600 to-orange-500 text-white hover:from-red-500 active:scale-[0.98]'
-                      }`}
-                    >
-                      {isExtracting ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                            <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
-                            <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                          <span>AI가 맛집을 찾는 중…</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={16} />
-                          <span>AI로 맛집 찾기</span>
-                        </>
+                    {/* 카카오맵 후보 목록 */}
+                    <div className="max-h-[240px] overflow-y-auto space-y-2 pb-1 scrollbar-thin">
+                      {searchResults.map((place) => {
+                        const isSelected = selectedPlace?.id === place.id;
+                        return (
+                          <div key={place.id} onClick={() => setSelectedPlace(place)}
+                            className={`p-3 border rounded-xl cursor-pointer transition-all flex items-center justify-between gap-3 ${isSelected ? 'bg-orange-50 border-orange-500 shadow-sm' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-400'}`}><Utensils size={14} /></div>
+                              <div className="min-w-0 text-left">
+                                <h4 className="text-[12.5px] font-black text-slate-800 truncate">{place.place_name}</h4>
+                                <span className="text-[10px] text-slate-400 font-bold block truncate mt-0.5">{place.road_address_name || place.address_name}</span>
+                              </div>
+                            </div>
+                            {isSelected && <CheckCircle2 size={16} className="text-orange-500 shrink-0" />}
+                          </div>
+                        );
+                      })}
+                      {searchQuery.trim().length > 0 && searchResults.length === 0 && (
+                        <div className="text-center py-6 text-[11px] text-slate-400 font-bold">검색 결과가 없어요. 상호명을 다시 입력해 보세요.</div>
                       )}
-                    </button>
-
-                    {/* 직접 검색 경로 — AI가 틀릴 때 정확히 찾기 */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-px bg-slate-200" />
-                      <span className="text-[10.5px] font-bold text-slate-400">또는</span>
-                      <div className="flex-1 h-px bg-slate-200" />
+                      {searchQuery.trim().length === 0 && (
+                        <div className="text-center py-10 text-[11.5px] text-slate-400 font-medium">유튜브에서 본 맛집의 상호명을<br />검색해 주세요.</div>
+                      )}
                     </div>
+
                     <button
-                      onClick={() => handleExtractLink(true)}
-                      disabled={isExtracting}
-                      className="w-full py-3.5 rounded-2xl text-[13.5px] font-bold flex items-center justify-center gap-2 cursor-pointer bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-50"
+                      onClick={() => { if (!selectedPlace) { showToast({ message: '맛집을 선택해 주세요.' }); return; } setStep(2); }}
+                      disabled={!selectedPlace}
+                      className={`w-full py-4 rounded-2xl text-[14px] font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${!selectedPlace ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'text-white active:scale-[0.98]'}`}
+                      style={selectedPlace ? { background: EMBER } : undefined}
                     >
-                      <Search size={15} />
-                      <span>직접 검색해서 찾기</span>
+                      다음 · 영상 링크 넣기
                     </button>
-                    <p className="text-[10.5px] text-slate-400 font-medium text-center -mt-2">AI가 못 찾거나 결과가 다르면, 맛집을 직접 검색해 정확히 고를 수 있어요.</p>
                   </motion.div>
                 ) : (
-                  /* ───── 스텝 2: 장소 매칭 및 최종 제보 ───── */
-                  <motion.div 
-                    key="confirmStep"
+                  /* ───── 스텝 2: 유튜브 링크 입력 + 매칭 제보 ───── */
+                  <motion.div
+                    key="linkStep"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-4"
                   >
-                    {/* 추출된 비디오 메타 정보 카드 */}
+                    {/* 선택한 맛집 요약 */}
+                    <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 p-3 rounded-2xl">
+                      <div className="w-9 h-9 rounded-lg bg-orange-500 text-white flex items-center justify-center shrink-0"><Utensils size={16} /></div>
+                      <div className="min-w-0 flex-1 text-left">
+                        <h4 className="text-[13px] font-black text-slate-800 truncate">{initialRestaurant ? initialRestaurant.name : selectedPlace?.place_name}</h4>
+                        {!initialRestaurant && <span className="text-[10px] text-slate-500 font-bold block truncate">{selectedPlace?.road_address_name || selectedPlace?.address_name}</span>}
+                      </div>
+                      {!initialRestaurant && (
+                        <button onClick={() => setStep(1)} className="text-[11px] font-bold text-orange-600 bg-white border border-orange-200 px-2.5 py-1 rounded-full shrink-0 hover:bg-orange-100 transition-colors">변경</button>
+                      )}
+                    </div>
+
+                    {/* 유튜브 링크 입력 */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 px-1">
+                        <Play size={14} className="text-red-500 fill-red-500" />
+                        <span className="text-[13px] font-bold text-slate-600">이 맛집을 소개한 유튜브 영상 링크</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={youtubeUrl}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        onBlur={() => fetchVideoMeta(youtubeUrl)}
+                        placeholder="https://youtube.com/watch?v=... 또는 단축 주소"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-[14px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400 transition-all"
+                      />
+                    </div>
+
+                    {/* 영상 미리보기 */}
                     {videoMeta && (
                       <div className="flex gap-3 bg-slate-50 border border-slate-200 p-3 rounded-2xl">
                         <div className="w-16 aspect-video bg-slate-100 rounded-lg overflow-hidden shrink-0">
@@ -584,96 +566,32 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                       </div>
                     )}
 
-                    {/* 안내 — AI가 찾은 경우 / 직접 검색하는 경우 */}
-                    {extractedName ? (
-                      <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Sparkles size={12} className="text-orange-500" />
-                          <span className="text-[11px] font-black text-orange-600">AI가 찾은 맛집: "{extractedName}"</span>
-                        </div>
-                        <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
-                          맞으면 아래에서 고르고, 다르면 <b>직접 검색</b>해서 정확히 골라주세요.
-                        </p>
+                    {/* 매칭 안내 */}
+                    <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Sparkles size={12} className="text-orange-500" />
+                        <span className="text-[11px] font-black text-slate-700">AI가 매칭을 확인해요</span>
                       </div>
-                    ) : (
-                      <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Search size={12} className="text-slate-500" />
-                          <span className="text-[11px] font-black text-slate-700">맛집을 직접 검색해 주세요</span>
-                        </div>
-                        <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
-                          아래에 상호명을 입력해 <b>영상 속 그 맛집</b>을 정확히 골라주세요.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* 검색어 수정용 입력창 */}
-                    <div className="relative">
-                      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input 
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="맛집 상호명으로 검색 (예: 부뚜막 짜글이)"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-[12px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400"
-                      />
-                    </div>
-
-                    {/* 카카오맵 매칭 후보군 목록 */}
-                    <div className="max-h-[160px] overflow-y-auto space-y-2 pb-2 scrollbar-thin">
-                      {searchResults.map((place) => {
-                        const isSelected = selectedPlace?.id === place.id;
-                        return (
-                          <div 
-                            key={place.id}
-                            onClick={() => setSelectedPlace(place)}
-                            className={`p-3 border rounded-xl cursor-pointer transition-all flex items-center justify-between gap-3 ${
-                              isSelected
-                                ? 'bg-orange-50 border-orange-500 shadow-sm'
-                                : 'bg-white border-slate-200 hover:bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                <Utensils size={14} />
-                              </div>
-                              <div className="min-w-0 text-left">
-                                <h4 className="text-[12.5px] font-black text-slate-800 truncate">{place.place_name}</h4>
-                                <span className="text-[10px] text-slate-400 font-bold block truncate mt-0.5">{place.road_address_name || place.address_name}</span>
-                              </div>
-                            </div>
-                            {isSelected && <CheckCircle2 size={16} className="text-orange-500 shrink-0" />}
-                          </div>
-                        );
-                      })}
-
-                      {searchResults.length === 0 && (
-                        <div className="text-center py-6 text-[11px] text-slate-400 font-bold">
-                          매칭되는 식당 후보가 없습니다. 상호명을 다시 입력해 보세요.
-                        </div>
-                      )}
+                      <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
+                        제보하면, 이 영상이 <b>{initialRestaurant ? initialRestaurant.name : (selectedPlace?.place_name || '선택한 맛집')}</b>을(를) 실제로 소개한 리뷰인지 AI가 확인한 뒤 지도에 올려드려요.
+                      </p>
                     </div>
 
                     {/* 아는 정보 직접 입력 (선택) */}
-                    {(selectedPlace || initialRestaurant) && (
-                      <div className="space-y-2 pt-1">
-                        <p className="text-[10px] text-slate-400 font-bold">아는 정보가 있다면 입력해 주세요 (선택)</p>
-                        <input value={subHours} onChange={(e) => setSubHours(e.target.value)} placeholder="영업시간 (예: 매일 11:00-21:00, 화요일 휴무)"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[12px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400" />
-                        <input value={subMenu} onChange={(e) => setSubMenu(e.target.value)} placeholder="대표 메뉴·가격 (예: 마늘갈비 17,000원)"
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[12px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400" />
-                      </div>
-                    )}
+                    <div className="space-y-2 pt-1">
+                      <p className="text-[10px] text-slate-400 font-bold">아는 정보가 있다면 입력해 주세요 (선택)</p>
+                      <input value={subHours} onChange={(e) => setSubHours(e.target.value)} placeholder="영업시간 (예: 매일 11:00-21:00, 화요일 휴무)"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[12px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400" />
+                      <input value={subMenu} onChange={(e) => setSubMenu(e.target.value)} placeholder="대표 메뉴·가격 (예: 마늘갈비 17,000원)"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[12px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400" />
+                    </div>
 
-                    {/* 최종 제출 버튼 */}
+                    {/* 제출 */}
                     <button
                       onClick={handleSubmit}
-                      disabled={isSubmitting || (!initialRestaurant && !selectedPlace)}
-                      className={`w-full py-4 rounded-2xl text-[14px] font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        isSubmitting || (!initialRestaurant && !selectedPlace)
-                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-red-600 to-orange-500 text-white hover:from-red-500 active:scale-[0.98]'
-                      }`}
+                      disabled={isSubmitting || !youtubeUrl}
+                      className={`w-full py-4 rounded-2xl text-[14px] font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${isSubmitting || !youtubeUrl ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'text-white active:scale-[0.98]'}`}
+                      style={!(isSubmitting || !youtubeUrl) ? { background: EMBER } : undefined}
                     >
                       {isSubmitting ? (
                         <>
@@ -681,22 +599,22 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                             <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
                             <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                           </svg>
-                          <span>지도에 올리는 중…</span>
+                          <span>영상·맛집 매칭 확인 중…</span>
                         </>
                       ) : (
                         <>
                           <Sparkles size={16} />
-                          <span>지도에 올리기</span>
+                          <span>확인하고 제보하기</span>
                         </>
                       )}
                     </button>
-                    
+
                     {!initialRestaurant && (
-                      <button 
+                      <button
                         onClick={() => setStep(1)}
                         className="w-full text-center text-slate-400 hover:text-slate-600 font-bold text-[11px] py-1 cursor-pointer"
                       >
-                        이전 단계로 돌아가기
+                        맛집 다시 고르기
                       </button>
                     )}
                   </motion.div>
