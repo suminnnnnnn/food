@@ -496,6 +496,7 @@ interface RestaurantInfoCardProps {
   onAddToPlanning?: (restaurant: Restaurant) => void;
   onInsertToPlanningRoute?: (restaurant: Restaurant) => void;
   onRequestVideoSubmit?: (restaurant: Restaurant) => void;
+  onKeywordSearch?: (keyword: string) => void;
   windowWidth?: number;
   sidebarWidth?: number;
 }
@@ -510,6 +511,7 @@ export default function RestaurantInfoCard({
   isRecommendedRouteItem = false,
   onInsertToPlanningRoute,
   onRequestVideoSubmit,
+  onKeywordSearch,
 }: RestaurantInfoCardProps) {
   const openNaverDeeplink = (name: string, address?: string) => {
     const query = name + ' ' + (address ? address.split(' ').slice(0, 2).join(' ') : '');
@@ -785,10 +787,12 @@ export default function RestaurantInfoCard({
   const renderContent = () => {
     if (!restaurant) return null;
 
-    // 영상 키워드(해시태그형) 집계 — 상세화면 태그 (가짜 뱃지 생성 로직 제거)
+    // 영상 키워드(해시태그형) 집계 — 이모지·# 제거해 정규화 + 중복 제거
     const keywordTags = Array.from(new Set(
       (restaurant.videos || []).flatMap(v => v.keywords || [])
-    )).map(t => (t || '').trim()).filter(Boolean).slice(0, 8);
+        .map(t => (t || '').replace(/[\p{Extended_Pictographic}️#]/gu, '').replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+    )).slice(0, 8);
 
     return (
       <div className="flex flex-col h-full relative bg-brand-charcoal md:bg-white select-none">
@@ -1264,13 +1268,18 @@ export default function RestaurantInfoCard({
                 </div>
               </div>
 
-              {/* 키워드 해시태그 (영상 기반 · 편의정보 칩과 구분되게 플레인 # 텍스트) */}
+              {/* 키워드 해시태그 (탭하면 해당 키워드로 검색 → 발견) */}
               {keywordTags.length > 0 && (
-                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-x-2.5 gap-y-1">
+                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-x-2.5 gap-y-1.5">
                   {keywordTags.map((t) => (
-                    <span key={t} className="text-[12.5px] font-bold text-orange-300 md:text-orange-500">
-                      #{t.replace(/^#\s*/, '')}
-                    </span>
+                    <button
+                      key={t}
+                      onClick={() => onKeywordSearch?.(t)}
+                      disabled={!onKeywordSearch}
+                      className="text-[12.5px] font-bold text-orange-300 md:text-orange-500 hover:underline disabled:no-underline cursor-pointer disabled:cursor-default"
+                    >
+                      #{t}
+                    </button>
                   ))}
                 </div>
               )}

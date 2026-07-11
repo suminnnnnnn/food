@@ -91,27 +91,24 @@ const checkAvailability = (value: string | null | undefined): boolean => {
   return true;
 };
 
+// 키워드 정규화 — 이모지·# 제거, 공백 정리 (검색·표시·클릭 일관성)
+const normalizeKeyword = (kw: string): string =>
+  (kw || '')
+    .replace(/[\p{Extended_Pictographic}️#]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const getRestaurantAllTags = (r: Restaurant): string[] => {
   const tags: string[] = [];
+  // 실제 큐레이션 태그만 (가짜 미쉐린/블루리본/또간집 생성 제거 — 검색 오염 방지)
   const contentTags = r.content_tags?.filter(
     tag => tag.label !== '유튜브 핫플' && tag.label !== '유튜브핫플'
   ) || [];
-  if (contentTags.length > 0) {
-    contentTags.forEach(t => {
-      if (t.source === 'michelin' || t.label.includes('미쉐린')) tags.push('미쉐린');
-      if (t.source === 'blueribbon' || t.label.includes('블루리본')) tags.push('블루리본');
-      if (t.source === 'ddoganjib' || t.label.includes('또간집')) tags.push('또간집');
-    });
-  } else {
-    const seed = r.name.charCodeAt(0) || 0;
-    if (seed % 3 === 0) {
-      tags.push('미쉐린', '블루리본');
-    } else if (seed % 3 === 1) {
-      tags.push('블루리본', '또간집');
-    } else {
-      tags.push('미쉐린', '또간집');
-    }
-  }
+  contentTags.forEach(t => {
+    if (t.source === 'michelin' || t.label.includes('미쉐린')) tags.push('미쉐린');
+    if (t.source === 'blueribbon' || t.label.includes('블루리본')) tags.push('블루리본');
+    if (t.source === 'ddoganjib' || t.label.includes('또간집')) tags.push('또간집');
+  });
   if (r.parking && r.parking !== '정보 없음' && checkAvailability(r.parking)) {
     tags.push('주차가능');
   }
@@ -122,16 +119,13 @@ const getRestaurantAllTags = (r: Restaurant): string[] => {
     tags.push('포장가능');
   }
 
-  // 비디오 키워드를 추출하여 태그 목록에 포함
+  // 비디오 키워드를 정규화해 태그에 포함 (중복 제거)
   if (r.videos && r.videos.length > 0) {
     r.videos.forEach(v => {
-      if (v.keywords && v.keywords.length > 0) {
-        v.keywords.forEach(kw => {
-          if (!tags.includes(kw)) {
-            tags.push(kw);
-          }
-        });
-      }
+      (v.keywords || []).forEach(kw => {
+        const n = normalizeKeyword(kw);
+        if (n && !tags.includes(n)) tags.push(n);
+      });
     });
   }
 
@@ -3603,6 +3597,11 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
         }}
         favorites={Array.from(savedIds)}
         toggleFavorite={(id) => openSaveSheet(id)}
+        onKeywordSearch={(kw) => {
+          setGlobalSearchQuery(kw);
+          setActiveTab('home');
+          handleSelectRestaurant(null); // 상세 닫고 검색 결과 보이기
+        }}
         isPlanningMode={isPlanningMode}
         isRecommendedRouteItem={selectedRestaurant ? isRestaurantInPlanningBuffer(selectedRestaurant) : false}
         onAddToPlanning={(rest) => {
