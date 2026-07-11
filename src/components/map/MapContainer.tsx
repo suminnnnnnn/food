@@ -19,6 +19,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import NearHotplacesView from '@/components/ui/NearHotplacesView';
 import SavedListView from '@/components/ui/SavedListView';
 import SaveSheet from '@/components/ui/SaveSheet';
+import PinIcon from '@/components/ui/PinIcon';
 import MyPageView from '@/components/ui/MyPageView';
 import LoginPromptModal from '@/components/ui/LoginPromptModal';
 import ItineraryTabView from '@/components/ui/ItineraryTabView';
@@ -417,6 +418,8 @@ export default function MapContainer({
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   // 저장 리스트(컬렉션) 선택 시 해당 폴더 맛집만 지도에 표시
   const [savedFolderFilter, setSavedFolderFilter] = useState<string | null>(null);
+  // 별 버튼 선택 메뉴(전체 저장 / 컬렉션별) 열림 여부
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   // 선택된 저장 컬렉션의 맛집 id 집합 (리스트 클릭 시 지도 필터)
   const savedFolderRestaurantIds = useMemo(
     () => new Set(folderRelations.filter(fr => fr.folder_id === savedFolderFilter).map(fr => fr.restaurant_id)),
@@ -1748,13 +1751,14 @@ export default function MapContainer({
   // 외부/내부 호버 ID 중 활성화된 것 사용
   const effectiveHoveredId = externalHoveredRestaurantId || hoveredRestaurantId;
 
-  // 지도 마커 hover 시 사이드바 리스트의 해당 행을 화면 안으로 스크롤 (양방향 연동)
+  // 지도 마커 '클릭' 시에만 사이드바 리스트의 해당 행을 화면 안으로 스크롤 (hover에는 반응 X)
   useEffect(() => {
-    if (!mapHoveredRestaurantId) return;
+    const id = selectedRestaurant?.id;
+    if (!id) return;
     if (activeTab !== 'home' && activeTab !== 'near') return;
-    const el = document.querySelector(`[data-rid="${mapHoveredRestaurantId}"]`);
+    const el = document.querySelector(`[data-rid="${id}"]`);
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [mapHoveredRestaurantId, activeTab]);
+  }, [selectedRestaurant, activeTab]);
 
   // 외부 선택 레스토랑 변경 시 지도 이동 및 상태 업데이트
   useEffect(() => {
@@ -2157,7 +2161,13 @@ export default function MapContainer({
         return savedFolderRestaurantIds.has(r.id);
       }
 
-      // 내 저장 지도 모드: 저장 맛집만 표시 (그 외 카테고리/검색 필터는 무시)
+      // 별 메뉴: 저장 전체 보기 (그 외 필터 무시, 저장한 맛집만)
+      if (showSavedOnly) {
+        if (typeof r.lat !== 'number' || typeof r.lng !== 'number' || isNaN(r.lat) || isNaN(r.lng)) return false;
+        return savedIds.has(r.id);
+      }
+
+      // 내 저장 지도 모드(저장 탭 지도 토글): 저장 맛집만 표시
       if (savedMapMode) {
         if (typeof r.lat !== 'number' || typeof r.lng !== 'number' || isNaN(r.lat) || isNaN(r.lng)) return false;
         if (!savedIds.has(r.id)) return false;
@@ -2165,9 +2175,6 @@ export default function MapContainer({
         if (savedStatusFilter === 'visited' && !visitedIds.has(r.id)) return false;
         return true;
       }
-
-      // 지도 별 버튼(저장 맛집만 보기) — 다른 필터와 함께 적용
-      if (showSavedOnly && !savedIds.has(r.id)) return false;
 
       // 0. 영역 그리기 필터 적용 중이면 폴리곤 내부 맛집만 표시
       if (filterPolygon && filterPolygon.length >= 3) {
@@ -2505,16 +2512,16 @@ export default function MapContainer({
   };
 
 
-  // 내 저장 지도 모드: 진입 시 저장 핀들에 맞춰 지도 범위 자동 조정
+  // 내 저장 지도 모드/별 '저장 전체': 진입 시 저장 핀들에 맞춰 지도 범위 자동 조정
   useEffect(() => {
-    if (!savedMapMode || !map) return;
+    if ((!savedMapMode && !showSavedOnly) || !map) return;
     const saved = restaurants.filter(r => savedIds.has(r.id) && typeof r.lat === 'number' && typeof r.lng === 'number');
     if (saved.length === 0) return;
     const bounds = new kakao.maps.LatLngBounds();
     saved.forEach(r => bounds.extend(new kakao.maps.LatLng(r.lat, r.lng)));
     map.setBounds(bounds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedMapMode, map]);
+  }, [savedMapMode, showSavedOnly, map]);
 
   // 저장 컬렉션 선택 시: 해당 폴더 맛집들에 맞춰 지도 범위 자동 조정
   useEffect(() => {
@@ -2527,9 +2534,11 @@ export default function MapContainer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedFolderFilter, map]);
 
-  // 저장 탭을 벗어나면 지도 모드/컬렉션 필터 해제
+  // 저장 탭을 벗어나면 지도 모드/컬렉션 필터/별 메뉴 해제
   useEffect(() => {
     if (activeTab !== 'favorites') { setSavedMapMode(false); setSavedFolderFilter(null); }
+    setShowSavedOnly(false);
+    setSaveMenuOpen(false);
   }, [activeTab]);
 
 if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center">Loading Maps...</div>;
@@ -3988,31 +3997,23 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
             >
               {getMarkerUI(restaurant)}
 
-              {/* 마커 지도 호버(Hover) 시 팝업 미니카드 표시 */}
+              {/* 마커 지도 호버(Hover) 시 팝업 미니카드 — 상세화면 썸네일과 동일 UI (저장 아이콘 제외) */}
               {mapHoveredRestaurantId === restaurant.id && (() => {
                 const bestVid = getBestVideo(restaurant.videos);
-                const isFav = savedIds.has(restaurant.id);
                 return (
-                  <div 
+                  <div
                     onClick={(e) => {
                       e.stopPropagation();
                       handleSelectRestaurant(restaurant);
                     }}
                     className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3.5 w-[280px] select-none z-[120] text-left cursor-pointer transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
                   >
-                    {/* 카드 본체 (사이드바 카드와 동일하게 16:9 비율 및 스타일 적용) */}
-                    <div 
-                      className="relative w-full rounded-2xl overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
-                      style={{
-                        aspectRatio: '16/9',
-                        boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
-                      }}
-                    >
-                      {/* 배경 이미지 */}
+                    <div className="relative w-full rounded-2xl overflow-hidden bg-black shadow-[0_12px_40px_rgba(0,0,0,0.5)]" style={{ aspectRatio: '16/9' }}>
+                      {/* 배경 썸네일 (상세와 동일한 밝기 처리) */}
                       {bestVid?.thumbnail ? (
                         <img
                           src={bestVid.thumbnail}
-                          className="absolute inset-0 w-full h-full object-cover restaurant-card-img"
+                          className="absolute inset-0 w-full h-full object-cover brightness-[0.65]"
                           alt={restaurant.name}
                         />
                       ) : (
@@ -4021,57 +4022,41 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                         </div>
                       )}
 
-                      {/* Shorts badge - 우측하단 배치 */}
-                      {bestVid?.is_short && (
-                        <div className="absolute bottom-2.5 right-2.5 bg-black/35 backdrop-blur-md border border-white/10 text-white text-[8px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-sm z-10">
-                          <Play size={6} fill="currentColor"/> SHORTS
+                      {/* 채널 정보 — 상단 좌측 (상세와 동일, 알약 배경 없음) */}
+                      {bestVid?.youtuber && (
+                        <div className="absolute top-3 left-3 z-30 flex items-center gap-2">
+                          {bestVid.youtuber.profile_image ? (
+                            <img
+                              src={bestVid.youtuber.profile_image}
+                              className="w-7 h-7 rounded-full object-cover ring-2 ring-white/30 shrink-0"
+                              alt={bestVid.youtuber.name}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-[11px] font-bold text-white shrink-0">
+                              {bestVid.youtuber.name?.[0]}
+                            </div>
+                          )}
+                          <span className="text-[12px] font-semibold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">{bestVid.youtuber.name}</span>
                         </div>
                       )}
 
-                      {/* 그라데이션 오버레이 */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/20" />
-
-                      {/* 상단 오버레이: 카테고리 뱃지 대신 유튜브 채널 정보 + 즐겨찾기 */}
-                      <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between z-10">
-                        {bestVid?.youtuber ? (
-                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/15">
-                            {bestVid.youtuber.profile_image ? (
-                              <img
-                                src={bestVid.youtuber.profile_image}
-                                className="w-4.5 h-4.5 rounded-full object-cover ring-1 ring-white/40"
-                                alt={bestVid.youtuber.name}
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                              />
-                            ) : (
-                              <div className="w-4.5 h-4.5 rounded-full bg-white/20 flex items-center justify-center text-[9px] font-bold text-white shrink-0">
-                                {bestVid.youtuber.name?.[0]}
-                              </div>
-                            )}
-                            <span className="text-[10px] font-semibold text-white/90 truncate max-w-[100px]">{bestVid.youtuber.name}</span>
-                          </div>
-                        ) : (
-                          <div />
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openSaveSheet(restaurant.id);
-                          }}
-                          className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/15 hover:bg-black/60 transition-colors"
-                        >
-                          <Star size={12} className={isFav ? 'text-orange-400 fill-orange-400' : 'text-white/80'} />
-                        </button>
-                      </div>
-
-                      {/* 하단 오버레이: 식당명 + 조회수 */}
-                      <div className="absolute bottom-0 inset-x-0 px-3.5 pb-3.5 z-10">
-                        <p className="text-[15px] font-black text-white leading-tight truncate">{restaurant.name}</p>
-                        {bestVid?.view_count !== undefined && bestVid.view_count > 0 && (
-                          <div className="flex items-center gap-1 mt-1.5">
-                            <Eye size={10} className="text-orange-300 shrink-0" />
-                            <span className="text-[11px] font-bold text-orange-300">조회수 {formatViewCount(bestVid.view_count)}회</span>
-                          </div>
-                        )}
+                      {/* 하단 — 맛집명 + 조회수 + SHORTS (상세와 동일 레이아웃) */}
+                      <div className="absolute bottom-0 inset-x-0 z-30 bg-gradient-to-t from-black/80 to-transparent px-4 pt-8 pb-4">
+                        <p className="text-[15px] font-black text-white leading-tight line-clamp-1 mb-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">{restaurant.name}</p>
+                        <div className="flex items-center justify-between">
+                          {bestVid?.view_count !== undefined && bestVid.view_count > 0 ? (
+                            <div className="flex items-center gap-1">
+                              <Eye size={11} className="text-orange-300 shrink-0" />
+                              <span className="text-[11px] font-bold text-orange-300">{formatViewCount(bestVid.view_count)}회</span>
+                            </div>
+                          ) : <div />}
+                          {bestVid?.is_short && (
+                            <div className="bg-black/35 backdrop-blur-md border border-white/10 text-white text-[10px] font-black px-1.5 py-[2px] rounded-md flex items-center gap-0.5 shadow-sm">
+                              <Play size={8} fill="currentColor" /> SHORTS
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -4151,20 +4136,55 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
         {/* 쇼츠� 留�ㅺ�?*/}
 
 
-        {/* 저장 맛집만 보기 (별 토글) */}
-        <div className="flex items-center gap-2 group">
-          <span className="text-[12px] font-semibold text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
-            {showSavedOnly ? '전체 맛집 보기' : '저장 맛집만'}
-          </span>
-          <button
-            onClick={() => { if (!user?.id) { setIsLoginModalOpen(true); return; } setShowSavedOnly(v => !v); }}
-            className={`p-3 rounded-full border hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer ${showSavedOnly ? 'border-transparent' : 'bg-white hover:bg-slate-50 border-slate-200/80'}`}
-            style={showSavedOnly ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
-            title={showSavedOnly ? '전체 맛집 보기' : '저장한 맛집만 보기'}
-          >
-            <Star size={18} className={showSavedOnly ? 'text-white fill-white' : 'text-orange-500 fill-orange-500'} />
-          </button>
-        </div>
+        {/* 저장 맛집 보기 (별 + 전체/컬렉션별 선택 메뉴) */}
+        {(activeTab === 'home' || activeTab === 'near') && (() => {
+          const savedFilterActive = showSavedOnly || !!savedFolderFilter;
+          return (
+            <div className="relative flex items-center gap-2 group">
+              <span className="text-[12px] font-semibold text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">저장 맛집 보기</span>
+              <button
+                onClick={() => { if (!user?.id) { setIsLoginModalOpen(true); return; } setSaveMenuOpen(o => !o); }}
+                className="p-3 rounded-full border bg-white hover:bg-slate-50 border-slate-200/80 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+                title="저장한 맛집 보기"
+              >
+                <Star size={18} className={`text-orange-500 ${savedFilterActive ? 'fill-orange-500' : 'fill-none'}`} />
+              </button>
+
+              {saveMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-[25]" onClick={() => setSaveMenuOpen(false)} />
+                  <div className="absolute right-0 bottom-full mb-2 w-[210px] bg-white rounded-2xl shadow-xl border border-slate-100 p-1.5 z-30">
+                    <p className="text-[10px] font-black text-slate-400 px-2.5 pt-1.5 pb-1 uppercase tracking-wide">지도에 표시</p>
+                    <button
+                      onClick={() => { setShowSavedOnly(false); setSavedFolderFilter(null); setSaveMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-[13px] font-bold transition-colors ${!savedFilterActive ? 'bg-orange-50 text-orange-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >전체 맛집</button>
+                    <button
+                      onClick={() => { setShowSavedOnly(true); setSavedFolderFilter(null); setSaveMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-[13px] font-bold transition-colors ${showSavedOnly && !savedFolderFilter ? 'bg-orange-50 text-orange-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      <Star size={14} className="fill-orange-400 text-orange-400 shrink-0" /> 저장 전체
+                    </button>
+                    {userFolders.length > 0 && <div className="h-px bg-slate-100 my-1" />}
+                    <div className="max-h-[190px] overflow-y-auto">
+                      {userFolders.map(f => (
+                        <button
+                          key={f.id}
+                          onClick={() => { setSavedFolderFilter(f.id); setShowSavedOnly(true); setSaveMenuOpen(false); }}
+                          className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-[13px] font-bold transition-colors ${savedFolderFilter === f.id ? 'bg-orange-50 text-orange-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          <PinIcon color={f.color || '#F2735E'} filled size={16} />
+                          <span className="truncate flex-1 text-left">{f.name}</span>
+                          <span className="text-[11px] font-bold text-slate-400 tabular-nums shrink-0">{folderCounts[f.id] || 0}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 내 위치 */}
         <div className="flex items-center gap-2 group">
