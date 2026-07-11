@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { youtubeUrl } = await req.json();
+    const { youtubeUrl, skipAi } = await req.json();
 
     if (!youtubeUrl) {
       return NextResponse.json({ error: 'Missing youtubeUrl' }, { status: 400 });
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     let extractedName = "";
     let extractedAddress = "";
 
-    if (process.env.GEMINI_API_KEY) {
+    if (!skipAi && process.env.GEMINI_API_KEY) {
       const prompt = `당신은 유튜브 맛집 영상의 메타데이터와 Google 웹 검색을 결합해, 실제로 존재하는 식당의 '공식 상호명'과 '위치'를 알아내는 분석 AI입니다.
 
 [유튜브 비디오 메타데이터]

@@ -98,8 +98,8 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
     return url.includes('youtu');
   };
 
-  // 1단계: 링크에서 AI 상호명 추출하기
-  const handleExtractLink = async () => {
+  // 1단계: 링크 → 장소 매칭 단계로. manual=true면 AI 추출을 건너뛰고 사용자가 직접 검색.
+  const handleExtractLink = async (manual = false) => {
     if (!youtubeUrl) {
       showToast({ message: "유튜브 영상 링크를 입력해주세요." });
       return;
@@ -114,7 +114,7 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
       const res = await fetch('/api/review/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ youtubeUrl: youtubeUrl.trim() }),
+        body: JSON.stringify({ youtubeUrl: youtubeUrl.trim(), skipAi: manual }),
       });
       const data = await res.json();
 
@@ -128,19 +128,25 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
         thumbnail: data.thumbnailUrl,
       });
 
-      if (data.extracted && data.extracted.name) {
+      if (manual) {
+        // 직접 검색: AI 추출 없이 사용자가 검색
+        setExtractedName('');
+        setExtractedAddress('');
+        setSearchQuery('');
+      } else if (data.extracted && data.extracted.name) {
         setExtractedName(data.extracted.name);
         setExtractedAddress(data.extracted.address || '');
         setSearchQuery(data.extracted.name); // 장소 자동 검색 연계
       } else {
-        showToast({ message: "AI가 영상에서 맛집 상호명을 찾아내지 못했습니다. 직접 검색해 주세요." });
+        showToast({ message: "AI가 상호명을 찾지 못했어요. 직접 검색해 주세요." });
+        setExtractedName('');
         setSearchQuery('');
       }
 
       setStep(2); // 다음 장소 매칭 단계로 이동
     } catch (err: any) {
       console.error("AI extraction error", err);
-      showToast({ message: err.message || '영상 추출 중 오류가 발생했습니다.' });
+      showToast({ message: err.message || '영상 처리 중 오류가 발생했습니다.' });
     } finally {
       setIsExtracting(false);
     }
@@ -518,7 +524,7 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                     </div>
 
                     <button
-                      onClick={handleExtractLink}
+                      onClick={() => handleExtractLink(false)}
                       disabled={isExtracting}
                       className={`w-full py-4 rounded-2xl text-[14px] font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                         isExtracting ? 'bg-slate-100 text-slate-400' : 'bg-gradient-to-r from-red-600 to-orange-500 text-white hover:from-red-500 active:scale-[0.98]'
@@ -539,6 +545,22 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                         </>
                       )}
                     </button>
+
+                    {/* 직접 검색 경로 — AI가 틀릴 때 정확히 찾기 */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-px bg-slate-200" />
+                      <span className="text-[10.5px] font-bold text-slate-400">또는</span>
+                      <div className="flex-1 h-px bg-slate-200" />
+                    </div>
+                    <button
+                      onClick={() => handleExtractLink(true)}
+                      disabled={isExtracting}
+                      className="w-full py-3.5 rounded-2xl text-[13.5px] font-bold flex items-center justify-center gap-2 cursor-pointer bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition-all disabled:opacity-50"
+                    >
+                      <Search size={15} />
+                      <span>직접 검색해서 찾기</span>
+                    </button>
+                    <p className="text-[10.5px] text-slate-400 font-medium text-center -mt-2">AI가 못 찾거나 결과가 다르면, 맛집을 직접 검색해 정확히 고를 수 있어요.</p>
                   </motion.div>
                 ) : (
                   /* ───── 스텝 2: 장소 매칭 및 최종 제보 ───── */
@@ -562,16 +584,28 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                       </div>
                     )}
 
-                    {/* AI가 찾은 맛집 안내 */}
-                    <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <Sparkles size={12} className="text-orange-500" />
-                        <span className="text-[11px] font-black text-orange-600">AI가 찾은 맛집: "{extractedName}"</span>
+                    {/* 안내 — AI가 찾은 경우 / 직접 검색하는 경우 */}
+                    {extractedName ? (
+                      <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Sparkles size={12} className="text-orange-500" />
+                          <span className="text-[11px] font-black text-orange-600">AI가 찾은 맛집: "{extractedName}"</span>
+                        </div>
+                        <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
+                          맞으면 아래에서 고르고, 다르면 <b>직접 검색</b>해서 정확히 골라주세요.
+                        </p>
                       </div>
-                      <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
-                        같은 이름의 지점이 여러 곳일 수 있어요. <b>영상 속 그곳</b>을 아래에서 골라주세요.
-                      </p>
-                    </div>
+                    ) : (
+                      <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Search size={12} className="text-slate-500" />
+                          <span className="text-[11px] font-black text-slate-700">맛집을 직접 검색해 주세요</span>
+                        </div>
+                        <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
+                          아래에 상호명을 입력해 <b>영상 속 그 맛집</b>을 정확히 골라주세요.
+                        </p>
+                      </div>
+                    )}
 
                     {/* 검색어 수정용 입력창 */}
                     <div className="relative">
@@ -580,7 +614,7 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="상호명을 수정하거나 직접 검색"
+                        placeholder="맛집 상호명으로 검색 (예: 부뚜막 짜글이)"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-[12px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400"
                       />
                     </div>
