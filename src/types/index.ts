@@ -45,6 +45,7 @@ export interface Restaurant {
   packaging?: string;
   reservation?: string;
   business_hours?: string;
+  business_hours_source?: string | null; // 'tour'(한국관광공사) | 'user'(이용자 제보) | null
   menu_info?: string;
   description_summary?: string;
 }

@@ -3,6 +3,7 @@ import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronLeft, ChevronRight, Eye, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck, Coffee, Croissant, Beer, Pizza, Fish, Wine, IceCream2, Sandwich, Soup, Beef, Flag } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
 import InfoSuggestModal from './InfoSuggestModal';
+import HoursReportModal from './HoursReportModal';
 import { openExternal } from '@/lib/external-link';
 
 declare global {
@@ -651,6 +652,8 @@ export default function RestaurantInfoCard({
   const [embedError, setEmbedError] = useState(false);
   const [isHoursExpanded, setIsHoursExpanded] = useState(false);
   const [isSuggestOpen, setIsSuggestOpen] = useState(false); // 정보 정정·신고 모달
+  const [isHoursReportOpen, setIsHoursReportOpen] = useState(false); // 영업시간 제보 모달
+  const [localHours, setLocalHours] = useState<string | null>(null); // 제보 즉시 반영
   const [showRouteModal, setShowRouteModal] = useState(false);
   const playerInstanceRef = useRef<any>(null);
 
@@ -766,13 +769,18 @@ export default function RestaurantInfoCard({
     };
   }, [isPlayingVideo, cleanYoutubeId, isMobileDevice]);
 
+  // 영업시간: 이용자 제보 시 즉시 반영을 위한 로컬 오버라이드
+  const effHours = localHours ?? restaurant?.business_hours;
+  const effHoursSource = localHours ? 'user' : (restaurant?.business_hours_source ?? null);
+  const hasHours = !!effHours && effHours !== '정보 없음';
+
   // DB 연동 데이터 파싱
   const menuList = parseMenuInfo(restaurant?.menu_info);
-  const businessHours = parseBusinessHours(restaurant?.business_hours);
+  const businessHours = parseBusinessHours(effHours);
   const hasParking = checkAvailability(restaurant?.parking);
   const hasReservation = checkAvailability(restaurant?.reservation);
   const hasPackaging = checkAvailability(restaurant?.packaging);
-  const openStatus = getStoreOpenStatus(restaurant?.business_hours || '');
+  const openStatus = getStoreOpenStatus(effHours || '');
 
   const renderContent = () => {
     if (!restaurant) return null;
@@ -1098,7 +1106,7 @@ export default function RestaurantInfoCard({
                 <div className="flex items-start gap-2.5">
                   <Clock size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    {businessHours ? (() => {
+                    {hasHours && businessHours ? (() => {
                       const lines = splitHoursIntoLines(businessHours);
                       const { todayLine, todayIndex } = getTodayHoursLine(lines);
                       const hasMultipleLines = lines.length > 1 || todayLine.includes('브레이크') || todayLine.includes('쉬는시간');
@@ -1184,25 +1192,25 @@ export default function RestaurantInfoCard({
                         </div>
                       );
                     })() : (
-                      restaurant.kakao_place_id ? (
-                        <a
-                          href={`https://place.map.kakao.com/${restaurant.kakao_place_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[14px] font-bold text-orange-400 md:text-orange-600 hover:underline"
-                        >
-                          영업시간 확인 (카카오맵) <ExternalLink size={12} />
-                        </a>
-                      ) : (
-                        <a
-                          href={`https://map.naver.com/v5/search/${encodeURIComponent(restaurant.name)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[14px] font-bold text-orange-400 md:text-orange-600 hover:underline"
-                        >
-                          영업시간 확인 (네이버) <ExternalLink size={12} />
-                        </a>
-                      )
+                      <button
+                        onClick={() => setIsHoursReportOpen(true)}
+                        className="inline-flex items-center gap-1.5 text-[13px] font-bold text-white px-3 py-1.5 rounded-full active:scale-95 transition-transform cursor-pointer"
+                        style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}
+                      >
+                        <Clock size={13} /> 영업시간 제보하기
+                      </button>
+                    )}
+                    {hasHours && effHoursSource && (
+                      <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-zinc-500 md:text-slate-400">
+                        {effHoursSource === 'user' ? (
+                          <>
+                            <Flag size={9} /> 이용자 제보
+                            <button onClick={() => setIsHoursReportOpen(true)} className="underline hover:text-zinc-300 md:hover:text-slate-600 ml-1 cursor-pointer">수정</button>
+                          </>
+                        ) : (
+                          <>출처: 한국관광공사</>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1655,6 +1663,18 @@ export default function RestaurantInfoCard({
           onClose={() => setIsSuggestOpen(false)}
           restaurantId={restaurant.id}
           restaurantName={restaurant.name}
+        />
+      )}
+
+      {/* 영업시간 제보 모달 */}
+      {restaurant && (
+        <HoursReportModal
+          isOpen={isHoursReportOpen}
+          onClose={() => setIsHoursReportOpen(false)}
+          restaurantId={restaurant.id}
+          restaurantName={restaurant.name}
+          initialHours={effHours || ''}
+          onSubmitted={(h) => { setLocalHours(h); window.dispatchEvent(new Event('refresh-restaurants')); }}
         />
       )}
     </>

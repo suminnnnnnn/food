@@ -409,11 +409,12 @@ ${matchedCandidates.length > 0
           category: submission.source_type === 'youtube' ? '유튜브 맛집' : '제보 맛집',
           is_published: true,
           phone: '정보 없음',
-          parking: aiResult.parking_info || '정보 없음',
-          packaging: aiResult.packaging_info || '정보 없음',
-          reservation: aiResult.reservation_info || '정보 없음',
-          business_hours: submission.sub_business_hours || aiResult.business_hours_info || '정보 없음',
-          menu_info: submission.sub_menu || aiResult.extracted_menu || '정보 없음'
+          // option A: AI 그라운딩 사실은 저장하지 않음 — TourAPI(공식)/이용자 제보로 채움
+          parking: '정보 없음',
+          packaging: '정보 없음',
+          reservation: '정보 없음',
+          business_hours: '정보 없음',
+          menu_info: '정보 없음'
         }).select('id').single();
 
         if (restErr) {
