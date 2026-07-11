@@ -370,7 +370,7 @@ const getTodayHoursLine = (lines: string[]): { todayLine: string; todayIndex: nu
 };
 
 const getCleanTodayLine = (line: string): string => {
-  return line.replace(/\s*\([^)]*(?:브레이크|쉬는시간|라스트|order|LO)[^)]*\)/gi, '').trim();
+  return line.replace(/\s*\([^)]*(?:브레이크|쉬는시간|준비시간|준비|라스트|order|LO)[^)]*\)/gi, '').trim();
 };
 
 const splitMenuItems = (str: string): string[] => {
@@ -1194,10 +1194,9 @@ export default function RestaurantInfoCard({
                     })() : (
                       <button
                         onClick={() => setIsHoursReportOpen(true)}
-                        className="inline-flex items-center gap-1.5 text-[13px] font-bold text-white px-3 py-1.5 rounded-full active:scale-95 transition-transform cursor-pointer"
-                        style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}
+                        className="inline-flex items-center gap-0.5 text-[14px] font-bold text-orange-400 md:text-orange-600 hover:underline cursor-pointer"
                       >
-                        <Clock size={13} /> 영업시간 제보하기
+                        영업시간 제보하기 <ChevronRight size={13} />
                       </button>
                     )}
                     {hasHours && effHoursSource && (
