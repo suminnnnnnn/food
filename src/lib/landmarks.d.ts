@@ -7,4 +7,5 @@ export interface Landmark {
   lng: number;
 }
 export const LANDMARKS: Landmark[];
+export function nearbyLandmarks(lat: number | null | undefined, lng: number | null | undefined): Landmark[];
 export function nearbyLandmarkTags(lat: number | null | undefined, lng: number | null | undefined): string[];

@@ -5,6 +5,73 @@ import React, { useState, useEffect, useRef } from 'react';
 import InfoSuggestModal from './InfoSuggestModal';
 import HoursReportModal from './HoursReportModal';
 import { openExternal } from '@/lib/external-link';
+import { nearbyLandmarks } from '@/lib/landmarks.mjs';
+
+// 표시용 칩 = 근처 랜드마크(대표 1개씩) + 음식 대분류 + 상황어 + 대표 지역. 지역 변형 50개는 매칭 전용이라 숨김.
+const SITUATION_TAGS = new Set(['회식', '데이트', '혼밥', '가족모임', '단체', '룸', '심야', '브런치', '노포', '웨이팅', '기념일', '가성비', '주차', '점심', '야식']);
+
+interface DisplayChip { label: string; query: string; pin?: boolean; }
+
+function buildDisplayChips(restaurant: Restaurant): DisplayChip[] {
+  const tags = restaurant.tags || [];
+  const lms = nearbyLandmarks(restaurant.lat, restaurant.lng);
+
+  // 근처 랜드마크: 랜드마크당 대표 칩 1개 (약칭 우선), 검색어는 실제 태그(OO맛집)
+  const landmarkChips: DisplayChip[] = lms.map((lm) => {
+    const label = lm.aliases[0] || lm.name;
+    return { label, query: `${label}맛집`, pin: true };
+  });
+  // 랜드마크 관련 태그는 아래 버킷에서 제외
+  const lmTagSet = new Set<string>();
+  for (const lm of lms) {
+    for (const n of [lm.name, ...lm.aliases]) { lmTagSet.add(`${n}맛집`); lmTagSet.add(`${n}근처맛집`); }
+    for (const s of lm.situation) lmTagSet.add(s);
+  }
+
+  // 주소 기반 지역 토큰 (음식/지역 구분용). 시·군·구 + 동(도로명 앞부분)까지 추출.
+  const regionTokens = new Set<string>(['광주', '전남광주', '전남']);
+  for (const tokRaw of (restaurant.address || '').split(/\s+/)) {
+    const tok = tokRaw.trim();
+    if (!tok) continue;
+    regionTokens.add(tok);
+    regionTokens.add(tok.replace(/(통합특별시|광역시|특별자치시|특별자치도|특별시|자치구|구|시|군|동|읍|면|리)$/, ''));
+    regionTokens.add(tok.replace(/(대로|번길|로|길|가)\d*.*$/, '')); // 호동로15번길 → 호동
+  }
+  // 근처 랜드마크명(및 접미사 제거형)도 지역어로 취급 (첨단지구→첨단 등 음식 오분류 방지)
+  for (const lm of lms) {
+    for (const n of [lm.name, ...lm.aliases]) {
+      regionTokens.add(n);
+      regionTokens.add(n.replace(/(지구|동|역|공항|시장|터미널|대학교|대학|전당|센터|광장|마을|전망대|아울렛|경기장|필드|산)$/, ''));
+    }
+  }
+  regionTokens.delete('');
+  const isRegiony = (t: string) => [...regionTokens].some((rt) => rt.length >= 2 && t.includes(rt));
+
+  const food: string[] = [], situ: string[] = [], region: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of tags) {
+    const t = (raw || '').trim();
+    if (!t) continue;
+    const key = t.replace(/\s+/g, '');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (lmTagSet.has(t)) continue; // 랜드마크는 이미 칩으로
+    if (t.includes('전남광주통합특별시')) continue; // 너무 긴 정식명은 표시 제외
+    if (SITUATION_TAGS.has(t)) situ.push(t);
+    else if (!/맛집$/.test(t) && !/\s/.test(t) && !isRegiony(t) && t.length <= 5) food.push(t); // 순수 음식 대분류만
+    else if (/맛집$/.test(t) && !/\s/.test(t)) region.push(t); // 지역맛집 (조합/변형어는 표시 제외)
+  }
+  // 대표 지역 2개 (짧은 것 우선: 광주맛집, 광산맛집)
+  const regionTop = region.sort((a, b) => a.length - b.length).slice(0, 2);
+
+  const toChip = (t: string): DisplayChip => ({ label: t, query: t });
+  return [
+    ...landmarkChips,
+    ...food.slice(0, 6).map(toChip),
+    ...situ.slice(0, 4).map(toChip),
+    ...regionTop.map(toChip),
+  ].slice(0, 14);
+}
 
 declare global {
   interface Window {
@@ -794,6 +861,9 @@ export default function RestaurantInfoCard({
         .filter(Boolean)
     )).slice(0, 8);
 
+    // 검색 태그 칩 (근처 랜드마크 + 음식 대분류 + 상황어 + 대표 지역) — 탭하면 검색
+    const displayChips = buildDisplayChips(restaurant);
+
     return (
       <div className="flex flex-col h-full relative bg-brand-charcoal md:bg-white select-none">
         {/* 데스크탑 전용 상단 툴바 (네이버 지도 스타일) */}
@@ -1267,6 +1337,23 @@ export default function RestaurantInfoCard({
                   </div>
                 </div>
               </div>
+
+              {/* 검색 태그 칩 (근처 랜드마크·음식·상황·지역) — 탭하면 검색 실행 */}
+              {displayChips.length > 0 && (
+                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-1.5">
+                  {displayChips.map((c) => (
+                    <button
+                      key={c.query}
+                      onClick={() => onKeywordSearch?.(c.query)}
+                      disabled={!onKeywordSearch}
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold transition-colors bg-zinc-800 text-zinc-200 hover:bg-zinc-700 md:bg-slate-100 md:text-slate-600 md:hover:bg-slate-200 disabled:cursor-default"
+                    >
+                      {c.pin && <MapPin size={11} className="text-orange-400 md:text-orange-500 shrink-0" />}
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* 키워드 해시태그 (탭하면 해당 키워드로 검색 → 발견) */}
               {keywordTags.length > 0 && (

@@ -32,6 +32,12 @@ function distanceM(aLat, aLng, bLat, bLng) {
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
+/** 좌표 반경 내 랜드마크 객체 배열 반환 (표시용 칩 구성에 사용) */
+export function nearbyLandmarks(lat, lng) {
+  if (!lat || !lng) return [];
+  return LANDMARKS.filter((lm) => distanceM(lat, lng, lm.lat, lm.lng) <= lm.radius);
+}
+
 /** 좌표 반경 내 랜드마크의 검색용 근접 태그 배열 반환 */
 export function nearbyLandmarkTags(lat, lng) {
   if (!lat || !lng) return [];
