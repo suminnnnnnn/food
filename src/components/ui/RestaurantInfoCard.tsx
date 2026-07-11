@@ -1,6 +1,6 @@
 import { Restaurant } from '@/types';
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
-import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronLeft, ChevronRight, Eye, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck, Coffee, Croissant, Beer, Pizza, Fish, Wine, IceCream2, Sandwich, Soup, Beef, Flag } from 'lucide-react';
+import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronLeft, ChevronRight, Eye, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck, Coffee, Croissant, Beer, Pizza, Fish, Wine, IceCream2, Sandwich, Soup, Beef, Flag, Tag } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
 import InfoSuggestModal from './InfoSuggestModal';
 import HoursReportModal from './HoursReportModal';
@@ -1201,26 +1201,17 @@ export default function RestaurantInfoCard({
                   </div>
                 </div>
 
-                {/* Parking */}
-                {restaurant.parking && restaurant.parking !== '정보 없음' && (
+                {/* 편의정보 태그 (예약·주차·포장 등 — 있는 것만) */}
+                {(hasParking || hasReservation || hasPackaging) && (
                   <div className="flex items-start gap-2.5">
-                    <Car size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[14px] font-bold text-zinc-200 md:text-slate-700">주차 {hasParking ? '가능' : '불가'}</span>
-                      <span className="text-zinc-500 md:text-slate-400 text-[15px] font-semibold ml-1.5">( {restaurant.parking} )</span>
+                    <Tag size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-1" />
+                    <div className="flex flex-wrap gap-1.5">
+                      {hasParking && <span className="text-[12px] font-bold text-zinc-300 md:text-slate-600 bg-zinc-800/40 md:bg-slate-100 border border-zinc-700/30 md:border-slate-200 px-2.5 py-1 rounded-full">주차 가능</span>}
+                      {hasReservation && <span className="text-[12px] font-bold text-zinc-300 md:text-slate-600 bg-zinc-800/40 md:bg-slate-100 border border-zinc-700/30 md:border-slate-200 px-2.5 py-1 rounded-full">예약 가능</span>}
+                      {hasPackaging && <span className="text-[12px] font-bold text-zinc-300 md:text-slate-600 bg-zinc-800/40 md:bg-slate-100 border border-zinc-700/30 md:border-slate-200 px-2.5 py-1 rounded-full">포장 가능</span>}
                     </div>
                   </div>
                 )}
-
-                {/* Reservation / Packaging */}
-                <div className="flex items-start gap-2.5">
-                  <CalendarCheck size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[14px] font-bold text-zinc-200 md:text-slate-700">
-                      예약 {hasReservation ? '가능' : '불가'} · 포장 {hasPackaging ? '가능' : '불가'}
-                    </span>
-                  </div>
-                </div>
 
                 {/* Address */}
                 <div className="flex items-start gap-2.5">
@@ -1273,11 +1264,11 @@ export default function RestaurantInfoCard({
                 </div>
               </div>
 
-              {/* 태그 (영상 키워드) */}
+              {/* 키워드 해시태그 (영상 기반 · 편의정보 칩과 구분되게 플레인 # 텍스트) */}
               {keywordTags.length > 0 && (
-                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-1.5">
+                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-x-2.5 gap-y-1">
                   {keywordTags.map((t) => (
-                    <span key={t} className="text-[11.5px] font-bold text-zinc-300 md:text-slate-500 bg-zinc-800/40 md:bg-slate-100 border border-zinc-700/30 md:border-slate-200 px-2.5 py-1 rounded-full">
+                    <span key={t} className="text-[12.5px] font-bold text-orange-300 md:text-orange-500">
                       #{t.replace(/^#\s*/, '')}
                     </span>
                   ))}
