@@ -6,9 +6,9 @@ import { X, Check, Plus, Utensils } from 'lucide-react';
 import { UserFolder } from '@/types';
 import PinIcon from '@/components/ui/PinIcon';
 
-const EMOJI_PRESET = ['⭐', '❤️', '🍜', '🍲', '🍺', '☕', '🍰', '🔥', '🌸', '🎉', '🍚', '🐟'];
-// 빠른 선택용 대표 색상 (그 외 색은 하단 HTML 색상 피커로 자유 선택)
-const COLOR_PRESET = ['#EF4444', '#FF6F00', '#F59E0B', '#EAB308', '#10B981', '#06B6D4', '#3B82F6', '#8B5CF6', '#EC4899', '#64748B'];
+// 이쁜 톤의 대표 색상 (그 외 색은 하단 HTML 색상 피커로 자유 선택)
+const COLOR_PRESET = ['#F2735E', '#F2A65A', '#EBC55C', '#8FB98A', '#54B4A8', '#5B92E0', '#8A82E0', '#C77DC0', '#E86F97', '#8B96A8'];
+const DEFAULT_COLOR = '#F2735E';
 
 interface SaveSheetProps {
   open: boolean;
@@ -37,8 +37,7 @@ export default function SaveSheet({
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newEmoji, setNewEmoji] = useState('⭐');
-  const [newColor, setNewColor] = useState('#FF6F00');
+  const [newColor, setNewColor] = useState(DEFAULT_COLOR);
 
   // 시트가 열릴 때 초기 선택값 세팅: 이미 담긴 폴더, 신규 저장이면 기본 폴더 선택
   useEffect(() => {
@@ -52,8 +51,7 @@ export default function SaveSheet({
     }
     setCreating(false);
     setNewName('');
-    setNewEmoji('⭐');
-    setNewColor('#FF6F00');
+    setNewColor(DEFAULT_COLOR);
   }, [open, restaurant?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isNewSave = currentFolderIds.length === 0;
@@ -70,7 +68,7 @@ export default function SaveSheet({
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name) return;
-    const folder = await onCreateFolder(name, newEmoji, newColor);
+    const folder = await onCreateFolder(name, '', newColor);
     if (folder) {
       setSelected(prev => new Set(prev).add(folder.id));
       setCreating(false);
@@ -174,11 +172,6 @@ export default function SaveSheet({
                       maxLength={20}
                       className="flex-1 min-w-0 bg-white border border-slate-200 rounded-lg px-3 py-2 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-orange-400"
                     />
-                  </div>
-                  <div className="flex gap-1 mb-2 flex-wrap">
-                    {EMOJI_PRESET.map(e => (
-                      <button key={e} onClick={() => setNewEmoji(e)} className={`w-7 h-7 rounded-lg text-[15px] flex items-center justify-center transition-all ${newEmoji === e ? 'bg-white ring-2 ring-orange-400' : 'hover:bg-white/60'}`}>{e}</button>
-                    ))}
                   </div>
                   <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                     {COLOR_PRESET.map(c => (

@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, Search, ArrowUpDown, Plus, Pencil, X,
 } from 'lucide-react';
 import { Restaurant, FolderRestaurantRelation, UserFolder, Video } from '@/types';
+import PinIcon from '@/components/ui/PinIcon';
 import {
   getAllSavedRestaurants,
   removeRestaurantFromFolder,
@@ -229,7 +230,7 @@ export default function SavedListView({
         {activeFolder ? (
           <button onClick={() => { setActiveFolderId(null); setQuery(''); }} className="flex items-center gap-1.5 min-w-0 group">
             <ChevronLeft size={18} className="shrink-0 text-slate-400 group-hover:text-slate-600" />
-            <span className="text-[17px] shrink-0">{activeFolder.emoji || '⭐'}</span>
+            <span className="shrink-0 flex items-center"><PinIcon color={activeFolder.color || '#F2735E'} filled size={18} /></span>
             <h3 className="text-[15px] font-black text-slate-800 tracking-tight truncate">{activeFolder.name}</h3>
             <span className="text-[12px] font-bold text-slate-400 shrink-0">{(byFolder[activeFolder.id] || []).length}</span>
           </button>
@@ -300,8 +301,8 @@ export default function SavedListView({
                     {/* 커버 모자이크 */}
                     <div className="grid h-[78px] gap-0.5" style={{ gridTemplateColumns: '2fr 1fr 1fr', gridTemplateRows: '1fr 1fr' }}>
                       {covers.length === 0 ? (
-                        <div className="col-span-3 row-span-2 flex items-center justify-center" style={{ background: (folder.color || '#f97316') + '18' }}>
-                          <span className="text-[26px]">{folder.emoji || '⭐'}</span>
+                        <div className="col-span-3 row-span-2 flex items-center justify-center" style={{ background: (folder.color || '#F2735E') + '18' }}>
+                          <PinIcon color={folder.color || '#F2735E'} filled size={30} />
                         </div>
                       ) : (
                         Array.from({ length: 5 }).map((_, i) => (
@@ -313,7 +314,7 @@ export default function SavedListView({
                     </div>
                     {/* 메타 */}
                     <div className="flex items-center gap-2 px-3.5 py-2.5">
-                      <span className="text-[17px] shrink-0">{folder.emoji || '⭐'}</span>
+                      <span className="shrink-0 flex items-center"><PinIcon color={folder.color || '#F2735E'} filled size={17} /></span>
                       <span className="text-[13.5px] font-black text-slate-800 truncate">{folder.name}</span>
                       {folder.is_collaborative && <span className="text-[9.5px] font-black text-orange-500 bg-orange-50 border border-orange-100 px-1.5 py-0.5 rounded-full shrink-0">공유</span>}
                       <span className="ml-auto text-[11px] font-bold text-slate-400 shrink-0 tabular-nums">{items.length}곳</span>

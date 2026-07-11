@@ -15,7 +15,7 @@ function getLocalFolders(): UserFolder[] {
       id: 'local-default-folder',
       name: '내 저장',
       emoji: '⭐',
-      color: '#ef4444',
+      color: '#F2735E',
       creator_id: 'local-user',
       is_collaborative: false,
       created_at: new Date().toISOString(),
@@ -107,7 +107,7 @@ export async function getOrCreateDefaultFolder(): Promise<UserFolder> {
   try {
     const folders = await getUserFolders();
     if (folders.length > 0) return folders[0];
-    return createFolder('내 저장', '⭐', '#ef4444', false);
+    return createFolder('내 저장', '', '#F2735E', false);
   } catch (err) {
     console.warn('getOrCreateDefaultFolder failed, falling back to local default:', err);
     const localFolders = getLocalFolders();
@@ -117,7 +117,7 @@ export async function getOrCreateDefaultFolder(): Promise<UserFolder> {
       id: 'local-default-folder',
       name: '내 저장',
       emoji: '⭐',
-      color: '#ef4444',
+      color: '#F2735E',
       creator_id: 'local-user',
       is_collaborative: false,
       created_at: new Date().toISOString(),
@@ -130,7 +130,7 @@ export async function getOrCreateDefaultFolder(): Promise<UserFolder> {
 export async function createFolder(
   name: string,
   emoji: string = '⭐',
-  color: string = '#ff6b00',
+  color: string = '#F2735E',
   isCollaborative: boolean = false
 ): Promise<UserFolder> {
   try {
