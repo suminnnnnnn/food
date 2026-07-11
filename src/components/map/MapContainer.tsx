@@ -2292,6 +2292,30 @@ export default function MapContainer({
     return result;
   }, [restaurants, activeCategories, activeSort, activeVideoType, filterPolygon, activeTag, activeCuration, activeYoutuber, globalSearchQuery, savedMapMode, savedStatusFilter, savedIds, visitedIds, activeThemeChip, showSavedOnly, savedFolderFilter, savedFolderRestaurantIds, activeTab]);
 
+  // 같은 위치(동일 좌표)에 여러 맛집이 있을 경우 마커가 완전히 겹치므로,
+  // 겹치는 그룹은 실제 좌표 주변에 작은 원형으로 살짝 벌려 모두 보이고 클릭되게 한다.
+  const markerPositions = useMemo(() => {
+    const groups: Record<string, string[]> = {};
+    filteredRestaurants.forEach(r => {
+      if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
+      const key = `${r.lat.toFixed(5)},${r.lng.toFixed(5)}`;
+      (groups[key] = groups[key] || []).push(r.id);
+    });
+    const pos: Record<string, { lat: number; lng: number }> = {};
+    filteredRestaurants.forEach(r => {
+      if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
+      const key = `${r.lat.toFixed(5)},${r.lng.toFixed(5)}`;
+      const group = groups[key];
+      if (!group || group.length <= 1) { pos[r.id] = { lat: r.lat, lng: r.lng }; return; }
+      const idx = group.indexOf(r.id);
+      // 개수가 많을수록 반경을 키워 원 위에서 서로 겹치지 않게
+      const radius = 0.00009 + group.length * 0.00001; // 약 10~수십 m
+      const angle = (idx / group.length) * Math.PI * 2;
+      pos[r.id] = { lat: r.lat + radius * Math.cos(angle), lng: r.lng + radius * Math.sin(angle) };
+    });
+    return pos;
+  }, [filteredRestaurants]);
+
   // 유튜버 발견 축: 현재 지도 내 맛집에 등장한 유튜버 집계 (많은 순)
   // 주의: 이 파일은 react-kakao-maps-sdk의 Map을 import하므로 전역 Map 대신 plain object 사용
   const areaYoutubers = useMemo(() => {
@@ -3963,7 +3987,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
           {filteredRestaurants.map((restaurant) => (
           <CustomOverlayMap
             key={restaurant.id}
-            position={{ lat: restaurant.lat, lng: restaurant.lng }}
+            position={markerPositions[restaurant.id] || { lat: restaurant.lat, lng: restaurant.lng }}
             clickable={!isAreaDrawingMode}
           yAnchor={1} // 핀 하단이 지도 좌표에 맞도록 (핀 끝 위치)
             zIndex={mapHoveredRestaurantId === restaurant.id ? 100 : (selectedRestaurant?.id === restaurant.id ? 50 : (effectiveHoveredId === restaurant.id ? 30 : 10))}
