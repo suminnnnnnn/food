@@ -2155,6 +2155,9 @@ export default function MapContainer({
   // 카테고리, 영상 타입, 태그, 검색어 필터링 (useMemo 적용)
   const filteredRestaurants = useMemo(() => {
     let result = restaurants.filter(r => {
+      // 주변맛집 탭: 영역을 그리기 전(폴리곤 없음)엔 마커를 표시하지 않음
+      if (activeTab === 'near' && (!filterPolygon || filterPolygon.length < 3)) return false;
+
       // 저장 리스트(컬렉션) 선택 시: 해당 폴더 맛집만 지도에 표시 (최우선)
       if (savedFolderFilter) {
         if (typeof r.lat !== 'number' || typeof r.lng !== 'number' || isNaN(r.lat) || isNaN(r.lng)) return false;
@@ -2287,7 +2290,7 @@ export default function MapContainer({
       });
     }
     return result;
-  }, [restaurants, activeCategories, activeSort, activeVideoType, filterPolygon, activeTag, activeCuration, activeYoutuber, globalSearchQuery, savedMapMode, savedStatusFilter, savedIds, visitedIds, activeThemeChip, showSavedOnly, savedFolderFilter, savedFolderRestaurantIds]);
+  }, [restaurants, activeCategories, activeSort, activeVideoType, filterPolygon, activeTag, activeCuration, activeYoutuber, globalSearchQuery, savedMapMode, savedStatusFilter, savedIds, visitedIds, activeThemeChip, showSavedOnly, savedFolderFilter, savedFolderRestaurantIds, activeTab]);
 
   // 유튜버 발견 축: 현재 지도 내 맛집에 등장한 유튜버 집계 (많은 순)
   // 주의: 이 파일은 react-kakao-maps-sdk의 Map을 import하므로 전역 Map 대신 plain object 사용
