@@ -1,7 +1,8 @@
 import { Restaurant } from '@/types';
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
-import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronLeft, ChevronRight, Eye, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck, Coffee, Croissant, Beer, Pizza, Fish, Wine, IceCream2, Sandwich, Soup, Beef } from 'lucide-react';
+import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronLeft, ChevronRight, Eye, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck, Coffee, Croissant, Beer, Pizza, Fish, Wine, IceCream2, Sandwich, Soup, Beef, Flag } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
+import InfoSuggestModal from './InfoSuggestModal';
 import { openExternal } from '@/lib/external-link';
 
 declare global {
@@ -649,6 +650,7 @@ export default function RestaurantInfoCard({
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [embedError, setEmbedError] = useState(false);
   const [isHoursExpanded, setIsHoursExpanded] = useState(false);
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false); // 정보 정정·신고 모달
   const [showRouteModal, setShowRouteModal] = useState(false);
   const playerInstanceRef = useRef<any>(null);
 
@@ -1220,6 +1222,32 @@ export default function RestaurantInfoCard({
                     </button>
                   </div>
                 </div>
+
+                {/* 정보 출처 · 정정/신고 */}
+                <div className="pt-2.5 mt-0.5 border-t border-zinc-800/60 md:border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-[10.5px] text-zinc-500 md:text-slate-400 font-medium leading-snug">
+                    영업시간·메뉴는 <b className="font-bold text-zinc-400 md:text-slate-500">제보·자동수집 기반</b>이라 실제와 다를 수 있어요.
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {restaurant.kakao_place_id && (
+                      <a
+                        href={`https://place.map.kakao.com/${restaurant.kakao_place_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10.5px] font-bold text-zinc-300 md:text-slate-600 bg-white/5 md:bg-white border border-white/10 md:border-slate-200 px-2.5 py-1 rounded-full hover:bg-white/10 md:hover:bg-slate-100 transition-colors"
+                        title="카카오맵 공식 정보"
+                      >
+                        공식 정보 <ExternalLink size={10} />
+                      </a>
+                    )}
+                    <button
+                      onClick={() => setIsSuggestOpen(true)}
+                      className="inline-flex items-center gap-1 text-[10.5px] font-bold text-zinc-300 md:text-slate-600 bg-white/5 md:bg-white border border-white/10 md:border-slate-200 px-2.5 py-1 rounded-full hover:bg-white/10 md:hover:bg-slate-100 transition-colors cursor-pointer"
+                    >
+                      <Flag size={10} /> 정정·신고
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Row 7: AI 꿀팁 (Gemini 추천) */}
@@ -1590,6 +1618,16 @@ export default function RestaurantInfoCard({
           </div>
         )}
       </AnimatePresence>
+
+      {/* 정보 정정·신고 모달 */}
+      {restaurant && (
+        <InfoSuggestModal
+          isOpen={isSuggestOpen}
+          onClose={() => setIsSuggestOpen(false)}
+          restaurantId={restaurant.id}
+          restaurantName={restaurant.name}
+        />
+      )}
     </>
   );
 }
