@@ -46,6 +46,15 @@ async function getGeminiEmbedding(text: string, apiKey: string): Promise<number[
 
 
 
+// 제보 거부 헬퍼 — 상태를 rejected로 기록하고 사유를 반환
+async function rejectSubmission(id: any, reason: string) {
+  const aiResult = { is_valid: false, confidence_score: 0, reason, resolve_type: 'new_restaurant', matched_restaurant_id: null };
+  await supabaseAdmin.from('user_submissions').update({ status: 'rejected', ai_review_result: aiResult }).eq('id', id);
+  return NextResponse.json({ success: true, status: 'rejected', resolve_type: 'new_restaurant', resolved_restaurant_id: null, aiResult });
+}
+
+const DAILY_SUBMISSION_LIMIT = 10;
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -70,6 +79,36 @@ export async function POST(req: Request) {
     const restaurantName = submission.raw_name;
     const address = submission.raw_address || '';
     const youtubeUrl = submission.source_url;
+
+    // 1-b. 어뷰즈 방지 (관리자 강제승인 force는 우회)
+    if (!force) {
+      const vidMatch = (youtubeUrl || '').match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))((\w|-){11})/);
+      const vId = vidMatch ? vidMatch[1] : null;
+
+      // (a) 이미 등록된 영상 (videos 테이블에 존재)
+      if (vId) {
+        const { data: dupVideo } = await supabaseAdmin.from('videos').select('id').eq('youtube_video_id', vId).limit(1);
+        if (dupVideo && dupVideo.length > 0) {
+          return await rejectSubmission(submission_id, '이미 등록된 영상입니다. 다른 맛집 영상을 제보해 주세요.');
+        }
+      }
+      // (b) 동일 영상 중복 제보 (검수 중이거나 승인된 다른 제보)
+      const { data: dupSub } = await supabaseAdmin.from('user_submissions')
+        .select('id').eq('source_url', youtubeUrl).neq('id', submission_id).in('status', ['pending', 'held', 'approved']).limit(1);
+      if (dupSub && dupSub.length > 0) {
+        return await rejectSubmission(submission_id, '이미 접수되어 검수 중이거나 등록된 영상입니다.');
+      }
+      // (c) 유저당 일일 제출 한도
+      if (submission.user_id) {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { count } = await supabaseAdmin.from('user_submissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', submission.user_id).gte('created_at', since);
+        if ((count || 0) > DAILY_SUBMISSION_LIMIT) {
+          return await rejectSubmission(submission_id, `하루 제보 한도(${DAILY_SUBMISSION_LIMIT}건)를 초과했습니다. 내일 다시 시도해 주세요.`);
+        }
+      }
+    }
 
     // 2. 유튜브 메타데이터 추출 (YouTube Data API v3 & oEmbed Fallback)
     let videoTitle = "Unknown";
@@ -244,11 +283,17 @@ ${matchedCandidates.length > 0
 
 [판정 및 심사 핵심 지침]
 1. 이 유튜브 영상이 제보된 식당을 직접 방문하여 미식 리뷰를 진행한 영상이 맞는지 진위 확률을 구하세요.
+   아래에 해당하면 is_valid=false 로 두거나 신뢰도를 크게 낮추세요 (서비스 품질 보호):
+   - 특정 식당 방문이 아니라 여러 곳을 나열하는 "서울 맛집 TOP10" 류 리스티클/모음 영상
+   - 집에서 만드는 레시피·홈쿡, 밀키트·제품 리뷰 등 매장 방문이 아닌 영상
+   - 방문 장소가 특정되지 않는 먹방, 잡담성 브이로그
+   - 대가성(협찬·광고) 표기가 없는 노골적 홍보 영상, 재업로드·짜깁기 영상
+   - 실제 그 식당에 대한 정보(대표메뉴·맛·현장 경험)가 거의 없는 영상
 2. [중복 판단 대조]: 기존 후보군 리스트가 있는 경우, 제보된 식당이 후보군 중 하나와 '동일한 식당(물리적으로 같은 지점)'인지 세심하게 판단해 주세요. 
    - 프랜차이즈의 경우, 주소(지점명)가 완벽히 다르면 별개의 식당("new_restaurant")으로 봅니다.
    - 이름 표기법이 미세하게 다르거나(예: '중앙해장' vs '중앙해장 삼성점'), 주소 표기 형식만 다르고 실질적으로 동일한 자리라면 "existing_video_mapping"으로 판정하고, 매칭되는 기존 식당의 id를 'matched_restaurant_id' 필드에 정확히 매핑하세요.
    - 매칭되는 기존 식당이 전혀 없다면, "new_restaurant"으로 분류하고 'matched_restaurant_id'를 null로 설정하세요.
-3. 영상이 최종 승인(is_valid: true)될 수 있으려면 신뢰도가 70점 이상이어야 합니다.
+3. 신뢰도(confidence_score)는 근거의 확실성에 따라 0~100으로 정직하게 매기세요. 확실한 실제 방문 리뷰면 높게, 위 배제 신호가 보이거나 애매하면 낮게 매기세요. (승인 임계는 시스템이 판단합니다)
 4. 승인 시, 영상과 식당의 특징을 담은 강렬하고 힙한 매력 키워드 3개(이모지 포함)를 'keywords'에 창작해 주세요.
 5. 식당 기본 정보, 유튜브 영상 설명 텍스트, 그리고 구글 검색(Google Search) 결과를 활용하여 다음 5가지 방문 정보를 추출해 주세요. 정보가 없다면 구글 검색을 활용해서 채워 넣고, 그래도 조사가 불가능할 때만 "정보 없음"으로 기록하세요:
    - 대표 메뉴 및 가격 (예: 짚불구이 28,000원)
@@ -323,9 +368,20 @@ ${matchedCandidates.length > 0
       }
     }
 
-    // 5. 심사 결과(신뢰도 70점 기준) 판정 분기 및 데이터 이관 처리
-    // force=true (관리자 강제 승인)이면 신뢰도 게이트를 우회하고 승인 인제스천을 수행
-    const status = force || (aiResult.is_valid && aiResult.confidence_score >= 70) ? 'approved' : 'rejected';
+    // 4-b. Google 검색 그라운딩이 본문에 남기는 인용 표기([4, 5, 6] 등)를 제거해 저장/표시 오염 방지
+    const stripCitations = (v: any) => typeof v === 'string'
+      ? v.replace(/\s*\[[\d,\s]+\]/g, '').replace(/\s+([.,)])/g, '$1').replace(/\s{2,}/g, ' ').trim()
+      : v;
+    for (const k of ['reason', 'quote', 'extracted_menu', 'parking_info', 'reservation_info', 'packaging_info', 'business_hours_info']) {
+      if (aiResult[k]) aiResult[k] = stripCitations(aiResult[k]);
+    }
+
+    // 5. 신뢰도 임계 정책: ≥85 자동승인 / 60~84 사람검수(held) / <60 거부. force(관리자 강제승인)는 무조건 승인.
+    const score = aiResult.is_valid ? (aiResult.confidence_score || 0) : 0;
+    let status: string;
+    if (force || score >= 85) status = 'approved';
+    else if (score >= 60) status = 'held';
+    else status = 'rejected';
     let finalRestaurantId: string | null = null;
 
     if (status === 'approved') {
@@ -352,8 +408,8 @@ ${matchedCandidates.length > 0
           parking: aiResult.parking_info || '정보 없음',
           packaging: aiResult.packaging_info || '정보 없음',
           reservation: aiResult.reservation_info || '정보 없음',
-          business_hours: aiResult.business_hours_info || '정보 없음',
-          menu_info: aiResult.extracted_menu || '정보 없음'
+          business_hours: submission.sub_business_hours || aiResult.business_hours_info || '정보 없음',
+          menu_info: submission.sub_menu || aiResult.extracted_menu || '정보 없음'
         }).select('id').single();
 
         if (restErr) {
