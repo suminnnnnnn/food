@@ -268,6 +268,27 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
     resetForm();
   };
 
+  // 결과 화면에서 '또 제보하기' — 모달은 유지한 채 처음 단계로 초기화
+  const restartSubmission = () => {
+    window.dispatchEvent(new Event('refresh-restaurants'));
+    setAiResult(null);
+    setStep(1);
+    setYoutubeUrl('');
+    setVideoMeta(null);
+    setExtractedName('');
+    setExtractedAddress('');
+    setSearchQuery('');
+    setSearchResults([]);
+    setSelectedPlace(null);
+    setSubHours('');
+    setSubMenu('');
+  };
+
+  // 결과 미리보기용 요약 (제보한 맛집)
+  const submittedName = selectedPlace?.place_name || initialRestaurant?.name || '';
+  const submittedCategory = (selectedPlace?.category_name || '').split('>').pop()?.trim() || '';
+  const submittedAddr = selectedPlace ? (selectedPlace.road_address_name || selectedPlace.address_name) : '';
+
   // 프로그레스 바 (라이트 톤)
   const EMBER = 'linear-gradient(100deg,#FF3B30,#FF6F00)';
   const StepProgressBar = () => (
@@ -306,8 +327,8 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
         isOpen={isOpen}
         onClose={resetForm}
         light
-        title={aiResult ? undefined : (initialRestaurant ? "영상 제보하기" : "맛집 링크 제보")}
-        subtitle={aiResult ? undefined : (initialRestaurant ? "유튜브 리뷰 영상을 추가하여 더 풍성한 지도를 만들어보세요." : "유튜브 링크 하나만 넣으면 AI가 영상 속 맛집 위치를 자동으로 찾아서 등록합니다.")}
+        title={aiResult ? undefined : (initialRestaurant ? "영상 추가하기" : (step === 1 ? "유튜브 링크만 붙여넣으세요" : "이 맛집이 맞나요?"))}
+        subtitle={aiResult ? undefined : (initialRestaurant ? "이 맛집에 유튜브 리뷰 영상을 더해요" : (step === 1 ? "나머지는 AI가 알아서 채워드려요" : "영상 속 그곳을 골라주세요"))}
       >
         <div className="py-1 min-h-[350px]">
           {aiResult ? (
@@ -333,17 +354,25 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                       </motion.div>
                     </div>
 
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight mb-1.5">심사 합격!</h3>
-                    <p className="text-[13px] text-slate-500 font-medium">지도에 맛집이 성공적으로 등록되었습니다 🎉</p>
-                    
-                    {aiResult.youtuber_name && (
-                      <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-50 border border-orange-200">
-                        <Sparkles size={14} className="text-orange-400" />
-                        <span className="text-[13px] text-slate-700 font-bold">
-                          <span className="bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">{aiResult.youtuber_name}</span>님의 추천 핫플
-                        </span>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight mb-1.5">지도에 올랐어요! 🎉</h3>
+                    <p className="text-[13px] text-slate-500 font-medium">당신의 발견이 모두의 지도에 남았어요</p>
+
+                    {/* 내 맛집 미리보기 카드 */}
+                    <div className="mt-5 w-full max-w-[340px]">
+                      <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
+                        <div className="h-[64px] relative" style={{ background: 'linear-gradient(135deg,#ff8a4c,#ff4d30)' }}>
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.3))' }}>
+                            <span style={{ display: 'block', width: 24, height: 24, borderRadius: '50% 50% 50% 0', transform: 'rotate(-45deg)', background: '#FF6F00', boxShadow: '0 0 0 2px #fff' }} />
+                          </span>
+                        </div>
+                        <div className="px-3.5 py-2.5 text-left">
+                          <p className="text-[14px] font-black text-slate-800 truncate">{submittedName || '새 맛집'}</p>
+                          <p className="text-[11px] text-slate-400 font-bold mt-0.5 truncate">
+                            {[aiResult.youtuber_name, submittedCategory, submittedAddr].filter(Boolean).join(' · ') || '지도에 등록됨'}
+                          </p>
+                        </div>
                       </div>
-                    )}
+                    </div>
 
                     {(aiResult.extracted_menu || aiResult.parking_info) && (
                       <div className="mt-5 w-full max-w-[340px]">
@@ -374,12 +403,21 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                       </div>
                     )}
 
-                    <button 
-                      onClick={handleCloseAfterSuccess} 
-                      className="mt-6 w-full max-w-[280px] py-3.5 bg-gradient-to-r from-red-600 to-orange-500 text-white font-bold text-[14px] rounded-2xl transition-all cursor-pointer shadow-lg active:scale-[0.97]"
-                    >
-                      확인
-                    </button>
+                    <div className="mt-6 w-full max-w-[300px] flex gap-2">
+                      <button
+                        onClick={handleCloseAfterSuccess}
+                        className="flex-1 py-3.5 text-white font-black text-[13.5px] rounded-2xl active:scale-[0.97] transition-transform cursor-pointer"
+                        style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' }}
+                      >
+                        지도에서 보기
+                      </button>
+                      <button
+                        onClick={restartSubmission}
+                        className="flex-1 py-3.5 text-slate-600 font-black text-[13.5px] rounded-2xl bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                      >
+                        또 제보하기
+                      </button>
+                    </div>
                   </>
                 ) : aiResult.status === 'held' ? (
                   <>
@@ -390,14 +428,14 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                       </div>
                     </div>
 
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight mb-1.5">제보 접수 완료</h3>
-                    <p className="text-[13px] text-slate-500 font-medium mb-4">추가 확인 후 지도에 등록됩니다. 검토까지 잠시 걸릴 수 있어요.</p>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight mb-1.5">제보 고마워요! 👀</h3>
+                    <p className="text-[13px] text-slate-500 font-medium mb-4">한 번 더 확인한 뒤 지도에 올려드릴게요. 잠시만 기다려 주세요.</p>
 
                     {aiResult.reason && (
                       <div className="w-full max-w-[320px] bg-amber-50 border border-amber-200 rounded-2xl p-4 text-left">
                         <div className="flex items-center gap-2 mb-2">
-                          <Sparkles size={12} className="text-amber-400" />
-                          <span className="text-[11px] font-bold text-amber-400">AI 심사평</span>
+                          <Sparkles size={12} className="text-amber-500" />
+                          <span className="text-[11px] font-bold text-amber-600">한마디</span>
                         </div>
                         <p className="text-[13px] text-slate-600 leading-relaxed break-keep">{aiResult.reason}</p>
                       </div>
@@ -419,13 +457,13 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                       </div>
                     </div>
 
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight mb-1.5">반려되었습니다</h3>
-                    <p className="text-[13px] text-slate-500 font-medium mb-4">등록 조건을 충족하지 못했습니다.</p>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight mb-1.5">조금만 더 확인이 필요해요</h3>
+                    <p className="text-[13px] text-slate-500 font-medium mb-4">아래 이유를 확인하고 다시 시도해 주세요.</p>
 
                     <div className="w-full max-w-[320px] bg-red-50 border border-red-200 rounded-2xl p-4 text-left">
                       <div className="flex items-center gap-2 mb-2">
-                        <Sparkles size={12} className="text-red-400" />
-                        <span className="text-[11px] font-bold text-red-400">AI 심사평</span>
+                        <Sparkles size={12} className="text-red-500" />
+                        <span className="text-[11px] font-bold text-red-600">이유</span>
                       </div>
                       <p className="text-[13px] text-slate-600 leading-relaxed break-keep">{aiResult.reason}</p>
                     </div>
@@ -457,19 +495,25 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 px-1">
                         <Play size={14} className="text-red-500 fill-red-500" />
-                        <span className="text-[13px] font-bold text-slate-600">유튜브 핫플 영상 링크</span>
+                        <span className="text-[13px] font-bold text-slate-600">유튜브 영상 링크</span>
                       </div>
                       <div className="relative">
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={youtubeUrl}
                           onChange={(e) => setYoutubeUrl(e.target.value)}
-                          placeholder="https://youtube.com/watch?v=... 또는 단축 주소" 
+                          placeholder="https://youtube.com/watch?v=... 또는 단축 주소"
                           className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-[14px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400 transition-all"
                         />
                       </div>
+                      {/* AI가 자동으로 채워주는 것 */}
+                      <div className="flex flex-wrap gap-1.5 px-1 pt-1">
+                        {['상호명', '위치', '대표 메뉴', '주차', '크리에이터'].map((t) => (
+                          <span key={t} className="text-[10.5px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full">{t}</span>
+                        ))}
+                      </div>
                       <p className="text-[11px] text-slate-400 font-bold px-1">
-                        소셜 미디어(유튜브 롱폼) 링크를 넣으면 AI가 상호명과 위치를 자동 추출합니다.
+                        링크만 넣으면 위 정보를 AI가 영상에서 자동으로 찾아드려요.
                       </p>
                     </div>
 
@@ -486,12 +530,12 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                             <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
                             <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                           </svg>
-                          <span>AI 영상 분석 및 식당 정보 추출 중...</span>
+                          <span>AI가 맛집을 찾는 중…</span>
                         </>
                       ) : (
                         <>
                           <Sparkles size={16} />
-                          <span>AI 분석 및 식당 위치 찾기</span>
+                          <span>AI로 맛집 찾기</span>
                         </>
                       )}
                     </button>
@@ -518,14 +562,14 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                       </div>
                     )}
 
-                    {/* AI 추출 및 장소 검색 가이드 문구 */}
+                    {/* AI가 찾은 맛집 안내 */}
                     <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl">
                       <div className="flex items-center gap-1.5 mb-1">
-                        <Sparkles size={12} className="text-orange-400" />
-                        <span className="text-[11px] font-black text-orange-400">AI 추출 식당: "{extractedName}"</span>
+                        <Sparkles size={12} className="text-orange-500" />
+                        <span className="text-[11px] font-black text-orange-600">AI가 찾은 맛집: "{extractedName}"</span>
                       </div>
                       <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
-                        영상에서 도출된 상호명으로 자동 검색된 결과입니다. **지점명이나 주소를 비교하여 실제 핫플이 일치하는 행을 최종 터치**해 주세요.
+                        같은 이름의 지점이 여러 곳일 수 있어요. <b>영상 속 그곳</b>을 아래에서 골라주세요.
                       </p>
                     </div>
 
@@ -603,12 +647,12 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                             <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
                             <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                           </svg>
-                          <span>맛집 정밀 검수 및 등록 요청 중...</span>
+                          <span>지도에 올리는 중…</span>
                         </>
                       ) : (
                         <>
                           <Sparkles size={16} />
-                          <span>AI 팩트체크 및 최종 등록 심사</span>
+                          <span>지도에 올리기</span>
                         </>
                       )}
                     </button>
