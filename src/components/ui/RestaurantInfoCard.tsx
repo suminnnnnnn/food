@@ -785,23 +785,10 @@ export default function RestaurantInfoCard({
   const renderContent = () => {
     if (!restaurant) return null;
 
-    let cleanedTags = restaurant.content_tags?.filter(
-      tag => tag.label !== '유튜브 핫플' && tag.label !== '유튜브핫플'
-    ) || [];
-
-    if (cleanedTags.length === 0) {
-      const seed = restaurant.name.charCodeAt(0) || 0;
-      if (seed % 3 === 0) {
-        cleanedTags.push({ source: 'michelin', label: '미쉐린', year: 2024 });
-        cleanedTags.push({ source: 'blueribbon', label: '블루리본', year: 2024 });
-      } else if (seed % 3 === 1) {
-        cleanedTags.push({ source: 'blueribbon', label: '블루리본', year: 2024 });
-        cleanedTags.push({ source: 'ddoganjib', label: '또간집 공식 삐라' });
-      } else {
-        cleanedTags.push({ source: 'michelin', label: '미쉐린', year: 2024 });
-        cleanedTags.push({ source: 'ddoganjib', label: '또간집 공식 삐라' });
-      }
-    }
+    // 영상 키워드(해시태그형) 집계 — 상세화면 태그 (가짜 뱃지 생성 로직 제거)
+    const keywordTags = Array.from(new Set(
+      (restaurant.videos || []).flatMap(v => v.keywords || [])
+    )).map(t => (t || '').trim()).filter(Boolean).slice(0, 8);
 
     return (
       <div className="flex flex-col h-full relative bg-brand-charcoal md:bg-white select-none">
@@ -1285,6 +1272,17 @@ export default function RestaurantInfoCard({
                   </div>
                 </div>
               </div>
+
+              {/* 태그 (영상 키워드) */}
+              {keywordTags.length > 0 && (
+                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-1.5">
+                  {keywordTags.map((t) => (
+                    <span key={t} className="text-[11.5px] font-bold text-zinc-300 md:text-slate-500 bg-zinc-800/40 md:bg-slate-100 border border-zinc-700/30 md:border-slate-200 px-2.5 py-1 rounded-full">
+                      #{t.replace(/^#\s*/, '')}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Row 7: AI 꿀팁 (Gemini 추천) */}
               {restaurant.description_summary && (
