@@ -413,6 +413,15 @@ export default function MapContainer({
   // 내 저장 지도 모드 (저장 탭에서 지도에 저장 맛집만 표시)
   const [savedMapMode, setSavedMapMode] = useState(false);
   const [savedStatusFilter, setSavedStatusFilter] = useState<'all' | 'wish' | 'visited'>('all');
+  // 지도 우측 별 버튼: 저장된 맛집만 보기 (홈/주변 지도용 토글)
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  // 저장 리스트(컬렉션) 선택 시 해당 폴더 맛집만 지도에 표시
+  const [savedFolderFilter, setSavedFolderFilter] = useState<string | null>(null);
+  // 선택된 저장 컬렉션의 맛집 id 집합 (리스트 클릭 시 지도 필터)
+  const savedFolderRestaurantIds = useMemo(
+    () => new Set(folderRelations.filter(fr => fr.folder_id === savedFolderFilter).map(fr => fr.restaurant_id)),
+    [folderRelations, savedFolderFilter]
+  );
 
   // 폴더 및 매핑 관계 데이터 리로드 함수 (기본 저장 폴더 보장 포함)
   const fetchFoldersAndRelations = async () => {
@@ -2012,7 +2021,7 @@ export default function MapContainer({
     if (zoomLevel >= 8 && !isHighlighted) {
       const dotSize = viewLevel === 3 ? 'w-3.5 h-3.5' : viewLevel === 2 ? 'w-2.5 h-2.5' : 'w-2 h-2';
       return (
-        <div className="relative flex items-center justify-center w-5 h-5 select-none">
+        <div className="relative flex items-center justify-center w-5 h-5 select-none" style={{ caretColor: 'transparent', cursor: 'pointer' }}>
           {viewLevel === 3 && (
             <div className="absolute w-3.5 h-3.5 rounded-full bg-red-500/35 animate-ping pointer-events-none" />
           )}
@@ -2049,7 +2058,7 @@ export default function MapContainer({
     return (
       <div
         className="relative flex flex-col items-center select-none transition-all duration-200"
-        style={{ paddingBottom: PIN_SIZE * 0.38 }}
+        style={{ paddingBottom: PIN_SIZE * 0.38, caretColor: 'transparent', cursor: 'pointer' }}
       >
         {/* 경로 추천 배지 */}
         {isBufferPlanningRecommended && (
@@ -2142,6 +2151,12 @@ export default function MapContainer({
   // 카테고리, 영상 타입, 태그, 검색어 필터링 (useMemo 적용)
   const filteredRestaurants = useMemo(() => {
     let result = restaurants.filter(r => {
+      // 저장 리스트(컬렉션) 선택 시: 해당 폴더 맛집만 지도에 표시 (최우선)
+      if (savedFolderFilter) {
+        if (typeof r.lat !== 'number' || typeof r.lng !== 'number' || isNaN(r.lat) || isNaN(r.lng)) return false;
+        return savedFolderRestaurantIds.has(r.id);
+      }
+
       // 내 저장 지도 모드: 저장 맛집만 표시 (그 외 카테고리/검색 필터는 무시)
       if (savedMapMode) {
         if (typeof r.lat !== 'number' || typeof r.lng !== 'number' || isNaN(r.lat) || isNaN(r.lng)) return false;
@@ -2150,6 +2165,9 @@ export default function MapContainer({
         if (savedStatusFilter === 'visited' && !visitedIds.has(r.id)) return false;
         return true;
       }
+
+      // 지도 별 버튼(저장 맛집만 보기) — 다른 필터와 함께 적용
+      if (showSavedOnly && !savedIds.has(r.id)) return false;
 
       // 0. 영역 그리기 필터 적용 중이면 폴리곤 내부 맛집만 표시
       if (filterPolygon && filterPolygon.length >= 3) {
@@ -2262,7 +2280,7 @@ export default function MapContainer({
       });
     }
     return result;
-  }, [restaurants, activeCategories, activeSort, activeVideoType, filterPolygon, activeTag, activeCuration, activeYoutuber, globalSearchQuery, savedMapMode, savedStatusFilter, savedIds, visitedIds, activeThemeChip]);
+  }, [restaurants, activeCategories, activeSort, activeVideoType, filterPolygon, activeTag, activeCuration, activeYoutuber, globalSearchQuery, savedMapMode, savedStatusFilter, savedIds, visitedIds, activeThemeChip, showSavedOnly, savedFolderFilter, savedFolderRestaurantIds]);
 
   // 유튜버 발견 축: 현재 지도 내 맛집에 등장한 유튜버 집계 (많은 순)
   // 주의: 이 파일은 react-kakao-maps-sdk의 Map을 import하므로 전역 Map 대신 plain object 사용
@@ -2498,9 +2516,20 @@ export default function MapContainer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedMapMode, map]);
 
-  // 저장 탭을 벗어나면 지도 모드 해제
+  // 저장 컬렉션 선택 시: 해당 폴더 맛집들에 맞춰 지도 범위 자동 조정
   useEffect(() => {
-    if (activeTab !== 'favorites') setSavedMapMode(false);
+    if (!savedFolderFilter || !map) return;
+    const list = restaurants.filter(r => savedFolderRestaurantIds.has(r.id) && typeof r.lat === 'number' && typeof r.lng === 'number');
+    if (list.length === 0) return;
+    const bounds = new kakao.maps.LatLngBounds();
+    list.forEach(r => bounds.extend(new kakao.maps.LatLng(r.lat, r.lng)));
+    map.setBounds(bounds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedFolderFilter, map]);
+
+  // 저장 탭을 벗어나면 지도 모드/컬렉션 필터 해제
+  useEffect(() => {
+    if (activeTab !== 'favorites') { setSavedMapMode(false); setSavedFolderFilter(null); }
   }, [activeTab]);
 
 if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center justify-center">Loading Maps...</div>;
@@ -2554,7 +2583,6 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
           ].map((menu) => {
             const Icon = menu.icon;
             const isActive = activeTab === menu.id;
-            const favCount = menu.id === 'favorites' ? savedIds.size : 0;
             return (
               <button
                 key={menu.id}
@@ -2577,11 +2605,6 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                     className="transition-opacity duration-200 z-10"
                     strokeWidth={isActive ? 2.5 : 1.8}
                   />
-                  {favCount > 0 && (
-                    <div className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-white text-[#ff3b30] text-[8px] font-black rounded-full flex items-center justify-center px-[2px] leading-none shadow-sm z-20">
-                      {favCount > 99 ? '99+' : favCount}
-                    </div>
-                  )}
                 </div>
 
                 <span className="text-[12px] mt-1 opacity-90 font-semibold z-10">{menu.label}</span>
@@ -3175,6 +3198,7 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
                       statusFilter={savedStatusFilter}
                       onStatusChange={setSavedStatusFilter}
                       userLocation={userLocation}
+                      onActiveFolderChange={setSavedFolderFilter}
                     />
                   )}
                 </div>
@@ -4126,6 +4150,21 @@ if (loading) return <div className="w-full h-screen bg-gray-50 flex items-center
 
         {/* 쇼츠� 留�ㅺ�?*/}
 
+
+        {/* 저장 맛집만 보기 (별 토글) */}
+        <div className="flex items-center gap-2 group">
+          <span className="text-[12px] font-semibold text-white bg-zinc-950/80 px-2 py-1.5 rounded-lg border border-white/5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
+            {showSavedOnly ? '전체 맛집 보기' : '저장 맛집만'}
+          </span>
+          <button
+            onClick={() => { if (!user?.id) { setIsLoginModalOpen(true); return; } setShowSavedOnly(v => !v); }}
+            className={`p-3 rounded-full border hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer ${showSavedOnly ? 'border-transparent' : 'bg-white hover:bg-slate-50 border-slate-200/80'}`}
+            style={showSavedOnly ? { background: 'linear-gradient(100deg,#FF3B30,#FF6F00)' } : undefined}
+            title={showSavedOnly ? '전체 맛집 보기' : '저장한 맛집만 보기'}
+          >
+            <Star size={18} className={showSavedOnly ? 'text-white fill-white' : 'text-orange-500 fill-orange-500'} />
+          </button>
+        </div>
 
         {/* 내 위치 */}
         <div className="flex items-center gap-2 group">

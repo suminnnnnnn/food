@@ -28,6 +28,7 @@ interface SavedListViewProps {
   statusFilter?: StatusFilter;
   onStatusChange?: (s: StatusFilter) => void;
   userLocation?: { lat: number; lng: number } | null;
+  onActiveFolderChange?: (folderId: string | null) => void;
 }
 
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
@@ -92,6 +93,7 @@ export default function SavedListView({
   statusFilter: statusFilterProp,
   onStatusChange,
   userLocation,
+  onActiveFolderChange,
 }: SavedListViewProps) {
   const [statusFilterLocal, setStatusFilterLocal] = useState<StatusFilter>('all');
   const statusFilter = statusFilterProp ?? statusFilterLocal;
@@ -123,6 +125,13 @@ export default function SavedListView({
     })();
     return () => { mounted = false; };
   }, [folderRelations]);
+
+  // 컬렉션 선택 상태를 부모(지도)에 알려 해당 폴더 맛집만 보이게 함
+  useEffect(() => {
+    onActiveFolderChange?.(activeFolderId);
+    return () => { onActiveFolderChange?.(null); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFolderId]);
 
   const activeFolder = folders.find(f => f.id === activeFolderId) || null;
 
