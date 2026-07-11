@@ -577,15 +577,6 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                       </p>
                     </div>
 
-                    {/* 아는 정보 직접 입력 (선택) */}
-                    <div className="space-y-2 pt-1">
-                      <p className="text-[10px] text-slate-400 font-bold">아는 정보가 있다면 입력해 주세요 (선택)</p>
-                      <input value={subHours} onChange={(e) => setSubHours(e.target.value)} placeholder="영업시간 (예: 매일 11:00-21:00, 화요일 휴무)"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[12px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400" />
-                      <input value={subMenu} onChange={(e) => setSubMenu(e.target.value)} placeholder="대표 메뉴·가격 (예: 마늘갈비 17,000원)"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[12px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-400" />
-                    </div>
-
                     {/* 제출 */}
                     <button
                       onClick={handleSubmit}
@@ -604,7 +595,7 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                       ) : (
                         <>
                           <Sparkles size={16} />
-                          <span>확인하고 제보하기</span>
+                          <span>제보하기</span>
                         </>
                       )}
                     </button>
@@ -614,7 +605,7 @@ export default function RestaurantSubmissionBottomSheet({ isOpen, onClose, initi
                         onClick={() => setStep(1)}
                         className="w-full text-center text-slate-400 hover:text-slate-600 font-bold text-[11px] py-1 cursor-pointer"
                       >
-                        맛집 다시 고르기
+                        이전 단계로
                       </button>
                     )}
                   </motion.div>
