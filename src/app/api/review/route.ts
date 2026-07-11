@@ -117,6 +117,8 @@ export async function POST(req: Request) {
     let ytChannelId = "";
     let ytThumbnailUrl = "";
     let ytChannelProfileUrl = "";
+    let ytViewCount = 0;
+    let ytPublishedAt: string | null = null;
     
     // 유튜브 URL에서 Video ID 추출
     const videoIdMatch = youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))((\w|-){11})/);
@@ -159,19 +161,21 @@ export async function POST(req: Request) {
 
     if (videoId && process.env.YOUTUBE_API_KEY) {
       try {
-        const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${videoId}&key=${process.env.YOUTUBE_API_KEY}`);
+        const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status,statistics&id=${videoId}&key=${process.env.YOUTUBE_API_KEY}`);
         if (ytRes.ok) {
           const ytData = await ytRes.json();
           if (ytData.items && ytData.items.length > 0) {
             const item = ytData.items[0];
             const snippet = item.snippet;
             const statusInfo = item.status;
-            
+
             videoTitle = snippet.title;
             authorName = snippet.channelTitle;
             videoDescription = snippet.description ? snippet.description.substring(0, 300) : "";
             ytChannelId = snippet.channelId || "";
             ytThumbnailUrl = snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || "";
+            ytViewCount = parseInt(item.statistics?.viewCount || '0', 10) || 0;
+            ytPublishedAt = snippet.publishedAt || null;
             
             // 🛡️ 유튜브 외부 재생 제한 여부 판단
             if (statusInfo && statusInfo.embeddable === false) {
@@ -452,7 +456,9 @@ ${matchedCandidates.length > 0
             title: videoTitle,
             channel_id: dbChannelId,
             thumbnail_url: ytThumbnailUrl,
-            is_short: youtubeUrl.includes('shorts/')
+            is_short: youtubeUrl.includes('shorts/'),
+            view_count: ytViewCount,
+            published_at: ytPublishedAt
           }, { onConflict: 'youtube_video_id' })
           .select('id').single();
         
