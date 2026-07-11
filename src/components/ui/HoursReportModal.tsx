@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, CheckCircle2 } from 'lucide-react';
+import { X, Clock, CheckCircle2, ChevronRight, ChevronLeft } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -23,6 +23,23 @@ const todayIdx = () => {
 };
 
 const EMBER = 'linear-gradient(100deg,#FF3B30,#FF6F00)';
+// 12시간 표기 (오전/오후) — 미리보기·요약용
+const to12 = (t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  if (isNaN(h)) return t;
+  const ap = h < 12 ? '오전' : '오후';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${ap} ${h12}:${String(m).padStart(2, '0')}`;
+};
+
+// 시간 입력 필드 (모듈 레벨 — 리렌더 시 remount로 포커스 튀는 것 방지)
+const TimeField = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+  <label className="flex-1 block">
+    <span className="text-[10px] font-bold text-slate-400 block mb-1 pl-0.5">{label}</span>
+    <input type="time" value={value} onChange={e => onChange(e.target.value)}
+      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-[16px] font-black text-slate-800 tracking-tight text-center tabular-nums focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition-all" />
+  </label>
+);
 
 export default function HoursReportModal({ isOpen, onClose, restaurantId, restaurantName, onSubmitted }: Props) {
   const [openDays, setOpenDays] = useState<Set<number>>(new Set([0, 1, 2, 3, 4, 5, 6]));
@@ -53,7 +70,6 @@ export default function HoursReportModal({ isOpen, onClose, restaurantId, restau
     setTimes(prev => prev.map((t, idx) => (idx === i ? { ...t, [key]: v } : t)));
   };
   const enablePerDay = () => {
-    // 공통 시간을 각 요일 초기값으로 복사한 뒤 요일별 모드로
     setTimes(Array.from({ length: 7 }, () => ({ start: sharedStart, end: sharedEnd })));
     setPerDay(true);
   };
@@ -71,13 +87,13 @@ export default function HoursReportModal({ isOpen, onClose, restaurantId, restau
   const validate = (): string | null => {
     if (openDays.size === 0) return '영업하는 요일을 최소 1개 선택해 주세요';
     for (const i of openDays) {
-      if (getStart(i) >= getEnd(i)) return `${DAYS[i]}요일의 종료 시간이 시작보다 늦어야 해요`;
+      if (getStart(i) >= getEnd(i)) return `${DAYS[i]}요일의 닫는 시간이 여는 시간보다 늦어야 해요`;
     }
     return null;
   };
 
   const ti = todayIdx();
-  const preview = openDays.has(ti) ? `${getStart(ti)}~${getEnd(ti)}` : '휴무';
+  const todayOpen = openDays.has(ti);
 
   const submit = async () => {
     const v = validate();
@@ -97,105 +113,130 @@ export default function HoursReportModal({ isOpen, onClose, restaurantId, restau
     finally { setBusy(false); }
   };
 
-  const timeInput = 'bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-[14px] font-bold text-slate-800 text-center focus:outline-none focus:border-orange-400';
-
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 380 }}
-            className="relative w-full sm:max-w-[420px] bg-white border border-slate-200 sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl max-h-[88vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
-              <h3 className="text-[15px] font-black text-slate-900 flex items-center gap-1.5"><Clock size={16} className="text-orange-500" /> 영업시간 제보</h3>
-              <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:text-slate-800"><X size={15} /></button>
+            className="absolute inset-0 bg-slate-900/55 backdrop-blur-sm" />
+          <motion.div initial={{ opacity: 0, y: 48 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 48 }}
+            transition={{ type: 'spring', damping: 32, stiffness: 380 }}
+            className="relative w-full sm:max-w-[420px] bg-white sm:rounded-[28px] rounded-t-[28px] overflow-hidden shadow-[0_-8px_40px_rgba(0,0,0,0.18)] sm:shadow-[0_24px_60px_rgba(0,0,0,0.28)] max-h-[90vh] flex flex-col">
+            {/* 모바일 그랩 핸들 */}
+            <div className="sm:hidden pt-2.5 pb-1 flex justify-center shrink-0"><span className="w-9 h-1.5 rounded-full bg-slate-200" /></div>
+
+            {/* 헤더 */}
+            <div className="px-5 pt-3 sm:pt-5 pb-4 shrink-0 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-[17px] font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                  <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: EMBER }}><Clock size={13} className="text-white" /></span>
+                  영업시간 알려주기
+                </h3>
+                <p className="text-[11.5px] text-slate-400 font-medium mt-1 truncate">{restaurantName} · 문 여는 요일과 시간을 골라주세요</p>
+              </div>
+              <button onClick={onClose} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"><X size={16} /></button>
             </div>
 
             {done ? (
-              <div className="px-5 pb-8 pt-2 flex flex-col items-center text-center gap-2">
-                <CheckCircle2 size={40} className="text-emerald-500" />
-                <p className="text-[14px] font-bold text-slate-800">제보 감사합니다!</p>
-                <p className="text-[12px] text-slate-500">‘이용자 제보’로 바로 반영됐어요.</p>
-                <button onClick={onClose} className="mt-3 px-6 py-2.5 rounded-2xl text-white font-bold text-[13px]" style={{ background: EMBER }}>확인</button>
+              <div className="px-6 pb-9 pt-3 flex flex-col items-center text-center gap-2.5">
+                <div className="w-16 h-16 rounded-full grid place-items-center mb-1" style={{ background: 'radial-gradient(closest-side, rgba(16,185,129,.18), transparent)' }}>
+                  <CheckCircle2 size={44} className="text-emerald-500" />
+                </div>
+                <p className="text-[16px] font-black text-slate-900">고마워요! 반영됐어요</p>
+                <p className="text-[12.5px] text-slate-500 leading-relaxed">알려주신 영업시간이 <b className="text-slate-700">‘이용자 제보’</b>로<br />바로 표시됩니다.</p>
+                <button onClick={onClose} className="mt-4 w-full max-w-[220px] py-3 rounded-2xl text-white font-black text-[14px] active:scale-[0.97] transition-transform" style={{ background: EMBER }}>확인</button>
               </div>
             ) : (
-              <div className="px-5 pb-6 space-y-4 overflow-y-auto">
-                <p className="text-[11.5px] text-slate-400 leading-relaxed">{restaurantName}의 영업 요일과 시간을 골라주세요. <b className="text-slate-500">‘이용자 제보’</b>로 표시되며 누구나 정정할 수 있어요.</p>
-
-                {/* 영업 요일 */}
-                <div>
-                  <p className="text-[11px] font-black text-slate-500 mb-2">영업 요일 <span className="text-slate-400 font-bold">(눌러서 휴무 지정)</span></p>
+              <div className="px-5 pb-5 space-y-5 overflow-y-auto">
+                {/* 문 여는 요일 */}
+                <section>
+                  <div className="flex items-baseline justify-between mb-2.5">
+                    <h4 className="text-[12px] font-black text-slate-700">문 여는 요일</h4>
+                    <span className="text-[10.5px] font-bold text-slate-400">회색 = 휴무</span>
+                  </div>
                   <div className="flex gap-1.5">
                     {DAYS.map((d, i) => {
                       const on = openDays.has(i);
                       return (
-                        <button key={d} onClick={() => toggleDay(i)}
-                          className={`flex-1 py-2.5 rounded-xl text-[13px] font-black transition-all ${on ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-300 line-through'}`}
+                        <button key={d} onClick={() => toggleDay(i)} aria-pressed={on}
+                          className={`flex-1 h-11 rounded-2xl text-[14px] font-black transition-all active:scale-95 ${on ? 'text-white shadow-[0_3px_10px_rgba(255,111,0,0.25)]' : 'bg-slate-100 text-slate-300'}`}
                           style={on ? { background: EMBER } : undefined}>
                           {d}
                         </button>
                       );
                     })}
                   </div>
-                </div>
+                </section>
 
-                {/* 영업 시간 — 공통 / 요일별 */}
-                {!perDay ? (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-[11px] font-black text-slate-500">영업 시간 <span className="text-slate-400 font-bold">(모든 영업일)</span></p>
-                      <button onClick={enablePerDay} className="text-[11px] font-bold text-orange-500 hover:underline">요일마다 달라요 ›</button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input type="time" value={sharedStart} onChange={e => setSharedStart(e.target.value)} className={`flex-1 ${timeInput}`} />
-                      <span className="text-slate-400 font-black">~</span>
-                      <input type="time" value={sharedEnd} onChange={e => setSharedEnd(e.target.value)} className={`flex-1 ${timeInput}`} />
-                    </div>
+                {/* 영업 시간 */}
+                <section>
+                  <div className="flex items-baseline justify-between mb-2.5">
+                    <h4 className="text-[12px] font-black text-slate-700">영업 시간</h4>
+                    {!perDay ? (
+                      <button onClick={enablePerDay} className="inline-flex items-center gap-0.5 text-[11px] font-black text-orange-500 hover:text-orange-600">요일마다 달라요<ChevronRight size={13} /></button>
+                    ) : (
+                      <button onClick={() => setPerDay(false)} className="inline-flex items-center gap-0.5 text-[11px] font-bold text-slate-400 hover:text-slate-600"><ChevronLeft size={13} />모두 같은 시간</button>
+                    )}
                   </div>
-                ) : (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-[11px] font-black text-slate-500">요일별 영업시간</p>
-                      <button onClick={() => setPerDay(false)} className="text-[11px] font-bold text-slate-400 hover:text-slate-600">‹ 모두 같은 시간</button>
-                    </div>
-                    <div className="space-y-1.5">
-                      {DAYS.map((d, i) => {
-                        const on = openDays.has(i);
-                        return (
-                          <div key={d} className="flex items-center gap-2">
-                            <button onClick={() => toggleDay(i)}
-                              className={`w-9 h-9 rounded-lg text-[13px] font-black shrink-0 ${on ? 'text-white' : 'bg-slate-100 text-slate-300 line-through'}`}
-                              style={on ? { background: EMBER } : undefined}>{d}</button>
-                            {on ? (
-                              <div className="flex items-center gap-1.5 flex-1">
-                                <input type="time" value={times[i].start} onChange={e => setDayTime(i, 'start', e.target.value)} className={`flex-1 ${timeInput}`} />
-                                <span className="text-slate-400 font-black text-[13px]">~</span>
-                                <input type="time" value={times[i].end} onChange={e => setDayTime(i, 'end', e.target.value)} className={`flex-1 ${timeInput}`} />
-                              </div>
-                            ) : (
-                              <div className="flex-1 text-[13px] font-bold text-slate-300 pl-1">휴무</div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+
+                  <AnimatePresence mode="wait" initial={false}>
+                    {!perDay ? (
+                      <motion.div key="shared" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+                        className="rounded-2xl bg-slate-50/70 border border-slate-100 p-3">
+                        <div className="flex items-end gap-2">
+                          <TimeField label="여는 시간" value={sharedStart} onChange={setSharedStart} />
+                          <span className="text-slate-300 font-black text-[15px] pb-2.5">~</span>
+                          <TimeField label="닫는 시간" value={sharedEnd} onChange={setSharedEnd} />
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div key="perday" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+                        className="rounded-2xl bg-slate-50/70 border border-slate-100 p-2.5 space-y-1.5">
+                        {DAYS.map((d, i) => {
+                          const on = openDays.has(i);
+                          return (
+                            <div key={d} className="flex items-center gap-2">
+                              <button onClick={() => toggleDay(i)} aria-pressed={on}
+                                className={`w-10 h-10 rounded-xl text-[14px] font-black shrink-0 transition-all active:scale-95 ${on ? 'text-white' : 'bg-white border border-slate-200 text-slate-300'}`}
+                                style={on ? { background: EMBER } : undefined}>{d}</button>
+                              {on ? (
+                                <div className="flex items-center gap-1.5 flex-1">
+                                  <input type="time" value={times[i].start} onChange={e => setDayTime(i, 'start', e.target.value)}
+                                    className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl px-2 py-2 text-[14px] font-bold text-slate-800 text-center tabular-nums focus:outline-none focus:border-orange-400" />
+                                  <span className="text-slate-300 font-black shrink-0">~</span>
+                                  <input type="time" value={times[i].end} onChange={e => setDayTime(i, 'end', e.target.value)}
+                                    className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl px-2 py-2 text-[14px] font-bold text-slate-800 text-center tabular-nums focus:outline-none focus:border-orange-400" />
+                                </div>
+                              ) : (
+                                <div className="flex-1 text-[13px] font-bold text-slate-300 pl-1">휴무</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </section>
 
                 {/* 오늘 미리보기 */}
-                <div className="bg-orange-50 border border-orange-200 rounded-xl px-3.5 py-2.5 flex items-center gap-2">
-                  <span className="text-[11px] font-black text-orange-600">오늘 ({DAYS[ti]})</span>
-                  <span className="text-[13px] font-bold text-slate-800">{preview}</span>
+                <div className={`rounded-2xl px-4 py-3 flex items-center gap-3 border ${todayOpen ? 'bg-orange-50/70 border-orange-100' : 'bg-slate-50 border-slate-100'}`}>
+                  <span className={`w-11 h-11 rounded-xl grid place-items-center shrink-0 text-[13px] font-black ${todayOpen ? 'text-white' : 'bg-slate-200 text-slate-400'}`} style={todayOpen ? { background: EMBER } : undefined}>{DAYS[ti]}</span>
+                  <div className="min-w-0">
+                    <p className="text-[10.5px] font-black text-slate-400">오늘 미리보기</p>
+                    <p className="text-[15px] font-black text-slate-800 tracking-tight">
+                      {todayOpen ? `${to12(getStart(ti))} – ${to12(getEnd(ti))}` : '휴무'}
+                    </p>
+                  </div>
                 </div>
 
-                {err && <p className="text-[12px] text-red-500">{err}</p>}
+                {err && <p className="text-[12px] font-bold text-red-500 -mt-1">{err}</p>}
+
                 <button onClick={submit} disabled={busy}
-                  className="w-full py-3.5 rounded-2xl text-white font-black text-[14px] disabled:opacity-60 active:scale-[0.98] transition-transform"
+                  className="w-full py-3.5 rounded-2xl text-white font-black text-[14.5px] disabled:opacity-60 active:scale-[0.98] transition-transform shadow-[0_6px_18px_rgba(255,59,48,0.28)]"
                   style={{ background: EMBER }}>
-                  {busy ? '전송 중…' : '제보하기'}
+                  {busy ? '전송 중…' : '이 시간으로 제보하기'}
                 </button>
+                <p className="text-center text-[10.5px] text-slate-400 font-medium -mt-2">‘이용자 제보’로 표시되며, 틀리면 누구나 정정할 수 있어요.</p>
               </div>
             )}
           </motion.div>
