@@ -11,6 +11,7 @@ interface CustomModalProps {
   title?: string;
   subtitle?: string;
   noPadding?: boolean;
+  light?: boolean; // 라이트 테마(흰 배경) 모달 — 프로젝트 라이트 톤과 통일
 }
 
 export default function CustomModal({
@@ -19,7 +20,8 @@ export default function CustomModal({
   children,
   title,
   subtitle,
-  noPadding
+  noPadding,
+  light
 }: CustomModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +61,11 @@ export default function CustomModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 15 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="relative w-full max-w-lg bg-[#1c1c20]/95 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.03)] overflow-hidden flex flex-col z-10"
+            className={`relative w-full max-w-lg rounded-[28px] overflow-hidden flex flex-col z-10 ${
+              light
+                ? 'bg-white border border-slate-200 shadow-[0_20px_60px_rgba(60,40,20,0.22)]'
+                : 'bg-[#1c1c20]/95 backdrop-blur-2xl border border-white/[0.08] shadow-[0_20px_60px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.03)]'
+            }`}
           >
 
 
@@ -68,12 +74,12 @@ export default function CustomModal({
               {(title || subtitle) && (
                 <div className="flex-1 min-w-0 pr-4">
                   {title && (
-                    <h3 className="text-xl font-black text-white tracking-tight leading-snug">
+                    <h3 className={`text-xl font-black tracking-tight leading-snug ${light ? 'text-slate-900' : 'text-white'}`}>
                       {title}
                     </h3>
                   )}
                   {subtitle && (
-                    <p className="text-[11px] text-zinc-400 font-semibold mt-1 tracking-tight">
+                    <p className={`text-[11px] font-semibold mt-1 tracking-tight ${light ? 'text-slate-500' : 'text-zinc-400'}`}>
                       {subtitle}
                     </p>
                   )}
@@ -81,7 +87,11 @@ export default function CustomModal({
               )}
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-400 hover:text-white transition-all cursor-pointer flex-shrink-0"
+                className={`p-1.5 rounded-xl transition-all cursor-pointer flex-shrink-0 ${
+                  light
+                    ? 'bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-500 hover:text-slate-800'
+                    : 'bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-400 hover:text-white'
+                }`}
               >
                 <X size={16} strokeWidth={2.5} />
               </button>
