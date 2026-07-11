@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { generateSearchTags } from '@/lib/searchTags';
 
 // Supabase 관리자 권한 클라이언트 (RLS 우회 및 트랜잭션 수행)
 const supabaseAdmin = createClient(
@@ -472,6 +473,27 @@ ${matchedCandidates.length > 0
               keywords: aiResult.keywords || []
             }, { onConflict: 'restaurant_id, video_id' });
         }
+      }
+    }
+
+    // 5.5 검색용 태그 생성 (지역/방송/음식/상황) — 발견성 확보. 실패해도 제보 처리엔 영향 없음.
+    if (finalRestaurantId) {
+      try {
+        const tags = await generateSearchTags({
+          name: restaurantName,
+          address: address || null,
+          category: submission.source_type === 'youtube' ? '유튜브 맛집' : '제보 맛집',
+          menu: aiResult.extracted_menu && aiResult.extracted_menu !== '정보 없음' ? aiResult.extracted_menu : null,
+          description: aiResult.reason || null,
+          media: authorName ? [authorName] : [],
+          nearby_landmarks: [],
+        });
+        if (tags.length > 0) {
+          await supabaseAdmin.from('restaurants').update({ tags }).eq('id', finalRestaurantId);
+          console.log(`[검색 태그 생성] ${restaurantName} → ${tags.length}개`);
+        }
+      } catch (tagErr) {
+        console.error('[검색 태그 생성 실패]', tagErr);
       }
     }
 

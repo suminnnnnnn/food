@@ -129,6 +129,14 @@ const getRestaurantAllTags = (r: Restaurant): string[] => {
     });
   }
 
+  // 검색용 태그(지역/방송/음식/상황 변형) — AI 배치로 생성한 restaurants.tags
+  if (r.tags && r.tags.length > 0) {
+    r.tags.forEach(t => {
+      const n = normalizeKeyword(t);
+      if (n && !tags.includes(n)) tags.push(n);
+    });
+  }
+
   return tags;
 };
 

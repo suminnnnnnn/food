@@ -48,6 +48,7 @@ export interface Restaurant {
   business_hours_source?: string | null; // 'tour'(한국관광공사) | 'user'(이용자 제보) | null
   menu_info?: string;
   description_summary?: string;
+  tags?: string[]; // 검색용 태그 (지역/방송/음식/상황 변형) — 발견용, 표시 안 함
 }
 
 export interface AffiliateProduct {

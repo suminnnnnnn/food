@@ -11,7 +11,7 @@ export async function getRestaurantsInBounds(
   let query = supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags,
       restaurant_videos (
         quote, mention_time, keywords,
         videos (
@@ -125,6 +125,7 @@ export async function getRestaurantsInBounds(
       business_hours_source: row.business_hours_source ?? null,
       menu_info: row.menu_info || '',
       description_summary: row.description_summary || '',
+      tags: Array.isArray(row.tags) ? row.tags : [],
     };
   });
 }
@@ -133,7 +134,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
   const { data, error } = await supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags,
       restaurant_videos (
         quote, mention_time, keywords,
         videos (
@@ -234,6 +235,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
     business_hours_source: data.business_hours_source ?? null,
     menu_info: data.menu_info || '',
     description_summary: data.description_summary || '',
+    tags: Array.isArray(data.tags) ? data.tags : [],
   };
 }
 
@@ -243,7 +245,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
   const { data, error } = await supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags,
       restaurant_videos (
         quote, mention_time, keywords,
         videos (
@@ -342,6 +344,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
       business_hours_source: row.business_hours_source ?? null,
       menu_info: row.menu_info || '',
       description_summary: row.description_summary || '',
+      tags: Array.isArray(row.tags) ? row.tags : [],
     };
   });
 }
