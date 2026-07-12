@@ -3,6 +3,7 @@
 // 영업시간은 TourAPI로만 채우고, 매칭 안 되면 '정보 없음'으로(기존 그라운딩 잔여분 제거 = 법적 정리).
 // 실행: node --env-file=.env.local src/scripts/enrich_from_tourapi.mjs   (ENRICH_LIMIT=5 테스트)
 import { createClient } from '@supabase/supabase-js';
+import { normalizeBusinessHours } from '../lib/hours.mjs';
 const supabase = createClient(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 const KEY = process.env.TOUR_API_KEY;
 if (!KEY) { console.error('TOUR_API_KEY 없음'); process.exit(1); }
@@ -68,7 +69,12 @@ async function main() {
     if (m) {
       const iv = await intro(m.contentid);
       const oh = strip(iv?.opentimefood), rd = strip(iv?.restdatefood);
-      if (oh) { upd.business_hours = rd ? `${oh} (휴무: ${rd})` : oh; upd.business_hours_source = 'tour'; hours++; }
+      if (oh) {
+        // 이용자 제보 포맷과 동일하게 정규화 (매일 HH:MM~HH:MM / 요일별)
+        const combined = rd ? `${oh} (휴무: ${rd})` : oh;
+        upd.business_hours = normalizeBusinessHours(combined);
+        upd.business_hours_source = 'tour'; hours++;
+      }
       const fill = (col, val) => { const v = strip(val); if (v && empty(r[col])) upd[col] = v; };
       fill('parking', iv?.parkingfood); fill('reservation', iv?.reservationfood); fill('packaging', iv?.packing);
       if (empty(r.menu_info)) { const menu = strip(iv?.treatmenu || iv?.firstmenu); if (menu) upd.menu_info = menu; }
