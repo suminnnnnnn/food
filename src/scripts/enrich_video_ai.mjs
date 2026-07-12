@@ -7,6 +7,7 @@
 import postgres from 'postgres';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
+import { normalizeBusinessHours } from '../lib/hours.mjs';
 
 const env = fs.readFileSync('C:/modoo-matjip/food-feat-rebranding-modoo-matjip/.env.local', 'utf8');
 for (const line of env.split(/\r?\n/)) { const m = line.match(/^([A-Z_]+)=(.*)$/); if (m) process.env[m[1]] = m[2]; }
@@ -18,16 +19,18 @@ const ONLY = process.env.ONLY || null;
 const CONCURRENCY = 3;
 
 const PROMPT = (name) => `다음은 "${name}" 식당을 소개한 유튜브 영상이다. 영상의 화면·화면자막·음성을 모두 분석해 아래 JSON으로만 응답하라.
-규칙: 영상에 실제로 나온 것만. 없으면 null 또는 []. 추측·창작 금지. 가격은 화면/음성에 실제로 나온 것만.
+규칙: 영상에 실제로 나온 것만. 없으면 null 또는 []. 추측·창작 금지.
+가격은 화면/음성에 실제로 나온 것만. "15.0"처럼 천원 단위로 적혀 있으면 "15,000원"으로, 반드시 완전한 원화 표기로 변환하라.
+영업시간은 영상 화면·자막·음성에 명시적으로 나온 경우에만.
 {
  "matches_restaurant": true/false,
  "match_confidence": 0.0~1.0,
- "picks": [{"name":"메뉴명","price":"가격 또는 null","ate": true/false,"price_source":"onscreen|spoken|none"}],
+ "picks": [{"name":"메뉴명","price":"15,000원 형식 또는 null","ate": true/false,"price_source":"onscreen|spoken|none"}],
  "quote": "유튜버가 이 집에 대해 한 인상적인 실제 한마디 또는 null",
  "tips": ["주문·이용 꿀팁(구체적으로)"],
  "signature": "이 집이 유명/특별한 이유 한 줄 또는 null",
  "mood_tags": ["혼밥/노포/가성비/데이트/가족외식 등 근거 있는 것만"],
- "best_food_scenes": [{"ts":"mm:ss","desc":"음식이 가장 먹음직하게 나온 장면"}]
+ "hours": "영상에 나온 영업시간(예: 매일 11:00~21:00, 월 휴무) 또는 null"
 }`;
 
 async function analyze(name, ytId) {
@@ -54,7 +57,7 @@ async function run() {
   await sql`ALTER TABLE restaurant_videos ADD COLUMN IF NOT EXISTS ai_insights jsonb`;
   // 식당별 대표 영상(최다 조회수) 1개
   let rows = await sql`
-    SELECT DISTINCT ON (r.id) r.id AS rid, r.name, v.id AS vid, v.youtube_video_id AS yt, rv.ai_insights
+    SELECT DISTINCT ON (r.id) r.id AS rid, r.name, v.id AS vid, v.youtube_video_id AS yt, rv.ai_insights, r.business_hours AS bhours
     FROM restaurants r
     JOIN restaurant_videos rv ON rv.restaurant_id = r.id
     JOIN videos v ON v.id = rv.video_id
@@ -77,7 +80,6 @@ async function run() {
           tips: Array.isArray(obj.tips) ? obj.tips : [],
           signature: obj.signature || null,
           mood_tags: Array.isArray(obj.mood_tags) ? obj.mood_tags : [],
-          best_food_scenes: Array.isArray(obj.best_food_scenes) ? obj.best_food_scenes : [],
           match_confidence: typeof obj.match_confidence === 'number' ? obj.match_confidence : null,
         };
         const quote = obj.quote && obj.quote !== '정보 없음' ? String(obj.quote).slice(0, 300) : null;
@@ -86,8 +88,18 @@ async function run() {
           SET ai_insights = ${sql.json(insights)}
               ${quote ? sql`, quote = ${quote}` : sql``}
           WHERE restaurant_id = ${r.rid} AND video_id = ${r.vid}`;
+
+        // 영상에 영업시간이 나왔고 기존 값이 비었으면 정규화해 채움(출처: video)
+        let hoursMsg = '';
+        if (obj.hours && obj.hours !== '정보 없음' && (!r.bhours || r.bhours === '정보 없음')) {
+          const norm = normalizeBusinessHours(obj.hours);
+          if (norm && norm !== '정보 없음') {
+            await sql`UPDATE restaurants SET business_hours = ${norm}, business_hours_source = 'video' WHERE id = ${r.rid}`;
+            hoursMsg = ' · ⏰영업시간';
+          }
+        }
         ok++;
-        console.log(`✓ ${r.name} → picks ${insights.picks.length} · tips ${insights.tips.length} · ₩${Math.round(cost * 1400)}`);
+        console.log(`✓ ${r.name} → picks ${insights.picks.length} · tips ${insights.tips.length}${hoursMsg} · ₩${Math.round(cost * 1400)}`);
       } catch (e) {
         fail++;
         console.log(`✗ ${r.name}: ${String(e.message || e).slice(0, 140)}`);

@@ -573,6 +573,20 @@ const parseBusinessHours = (hours?: string | null) => {
   return hours.replace(/<br\s*\/?>/gi, '\n').trim();
 };
 
+// 가격 표기 정규화: 메뉴판의 "15.0"/"8" 같은 천원단위 표기 → "15,000원", 콤마·원 보정
+const formatPrice = (raw?: string | null): string | null => {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    let n = parseFloat(s);
+    if (s.includes('.') || n < 1000) n = Math.round(n * 1000); // 천원 단위 표기(15.0=15,000)
+    return n.toLocaleString('ko-KR') + '원';
+  }
+  if (/^[\d,]+$/.test(s)) return s + '원'; // 콤마 숫자에 '원'만 보정
+  return s; // 그 외(이미 '원' 포함 등)는 그대로
+};
+
 interface RestaurantInfoCardProps {
   restaurant: Restaurant | null;
   onClose: () => void;
@@ -1281,6 +1295,8 @@ export default function RestaurantInfoCard({
                             <Flag size={9} /> 이용자 제보
                             <button onClick={() => setIsHoursReportOpen(true)} className="underline hover:text-zinc-300 md:hover:text-slate-600 ml-1 cursor-pointer">수정</button>
                           </>
+                        ) : effHoursSource === 'video' ? (
+                          <><PlaySquare size={9} /> 출처: 유튜브 영상</>
                         ) : (
                           <>출처: 한국관광공사</>
                         )}
@@ -1471,14 +1487,12 @@ export default function RestaurantInfoCard({
               const picker = sortedVideos[0]?.youtuber;
               const pickerName = picker?.name;
               const insights = sortedVideos[0]?.ai_insights || null;
-              const ytId = sortedVideos[0]?.youtube_id;
-              const picks: { name: string; price?: string | null; ate?: boolean }[] =
+              const allPicks: { name: string; price?: string | null; ate?: boolean }[] =
                 insights?.picks && insights.picks.length > 0
                   ? [...insights.picks].filter((p) => p?.name).sort((a, b) => (b.ate ? 1 : 0) - (a.ate ? 1 : 0))
                   : menuList.map((m) => ({ name: m.name, price: (m.price as string | undefined) || null, ate: false }));
+              const picks = allPicks.slice(0, 12); // 먹은 것 우선 정렬 후 최대 12개 (메뉴판 전체 OCR 방지)
               if (picks.length === 0) return null;
-              const scenes = (insights?.best_food_scenes || []).filter((s) => s?.ts).slice(0, 5);
-              const tsToSec = (ts: string) => { const p = ts.split(':').map(Number); return p.length === 2 ? (p[0] || 0) * 60 + (p[1] || 0) : (p[0] || 0); };
               return (
                 <div className="bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
                   <div className="flex items-center gap-2 mb-1 shrink-0">
@@ -1500,36 +1514,22 @@ export default function RestaurantInfoCard({
                     </div>
                   </div>
 
-                  {/* 영상 하이라이트 장면 — 탭하면 그 순간으로 */}
-                  {scenes.length > 0 && ytId && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {scenes.map((s, i) => (
-                        <button
-                          key={i}
-                          onClick={() => openExternal(`https://www.youtube.com/watch?v=${ytId}&t=${tsToSec(s.ts)}s`, { reason: 'video_scene' })}
-                          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10.5px] font-bold bg-zinc-800/50 text-zinc-200 hover:bg-zinc-700 md:bg-white md:text-slate-600 md:border md:border-slate-200 md:hover:bg-slate-100 transition-colors"
-                          title={s.desc}
-                        >
-                          <Play size={9} className="text-orange-400 md:text-orange-500 shrink-0" fill="currentColor" />
-                          {s.ts} {s.desc}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
                   <div className="flex flex-col gap-1 w-full">
-                    {picks.map((menu, index) => (
-                      <div key={index} className={`flex items-baseline gap-1.5 py-2 ${index < picks.length - 1 ? 'border-b border-zinc-800/60 md:border-slate-200' : ''}`}>
-                        {menu.ate && (
-                          <span className="shrink-0 self-center px-1.5 py-[1px] bg-orange-500/15 text-orange-400 md:text-orange-600 text-[9px] font-black rounded border border-orange-500/20">먹음</span>
-                        )}
-                        <span className="font-bold text-zinc-100 md:text-slate-700 text-[13px]">{menu.name}</span>
-                        <div className="flex-1 border-b border-dashed border-zinc-700/50 md:border-slate-200 mx-1.5 min-w-[8px] h-3" />
-                        {menu.price && (
-                          <span className="font-black text-orange-400 md:text-orange-600 shrink-0 text-[13px]">{menu.price}</span>
-                        )}
-                      </div>
-                    ))}
+                    {picks.map((menu, index) => {
+                      const price = formatPrice(menu.price);
+                      return (
+                        <div key={index} className={`flex items-baseline gap-1.5 py-2 ${index < picks.length - 1 ? 'border-b border-zinc-800/60 md:border-slate-200' : ''}`}>
+                          {menu.ate && (
+                            <span className="shrink-0 self-center px-1.5 py-[1px] bg-orange-500/15 text-orange-400 md:text-orange-600 text-[9px] font-black rounded border border-orange-500/20">Pick</span>
+                          )}
+                          <span className="font-bold text-zinc-100 md:text-slate-700 text-[13px]">{menu.name}</span>
+                          <div className="flex-1 border-b border-dashed border-zinc-700/50 md:border-slate-200 mx-1.5 min-w-[8px] h-3" />
+                          {price && (
+                            <span className="font-black text-orange-400 md:text-orange-600 shrink-0 text-[13px]">{price}</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* 시그니처 — 이 집이 유명한 이유 */}
