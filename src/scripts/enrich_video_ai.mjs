@@ -35,11 +35,12 @@ const PROMPT = (name) => `다음은 "${name}" 식당을 소개한 유튜브 영�
 
 async function analyze(name, ytId) {
   const body = {
+    // 비용절감 D설정: 저해상도(LOW) + 저fps(0.2, 5초당 1프레임) — 토큰 84%↓, 화면 가격 추출 유지
     contents: [{ parts: [
-      { fileData: { fileUri: `https://www.youtube.com/watch?v=${ytId}` } },
+      { fileData: { fileUri: `https://www.youtube.com/watch?v=${ytId}` }, videoMetadata: { fps: 0.2 } },
       { text: PROMPT(name) },
     ] }],
-    generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.2, mediaResolution: 'MEDIA_RESOLUTION_LOW' },
   };
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${KEY}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
