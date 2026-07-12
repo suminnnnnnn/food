@@ -1,6 +1,6 @@
 import { Restaurant } from '@/types';
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
-import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronLeft, ChevronRight, Eye, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck, Coffee, Croissant, Beer, Pizza, Fish, Wine, IceCream2, Sandwich, Soup, Beef, Flag, Tag } from 'lucide-react';
+import { MapPin, Utensils, ArrowLeft, Navigation, Play, Flame, Sparkles, X, ChevronLeft, ChevronRight, Eye, Share2, Copy, Star, Plus, Phone, Clock, Info, Check, PlaySquare, ExternalLink, ChevronDown, ChevronUp, Car, CalendarCheck, Coffee, Croissant, Beer, Pizza, Fish, Wine, IceCream2, Sandwich, Soup, Beef, Flag, Tag, Quote, UtensilsCrossed, Lightbulb } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
 import InfoSuggestModal from './InfoSuggestModal';
 import HoursReportModal from './HoursReportModal';
@@ -586,6 +586,13 @@ const formatPrice = (raw?: string | null): string | null => {
   if (/^[\d,]+$/.test(s)) return s + '원'; // 콤마 숫자에 '원'만 보정
   return s; // 그 외(이미 '원' 포함 등)는 그대로
 };
+
+// 섹션 헤더 아이콘 배지 (Review·Pick·Tip 통일) — 연한 EMBER 틴트 배지 + 주황 아이콘
+const HeaderIcon = ({ children }: { children: React.ReactNode }) => (
+  <span className="w-5 h-5 rounded-md bg-orange-500/15 md:bg-orange-100 flex items-center justify-center shrink-0">
+    {children}
+  </span>
+);
 
 // 지도 검색 정확도용 지역 힌트: 구/군 + 동/읍/면 (도 접두어·특별시 제외)
 const buildRegionHint = (address?: string | null): string => {
@@ -1442,7 +1449,7 @@ export default function RestaurantInfoCard({
               return (
                 <div className="order-4 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-2.5 shadow-sm">
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[14px]">💬</span>
+                    <HeaderIcon><Quote size={13} className="text-orange-400 md:text-orange-500" /></HeaderIcon>
                     <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
                       {pickerName ? `${pickerName} Review` : '크리에이터 한줄평'}
                     </span>
@@ -1474,16 +1481,7 @@ export default function RestaurantInfoCard({
               return (
                 <div className="order-5 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
                   <div className="flex items-center gap-2 mb-1 shrink-0">
-                    {picker?.profile_image ? (
-                      <img
-                        src={picker.profile_image}
-                        alt={pickerName || ''}
-                        className="w-6 h-6 rounded-full object-cover ring-1 ring-orange-500/50 shrink-0"
-                        onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(pickerName || '?')}&background=random&color=fff&size=64`; }}
-                      />
-                    ) : (
-                      <Utensils size={14} className="text-brand-orange shrink-0" />
-                    )}
+                    <HeaderIcon><UtensilsCrossed size={13} className="text-orange-400 md:text-orange-500" /></HeaderIcon>
                     <div className="min-w-0 leading-tight">
                       <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
                         {pickerName ? `${pickerName} Pick` : '유튜버 Pick'}
@@ -1527,7 +1525,7 @@ export default function RestaurantInfoCard({
               return (
                 <div className="order-6 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm">
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[14px]">💡</span>
+                    <HeaderIcon><Lightbulb size={13} className="text-orange-400 md:text-orange-500" /></HeaderIcon>
                     <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
                       이렇게 즐기세요{pickerName ? ` · ${pickerName} Tip` : ''}
                     </span>
