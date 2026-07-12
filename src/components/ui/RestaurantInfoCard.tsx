@@ -1311,39 +1311,11 @@ export default function RestaurantInfoCard({
                   </div>
                 </div>
 
-                {/* 정보 출처 · 정정/신고 */}
-                <div className="pt-2.5 mt-0.5 border-t border-zinc-800/60 md:border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+                {/* 정보 출처 안내 (링크·정정신고 버튼은 하단 지도 링크로 일원화) */}
+                <div className="pt-2.5 mt-0.5 border-t border-zinc-800/60 md:border-slate-200">
                   <span className="text-[10.5px] text-zinc-500 md:text-slate-400 font-medium leading-snug">
                     영업시간·메뉴는 <b className="font-bold text-zinc-400 md:text-slate-500">제보·자동수집 기반</b>이라 실제와 다를 수 있어요.
                   </span>
-                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                    {restaurant.kakao_place_id && (
-                      <a
-                        href={`https://place.map.kakao.com/${restaurant.kakao_place_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[10.5px] font-bold text-zinc-300 md:text-slate-600 bg-white/5 md:bg-white border border-white/10 md:border-slate-200 px-2.5 py-1 rounded-full hover:bg-white/10 md:hover:bg-slate-100 transition-colors"
-                        title="카카오맵에서 영업시간 등 공식 정보 확인"
-                      >
-                        카카오맵 <ExternalLink size={10} />
-                      </a>
-                    )}
-                    <a
-                      href={naverSearchUrl(restaurant.name, restaurant.address)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[10.5px] font-bold text-zinc-300 md:text-slate-600 bg-white/5 md:bg-white border border-white/10 md:border-slate-200 px-2.5 py-1 rounded-full hover:bg-white/10 md:hover:bg-slate-100 transition-colors"
-                      title="네이버 지도에서 영업시간 등 공식 정보 확인"
-                    >
-                      네이버 <ExternalLink size={10} />
-                    </a>
-                    <button
-                      onClick={() => setIsSuggestOpen(true)}
-                      className="inline-flex items-center gap-1 text-[10.5px] font-bold text-zinc-300 md:text-slate-600 bg-white/5 md:bg-white border border-white/10 md:border-slate-200 px-2.5 py-1 rounded-full hover:bg-white/10 md:hover:bg-slate-100 transition-colors cursor-pointer"
-                    >
-                      <Flag size={10} /> 정정·신고
-                    </button>
-                  </div>
                 </div>
               </div>
 
@@ -1472,7 +1444,7 @@ export default function RestaurantInfoCard({
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[14px]">💬</span>
                     <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
-                      {pickerName ? `${pickerName} Say` : '크리에이터 한줄평'}
+                      {pickerName ? `${pickerName} Review` : '크리에이터 한줄평'}
                     </span>
                   </div>
                   {q && (
