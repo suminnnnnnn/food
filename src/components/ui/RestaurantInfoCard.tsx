@@ -714,7 +714,6 @@ export default function RestaurantInfoCard({
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const activeVideo = sortedVideos[activeVideoIndex];
   // 리뷰 크리에이터 페이지네이션 (4개씩)
-  const [creatorPage, setCreatorPage] = useState(0);
 
 
 
@@ -753,7 +752,6 @@ export default function RestaurantInfoCard({
   // 식당이 바뀌면 재생 상태 및 비디오 세션 초기화
   useEffect(() => {
     setActiveVideoIndex(0);
-    setCreatorPage(0);
     setIsPlayingVideo(false);
     setEmbedError(false);
     setIsBookmarkHovered(false);
@@ -1337,78 +1335,55 @@ export default function RestaurantInfoCard({
               </button>
             )}
 
-            {/* Creator Story Carousel */}
-            {sortedVideos && sortedVideos.length > 0 && (
-              <div className="order-1 bg-white/5 md:bg-slate-50 border border-white/5 md:border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden group/story">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-[10.5px] font-extrabold text-zinc-400 md:text-slate-500 tracking-tight select-none">리뷰 크리에이터</span>
-                  <button
-                    onClick={() => onRequestVideoSubmit && onRequestVideoSubmit(restaurant)}
-                    className="flex items-center gap-1 px-2.5 py-1 bg-white/5 md:bg-white hover:bg-white/10 md:hover:bg-slate-100 border border-white/10 md:border-slate-200 rounded-full cursor-pointer transition-colors z-20"
-                  >
-                    <Plus size={10} className="text-brand-orange" />
-                    <span className="text-[9.5px] font-bold text-white/90 md:text-slate-600">영상 제보</span>
-                  </button>
-                </div>
-
-                {(() => {
-                  const perPage = 4;
-                  const pageCount = Math.max(1, Math.ceil(sortedVideos.length / perPage));
-                  const page = Math.min(creatorPage, pageCount - 1);
-                  const start = page * perPage;
-                  const pageVideos = sortedVideos.slice(start, start + perPage);
-                  const showArrows = sortedVideos.length > perPage;
-                  const arrowCls = "shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-white/5 md:bg-white border border-white/10 md:border-slate-200 text-white/70 md:text-slate-500 disabled:opacity-25 hover:bg-white/10 md:hover:bg-slate-100 transition-colors cursor-pointer disabled:cursor-default";
-                  return (
-                    <div className="flex items-center gap-1">
-                      {showArrows && (
-                        <button onClick={() => setCreatorPage(p => Math.max(0, p - 1))} disabled={page === 0} className={arrowCls} aria-label="이전 크리에이터">
-                          <ChevronLeft size={15} />
+            {/* 리뷰 크리에이터 — 요약 라벨 · 가로 아바타 행 · 인라인 제보 · 전환 힌트 */}
+            {sortedVideos && sortedVideos.length > 0 && (() => {
+              const totalViews = sortedVideos.reduce((s, v) => s + (v.view_count || 0), 0);
+              return (
+                <div className="order-1 bg-white/5 md:bg-slate-50 border border-white/5 md:border-slate-200/80 rounded-2xl p-4 shadow-sm">
+                  <div className="text-[10.5px] font-extrabold text-zinc-400 md:text-slate-500 tracking-tight select-none mb-3">
+                    리뷰 크리에이터 · {sortedVideos.length}명{totalViews > 0 ? ` · 도합 ${formatViewCount(totalViews)}뷰` : ''}
+                  </div>
+                  <div className="flex gap-3.5 overflow-x-auto hide-scrollbar pb-0.5">
+                    {sortedVideos.map((vid, idx) => {
+                      const isActive = activeVideoIndex === idx;
+                      return (
+                        <button
+                          key={vid.id}
+                          onClick={() => { setActiveVideoIndex(idx); setIsPlayingVideo(false); setEmbedError(false); }}
+                          className="flex flex-col items-center gap-1.5 shrink-0 w-[58px] cursor-pointer group select-none"
+                        >
+                          <div className={`w-12 h-12 rounded-full p-[2px] transition-all ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange shadow-[0_0_10px_rgba(255,75,0,0.4)]' : 'bg-white/10 md:bg-slate-200 group-hover:bg-white/30'}`}>
+                            <img
+                              src={vid.youtuber.profile_image}
+                              alt={vid.youtuber.name}
+                              draggable={false}
+                              className="w-full h-full rounded-full object-cover bg-[#121214] md:bg-white"
+                              onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(vid.youtuber.name)}&background=random&color=fff&size=128`; }}
+                            />
+                          </div>
+                          <span title={vid.youtuber.name} className={`block text-[10px] w-full leading-tight text-center break-words line-clamp-2 ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/45 md:text-slate-500 group-hover:text-white/70 md:group-hover:text-slate-800'}`}>
+                            {vid.youtuber.name}
+                          </span>
                         </button>
-                      )}
-                      <div className="flex-1 grid grid-cols-4 gap-2 justify-items-center">
-                        {pageVideos.map((vid, i) => {
-                          const idx = start + i;
-                          const isActive = activeVideoIndex === idx;
-                          return (
-                            <div
-                              key={vid.id}
-                              onClick={() => { setActiveVideoIndex(idx); setIsPlayingVideo(false); setEmbedError(false); }}
-                              className="flex flex-col items-center gap-1.5 cursor-pointer group select-none min-w-0"
-                            >
-                              <div className={`relative w-[50px] h-[50px] rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange scale-105 shadow-[0_0_10px_rgba(255,75,0,0.4)]' : 'bg-white/10 md:bg-slate-200 hover:bg-white/30'} transition-all duration-300 transform group-hover:scale-105`}>
-                                <div className="w-[46px] h-[46px] bg-[#121214] md:bg-white rounded-full flex items-center justify-center shrink-0">
-                                  <img
-                                    src={vid.youtuber.profile_image}
-                                    className="w-[42px] h-[42px] rounded-full object-cover shrink-0 shadow-inner"
-                                    alt={vid.youtuber.name}
-                                    draggable={false}
-                                    onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(vid.youtuber.name)}&background=random&color=fff&size=128`; }}
-                                  />
-                                </div>
-                                {vid.view_count !== undefined && vid.view_count !== null && (
-                                  <div className="absolute bottom-[-2px] right-[-4px] bg-white/[0.12] md:bg-slate-100/90 backdrop-blur-[4px] border border-white/15 md:border-slate-200 px-1.5 py-[1px] rounded-full text-[8px] font-black text-white md:text-slate-700 leading-none shadow-md z-20 whitespace-nowrap">
-                                    {formatViewCount(vid.view_count)}
-                                  </div>
-                                )}
-                              </div>
-                              <span title={vid.youtuber.name} className={`block text-[10px] w-full leading-tight text-center break-words line-clamp-2 ${isActive ? 'font-black text-brand-orange' : 'font-bold text-white/40 md:text-slate-500 group-hover:text-white/70 md:group-hover:text-slate-800'}`}>
-                                {vid.youtuber.name}
-                              </span>
-                            </div>
-                          );
-                        })}
+                      );
+                    })}
+                    {/* 영상 제보 (인라인 dashed) */}
+                    <button
+                      onClick={() => onRequestVideoSubmit && onRequestVideoSubmit(restaurant)}
+                      className="flex flex-col items-center gap-1.5 shrink-0 w-[58px] cursor-pointer group select-none"
+                    >
+                      <div className="w-12 h-12 rounded-full border-[1.5px] border-dashed border-white/20 md:border-slate-300 flex items-center justify-center text-white/40 md:text-slate-400 group-hover:border-brand-orange group-hover:text-brand-orange transition-colors">
+                        <Plus size={18} />
                       </div>
-                      {showArrows && (
-                        <button onClick={() => setCreatorPage(p => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1} className={arrowCls} aria-label="다음 크리에이터">
-                          <ChevronRight size={15} />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
+                      <span className="text-[10px] font-bold text-white/45 md:text-slate-500">영상 제보</span>
+                    </button>
+                  </div>
+                  {sortedVideos.length > 1 && (
+                    <div className="text-[10px] font-semibold text-zinc-500 md:text-slate-400 mt-2.5">탭하면 위 영상이 그 크리에이터 영상으로 바뀌어요</div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* 크리에이터 한줄평(Say) — 실제 quote + 시그니처, Pick/Tip과 동일 카드 스타일 */}
             {(() => {
