@@ -8,6 +8,26 @@ export interface Youtuber {
   subscriber_count?: number | null;
 }
 
+// 영상 멀티모달 분석(Gemini) 결과 — 유튜버가 영상에서 먹고 추천한 것 기반
+export interface VideoPick {
+  name: string;
+  price?: string | null;      // 화면/음성에 실제 나온 가격만
+  ate?: boolean;              // 유튜버가 실제 먹음
+  price_source?: 'onscreen' | 'spoken' | 'none';
+}
+export interface VideoScene {
+  ts: string;                // "mm:ss"
+  desc: string;
+}
+export interface VideoInsights {
+  picks?: VideoPick[];
+  tips?: string[];           // 이용/주문 꿀팁
+  signature?: string | null; // 시그니처/유명한 이유
+  mood_tags?: string[];
+  best_food_scenes?: VideoScene[];
+  match_confidence?: number;
+}
+
 export interface Video {
   id: string;
   youtube_id: string;
@@ -19,6 +39,7 @@ export interface Video {
   is_short?: boolean;
   keywords?: string[];
   quote?: string;
+  ai_insights?: VideoInsights | null; // 영상 멀티모달 분석 결과
 }
 
 export interface ContentTag {

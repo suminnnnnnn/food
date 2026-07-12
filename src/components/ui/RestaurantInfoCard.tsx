@@ -1466,10 +1466,19 @@ export default function RestaurantInfoCard({
               </div>
             )}
 
-            {/* 유튜버 Pick — 크리에이터가 영상에서 먹고 추천한 메뉴 (공식 메뉴 아님, 창작자 콘텐츠 기반) */}
-            {menuList.length > 0 && (() => {
+            {/* 유튜버 Pick — 영상 멀티모달 분석(가격 포함) 우선, 없으면 menu_info 폴백 */}
+            {(() => {
               const picker = sortedVideos[0]?.youtuber;
               const pickerName = picker?.name;
+              const insights = sortedVideos[0]?.ai_insights || null;
+              const ytId = sortedVideos[0]?.youtube_id;
+              const picks: { name: string; price?: string | null; ate?: boolean }[] =
+                insights?.picks && insights.picks.length > 0
+                  ? [...insights.picks].filter((p) => p?.name).sort((a, b) => (b.ate ? 1 : 0) - (a.ate ? 1 : 0))
+                  : menuList.map((m) => ({ name: m.name, price: (m.price as string | undefined) || null, ate: false }));
+              if (picks.length === 0) return null;
+              const scenes = (insights?.best_food_scenes || []).filter((s) => s?.ts).slice(0, 5);
+              const tsToSec = (ts: string) => { const p = ts.split(':').map(Number); return p.length === 2 ? (p[0] || 0) * 60 + (p[1] || 0) : (p[0] || 0); };
               return (
                 <div className="bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
                   <div className="flex items-center gap-2 mb-1 shrink-0">
@@ -1490,28 +1499,76 @@ export default function RestaurantInfoCard({
                       <span className="block text-[9.5px] text-zinc-500 md:text-slate-400 font-bold">영상에서 먹고 추천한 메뉴예요</span>
                     </div>
                   </div>
+
+                  {/* 영상 하이라이트 장면 — 탭하면 그 순간으로 */}
+                  {scenes.length > 0 && ytId && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {scenes.map((s, i) => (
+                        <button
+                          key={i}
+                          onClick={() => openExternal(`https://www.youtube.com/watch?v=${ytId}&t=${tsToSec(s.ts)}s`, { reason: 'video_scene' })}
+                          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10.5px] font-bold bg-zinc-800/50 text-zinc-200 hover:bg-zinc-700 md:bg-white md:text-slate-600 md:border md:border-slate-200 md:hover:bg-slate-100 transition-colors"
+                          title={s.desc}
+                        >
+                          <Play size={9} className="text-orange-400 md:text-orange-500 shrink-0" fill="currentColor" />
+                          {s.ts} {s.desc}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-1 w-full">
-                    {menuList.map((menu, index) => (
-                      <div key={index} className={`flex items-baseline gap-1.5 py-2 ${index < menuList.length - 1 ? 'border-b border-zinc-800/60 md:border-slate-200' : ''}`}>
-                        <span className="font-bold text-zinc-100 md:text-slate-700 text-[13px]">
-                          {menu.name}
-                        </span>
-                        {menu.description && (
-                          <span className="text-[9.5px] text-zinc-500 md:text-slate-400 font-medium">{menu.description}</span>
+                    {picks.map((menu, index) => (
+                      <div key={index} className={`flex items-baseline gap-1.5 py-2 ${index < picks.length - 1 ? 'border-b border-zinc-800/60 md:border-slate-200' : ''}`}>
+                        {menu.ate && (
+                          <span className="shrink-0 self-center px-1.5 py-[1px] bg-orange-500/15 text-orange-400 md:text-orange-600 text-[9px] font-black rounded border border-orange-500/20">먹음</span>
                         )}
+                        <span className="font-bold text-zinc-100 md:text-slate-700 text-[13px]">{menu.name}</span>
                         <div className="flex-1 border-b border-dashed border-zinc-700/50 md:border-slate-200 mx-1.5 min-w-[8px] h-3" />
                         {menu.price && (
-                          <span className="font-black text-orange-400 md:text-orange-600 shrink-0 text-[13px]">
-                            {menu.price}
-                          </span>
+                          <span className="font-black text-orange-400 md:text-orange-600 shrink-0 text-[13px]">{menu.price}</span>
                         )}
                       </div>
                     ))}
                   </div>
-                  <div className="pt-2.5 flex items-center gap-1.5 border-t border-white/5 md:border-slate-200 mt-1">
+
+                  {/* 시그니처 — 이 집이 유명한 이유 */}
+                  {insights?.signature && (
+                    <div className="flex items-start gap-1.5 pt-2.5 border-t border-white/5 md:border-slate-200">
+                      <Sparkles size={11} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
+                      <p className="text-[11.5px] text-zinc-300 md:text-slate-600 font-semibold leading-relaxed">{insights.signature}</p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1.5 border-t border-white/5 md:border-slate-200 pt-2.5">
                     <Info size={10} className="text-zinc-500 md:text-slate-400 shrink-0" />
                     <p className="text-[9px] text-zinc-500 md:text-slate-400 font-extrabold">영상 콘텐츠 기반이라 실제 메뉴·가격과 다를 수 있어요.</p>
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* 이렇게 즐기세요 — 유튜버 꿀팁 (영상 분석) */}
+            {(() => {
+              const tips = (sortedVideos[0]?.ai_insights?.tips || []).filter(Boolean).slice(0, 6);
+              if (tips.length === 0) return null;
+              const pickerName = sortedVideos[0]?.youtuber?.name;
+              return (
+                <div className="bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[14px]">💡</span>
+                    <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
+                      이렇게 즐기세요{pickerName ? ` · ${pickerName} 꿀팁` : ''}
+                    </span>
+                  </div>
+                  <ul className="flex flex-col gap-2">
+                    {tips.map((tip, i) => (
+                      <li key={i} className="flex gap-2 text-[12.5px] text-zinc-300 md:text-slate-600 font-medium leading-relaxed">
+                        <span className="text-orange-400 md:text-orange-500 font-black shrink-0">•</span>
+                        <span>{tip}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               );
             })()}

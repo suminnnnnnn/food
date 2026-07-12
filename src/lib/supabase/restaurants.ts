@@ -13,7 +13,7 @@ export async function getRestaurantsInBounds(
     .select(`
       id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags,
       restaurant_videos (
-        quote, mention_time, keywords,
+        quote, mention_time, keywords, ai_insights,
         videos (
           id, youtube_video_id, title, thumbnail_url, is_short, view_count, published_at,
           channels ( id, name, profile_image_url, youtube_channel_id, subscriber_count ),
@@ -58,6 +58,7 @@ export async function getRestaurantsInBounds(
         is_short: v.is_short || false,
         keywords: rv.keywords || [],
         quote: rv.quote || '',
+        ai_insights: rv.ai_insights || null,
         youtuber: {
           id: c?.id || '',
           name: c?.name || 'Unknown',
@@ -136,7 +137,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
     .select(`
       id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags,
       restaurant_videos (
-        quote, mention_time, keywords,
+        quote, mention_time, keywords, ai_insights,
         videos (
           id, youtube_video_id, title, thumbnail_url, is_short, view_count, published_at,
           channels ( id, name, profile_image_url, youtube_channel_id, subscriber_count ),
@@ -172,6 +173,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
       is_short: v?.is_short || false,
       keywords: rv.keywords || [],
       quote: rv.quote || '',
+      ai_insights: rv.ai_insights || null,
       youtuber: {
         id: c?.id || '',
         name: c?.name || 'Unknown',
@@ -247,7 +249,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
     .select(`
       id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags,
       restaurant_videos (
-        quote, mention_time, keywords,
+        quote, mention_time, keywords, ai_insights,
         videos (
           id, youtube_video_id, title, thumbnail_url, is_short, view_count, published_at,
           channels ( id, name, profile_image_url, youtube_channel_id, subscriber_count ),
@@ -281,6 +283,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
         view_count: v?.view_count || 0,
         is_short: v?.is_short || false,
         keywords: rv.keywords || [],
+        ai_insights: rv.ai_insights || null,
         youtuber: {
           id: c?.id || '',
           name: c?.name || 'Unknown',
