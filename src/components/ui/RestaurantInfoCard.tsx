@@ -594,17 +594,13 @@ const HeaderIcon = ({ children }: { children: React.ReactNode }) => (
   </span>
 );
 
-// 지도 검색 정확도용 지역 힌트: 구/군 + 동/읍/면 (도 접두어·특별시 제외)
-const buildRegionHint = (address?: string | null): string => {
-  if (!address) return '';
-  const toks = address.split(/\s+/).filter(Boolean);
-  const gu = toks.find((t) => /[가-힣]+(구|군)$/.test(t))
-    || toks.find((t) => /[가-힣]+시$/.test(t) && !/특별|광역|통합/.test(t)) || '';
-  const dong = toks.find((t) => /[가-힣]+(동|읍|면)$/.test(t)) || '';
-  return [gu, dong].filter(Boolean).join(' ');
+// 네이버 지도 검색 — 상호 + 정규화 주소로 최대한 구체화(단일 결과면 상세 자동 진입).
+// "전남광주통합특별시" 접두어는 네이버가 잘 인식하도록 "광주"로 정규화.
+const naverSearchUrl = (name: string, address?: string | null) => {
+  const addr = (address || '').replace(/전남\s*광주\s*통합특별시/g, '광주').trim();
+  const q = `${name} ${addr}`.trim();
+  return `https://map.naver.com/p/search/${encodeURIComponent(q)}`;
 };
-const naverSearchUrl = (name: string, address?: string | null) =>
-  `https://map.naver.com/p/search/${encodeURIComponent(`${name} ${buildRegionHint(address)}`.trim())}`;
 
 interface RestaurantInfoCardProps {
   restaurant: Restaurant | null;
@@ -1614,18 +1610,7 @@ export default function RestaurantInfoCard({
                 {/* 네이버 지도 */}
                 <button
                   onClick={() => {
-                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                    if (isMobile) {
-                      const appUrl = `nmap://route/car?dlat=${restaurant.lat}&dlng=${restaurant.lng}&dname=${encodeURIComponent(restaurant.name)}&appname=modoo-matjip`;
-                      window.location.href = appUrl;
-                      setTimeout(() => {
-                        const webUrl = `https://map.naver.com/p/directions/-/${restaurant.lat},${restaurant.lng},${encodeURIComponent(restaurant.name)}/-/car`;
-                        window.open(webUrl, '_blank', 'noopener,noreferrer');
-                      }, 1500);
-                    } else {
-                      const pcUrl = `https://map.naver.com/p/directions/-/${restaurant.lat},${restaurant.lng},${encodeURIComponent(restaurant.name)}/-/car`;
-                      openExternal(pcUrl, { reason: 'naver_map_route' });
-                    }
+                    openExternal(`https://map.naver.com/p/directions/-/${restaurant.lat},${restaurant.lng},${encodeURIComponent(restaurant.name)}/-/car`, { reason: 'naver_map_route' });
                     setShowRouteModal(false);
                   }}
                   className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-green-500/30 rounded-2xl transition-all group text-left cursor-pointer"
@@ -1643,24 +1628,10 @@ export default function RestaurantInfoCard({
                 {/* 카카오맵 */}
                 <button
                   onClick={() => {
-                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                    if (isMobile) {
-                      const appUrl = restaurant.kakao_place_id 
-                        ? `kakaomap://route?ep=${restaurant.kakao_place_id}&by=CAR` 
-                        : `kakaomap://route?ep=${restaurant.lat},${restaurant.lng}&by=CAR`;
-                      window.location.href = appUrl;
-                      setTimeout(() => {
-                        const webUrl = restaurant.kakao_place_id 
-                          ? `https://map.kakao.com/link/to/${restaurant.kakao_place_id}`
-                          : `https://map.kakao.com/link/to/${encodeURIComponent(restaurant.name)},${restaurant.lat},${restaurant.lng}`;
-                        window.open(webUrl, '_blank', 'noopener,noreferrer');
-                      }, 1500);
-                    } else {
-                      const pcUrl = restaurant.kakao_place_id 
-                        ? `https://map.kakao.com/link/to/${restaurant.kakao_place_id}`
-                        : `https://map.kakao.com/link/to/${encodeURIComponent(restaurant.name)},${restaurant.lat},${restaurant.lng}`;
-                      openExternal(pcUrl, { reason: 'kakao_navi' });
-                    }
+                    const url = restaurant.kakao_place_id
+                      ? `https://map.kakao.com/link/to/${restaurant.kakao_place_id}`
+                      : `https://map.kakao.com/link/to/${encodeURIComponent(restaurant.name)},${restaurant.lat},${restaurant.lng}`;
+                    openExternal(url, { reason: 'kakao_navi' });
                     setShowRouteModal(false);
                   }}
                   className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-yellow-500/30 rounded-2xl transition-all group text-left cursor-pointer"
@@ -1680,15 +1651,7 @@ export default function RestaurantInfoCard({
                   onClick={() => {
                     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
                     if (isMobile) {
-                      const appUrl = `tmap://route?rGoName=${encodeURIComponent(restaurant.name)}&rGoX=${restaurant.lng}&rGoY=${restaurant.lat}`;
-                      window.location.href = appUrl;
-                      setTimeout(() => {
-                        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-                        const webUrl = isIOS 
-                          ? 'https://apps.apple.com/kr/app/tmap-%EB%84%A4%EB%B9%84%EA%B2%8C%EC%9D%B4%EC%85%98-%EC%A7%80%EB%8F%84/id431294717'
-                          : 'https://play.google.com/store/apps/details?id=com.skt.tmap.ku';
-                        window.open(webUrl, '_blank', 'noopener,noreferrer');
-                      }, 1500);
+                      window.location.href = `tmap://route?rGoName=${encodeURIComponent(restaurant.name)}&rGoX=${restaurant.lng}&rGoY=${restaurant.lat}`;
                     } else {
                       alert('티맵 앱 길찾기는 모바일 기기에서만 지원합니다. PC에서는 네이버 또는 카카오 지도를 이용해주세요.');
                     }
