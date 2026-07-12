@@ -10,16 +10,27 @@ import { nearbyLandmarks } from '@/lib/landmarks.mjs';
 // 표시용 칩 = 근처 랜드마크(대표 1개씩) + 음식 대분류 + 상황어 + 대표 지역. 지역 변형 50개는 매칭 전용이라 숨김.
 const SITUATION_TAGS = new Set(['회식', '데이트', '혼밥', '가족모임', '단체', '룸', '심야', '브런치', '노포', '웨이팅', '기념일', '가성비', '주차', '점심', '야식']);
 
-interface DisplayChip { label: string; query: string; pin?: boolean; }
+interface DisplayChip { label: string; query: string; }
 
 function buildDisplayChips(restaurant: Restaurant): DisplayChip[] {
   const tags = restaurant.tags || [];
   const lms = nearbyLandmarks(restaurant.lat, restaurant.lng);
 
+  // 방송·큐레이션 칩 (또간집·먹을텐데·흑백요리사·미쉐린·블루리본·착한가격업소 등). content_tags 기반.
+  const broadcastChips: DisplayChip[] = [];
+  const bcSeen = new Set<string>();
+  for (const ct of restaurant.content_tags || []) {
+    const label = (ct.label || '').trim();
+    if (!label || ct.source === 'youtube' || label === '유튜브 핫플' || label === '유튜브핫플') continue;
+    if (bcSeen.has(label)) continue;
+    bcSeen.add(label);
+    broadcastChips.push({ label, query: label });
+  }
+
   // 근처 랜드마크: 랜드마크당 대표 칩 1개 (약칭 우선), 검색어는 실제 태그(OO맛집)
   const landmarkChips: DisplayChip[] = lms.map((lm) => {
     const label = lm.aliases[0] || lm.name;
-    return { label, query: `${label}맛집`, pin: true };
+    return { label, query: `${label}맛집` };
   });
   // 랜드마크 관련 태그는 아래 버킷에서 제외
   const lmTagSet = new Set<string>();
@@ -65,12 +76,22 @@ function buildDisplayChips(restaurant: Restaurant): DisplayChip[] {
   const regionTop = region.sort((a, b) => a.length - b.length).slice(0, 2);
 
   const toChip = (t: string): DisplayChip => ({ label: t, query: t });
-  return [
+  // 중복 라벨 제거(방송칩이 우선)
+  const combined = [
+    ...broadcastChips,
     ...landmarkChips,
     ...food.slice(0, 6).map(toChip),
     ...situ.slice(0, 4).map(toChip),
     ...regionTop.map(toChip),
-  ].slice(0, 14);
+  ];
+  const outSeen = new Set<string>();
+  const result: DisplayChip[] = [];
+  for (const c of combined) {
+    if (outSeen.has(c.label)) continue;
+    outSeen.add(c.label);
+    result.push(c);
+  }
+  return result.slice(0, 14);
 }
 
 declare global {
@@ -854,14 +875,7 @@ export default function RestaurantInfoCard({
   const renderContent = () => {
     if (!restaurant) return null;
 
-    // 영상 키워드(해시태그형) 집계 — 이모지·# 제거해 정규화 + 중복 제거
-    const keywordTags = Array.from(new Set(
-      (restaurant.videos || []).flatMap(v => v.keywords || [])
-        .map(t => (t || '').replace(/[\p{Extended_Pictographic}️#]/gu, '').replace(/\s+/g, ' ').trim())
-        .filter(Boolean)
-    )).slice(0, 8);
-
-    // 검색 태그 칩 (근처 랜드마크 + 음식 대분류 + 상황어 + 대표 지역) — 탭하면 검색
+    // 검색 태그 (#방송·랜드마크·음식·상황·지역) — 탭하면 검색
     const displayChips = buildDisplayChips(restaurant);
 
     return (
@@ -1338,34 +1352,17 @@ export default function RestaurantInfoCard({
                 </div>
               </div>
 
-              {/* 검색 태그 칩 (근처 랜드마크·음식·상황·지역) — 탭하면 검색 실행 */}
+              {/* 검색 태그 (#방송·랜드마크·음식·상황·지역) — 탭하면 검색 실행 */}
               {displayChips.length > 0 && (
-                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-1.5">
+                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-x-2.5 gap-y-1.5">
                   {displayChips.map((c) => (
                     <button
                       key={c.query}
                       onClick={() => onKeywordSearch?.(c.query)}
                       disabled={!onKeywordSearch}
-                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold transition-colors bg-zinc-800 text-zinc-200 hover:bg-zinc-700 md:bg-slate-100 md:text-slate-600 md:hover:bg-slate-200 disabled:cursor-default"
-                    >
-                      {c.pin && <MapPin size={11} className="text-orange-400 md:text-orange-500 shrink-0" />}
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* 키워드 해시태그 (탭하면 해당 키워드로 검색 → 발견) */}
-              {keywordTags.length > 0 && (
-                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-x-2.5 gap-y-1.5">
-                  {keywordTags.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => onKeywordSearch?.(t)}
-                      disabled={!onKeywordSearch}
                       className="text-[12.5px] font-bold text-orange-300 md:text-orange-500 hover:underline disabled:no-underline cursor-pointer disabled:cursor-default"
                     >
-                      #{t}
+                      #{c.label}
                     </button>
                   ))}
                 </div>

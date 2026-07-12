@@ -108,6 +108,9 @@ const getRestaurantAllTags = (r: Restaurant): string[] => {
     if (t.source === 'michelin' || t.label.includes('미쉐린')) tags.push('미쉐린');
     if (t.source === 'blueribbon' || t.label.includes('블루리본')) tags.push('블루리본');
     if (t.source === 'ddoganjib' || t.label.includes('또간집')) tags.push('또간집');
+    // 방송·큐레이션 라벨 자체도 검색 태그로 (흑백요리사·먹을텐데·착한가격업소 등)
+    const n = normalizeKeyword(t.label);
+    if (n && !tags.includes(n)) tags.push(n);
   });
   if (r.parking && r.parking !== '정보 없음' && checkAvailability(r.parking)) {
     tags.push('주차가능');
