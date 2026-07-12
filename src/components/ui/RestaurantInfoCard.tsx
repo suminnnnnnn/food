@@ -1050,9 +1050,9 @@ export default function RestaurantInfoCard({
             </div>
           )}
 
-          <div className="p-3 md:p-4 space-y-3 text-white md:text-slate-800">
+          <div className="p-3 md:p-4 flex flex-col gap-3 text-white md:text-slate-800">
             {/* Unified Profile Card (Profile, AI briefing, Facility info merged) */}
-            <div className="bg-zinc-900/80 md:bg-slate-50 border border-zinc-800 md:border-slate-200/60 rounded-2xl p-3 relative overflow-hidden space-y-2 shadow-sm">
+            <div className="order-2 bg-zinc-900/80 md:bg-slate-50 border border-zinc-800 md:border-slate-200/60 rounded-2xl p-3 relative overflow-hidden space-y-2 shadow-sm">
               <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/8 md:bg-orange-500/5 rounded-full filter blur-2xl -z-10" />
 
               {/* Row 1: Name */}
@@ -1381,7 +1381,7 @@ export default function RestaurantInfoCard({
             {isPlanningMode && isRecommendedRouteItem && (
               <button
                 onClick={() => onInsertToPlanningRoute && onInsertToPlanningRoute(restaurant)}
-                className="w-full py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-600 to-orange-500 hover:brightness-110 active:scale-[0.98] transition-all shadow-[0_4px_15px_rgba(239,68,68,0.25)] flex items-center justify-center gap-1.5 cursor-pointer"
+                className="order-3 w-full py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-600 to-orange-500 hover:brightness-110 active:scale-[0.98] transition-all shadow-[0_4px_15px_rgba(239,68,68,0.25)] flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Plus size={12} />
                 <span>경로 중간에 경유지로 추가하기</span>
@@ -1390,7 +1390,7 @@ export default function RestaurantInfoCard({
 
             {/* Creator Story Carousel */}
             {sortedVideos && sortedVideos.length > 0 && (
-              <div className="bg-white/5 md:bg-slate-50 border border-white/5 md:border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden group/story">
+              <div className="order-1 bg-white/5 md:bg-slate-50 border border-white/5 md:border-slate-200/80 rounded-2xl p-4 shadow-sm relative overflow-hidden group/story">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-[10.5px] font-extrabold text-zinc-400 md:text-slate-500 tracking-tight select-none">리뷰 크리에이터</span>
                   <button
@@ -1473,7 +1473,7 @@ export default function RestaurantInfoCard({
               const picks = allPicks.slice(0, 12); // 먹은 것 우선 정렬 후 최대 12개 (메뉴판 전체 OCR 방지)
               if (picks.length === 0) return null;
               return (
-                <div className="bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
+                <div className="order-4 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
                   <div className="flex items-center gap-2 mb-1 shrink-0">
                     {picker?.profile_image ? (
                       <img
@@ -1533,7 +1533,7 @@ export default function RestaurantInfoCard({
               if (tips.length === 0) return null;
               const pickerName = sortedVideos[0]?.youtuber?.name;
               return (
-                <div className="bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm">
+                <div className="order-5 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm">
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[14px]">💡</span>
                     <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
@@ -1553,7 +1553,7 @@ export default function RestaurantInfoCard({
             })()}
 
             {/* Platform links */}
-            <div className="grid grid-cols-2 gap-3 pt-1 shrink-0">
+            <div className="order-6 grid grid-cols-2 gap-3 pt-1 shrink-0">
               <div 
                 onClick={() => openNaverDeeplink(restaurant.name, restaurant.address)}
                 className="bg-white/5 md:bg-slate-50 hover:bg-white/10 md:hover:bg-slate-100 border border-white/5 md:border-slate-200 rounded-2xl p-3 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
