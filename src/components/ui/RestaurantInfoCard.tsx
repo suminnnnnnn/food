@@ -1461,6 +1461,33 @@ export default function RestaurantInfoCard({
               </div>
             )}
 
+            {/* 크리에이터 한줄평(Say) — 실제 quote + 시그니처, Pick/Tip과 동일 카드 스타일 */}
+            {(() => {
+              const q = (sortedVideos[0]?.quote || '').trim();
+              const sig = sortedVideos[0]?.ai_insights?.signature;
+              const pickerName = sortedVideos[0]?.youtuber?.name;
+              if (!q && !sig) return null;
+              return (
+                <div className="order-4 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-2.5 shadow-sm">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[14px]">💬</span>
+                    <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
+                      {pickerName ? `${pickerName} Say` : '크리에이터 한줄평'}
+                    </span>
+                  </div>
+                  {q && (
+                    <p className="text-[14px] font-bold text-zinc-100 md:text-slate-700 leading-relaxed">“{q}”</p>
+                  )}
+                  {sig && (
+                    <div className="flex items-start gap-1.5 pt-2.5 border-t border-white/5 md:border-slate-200">
+                      <Sparkles size={11} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
+                      <p className="text-[11.5px] text-zinc-300 md:text-slate-600 font-semibold leading-relaxed">{sig}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* 유튜버 Pick — 영상 멀티모달 분석(가격 포함) 우선, 없으면 menu_info 폴백 */}
             {(() => {
               const picker = sortedVideos[0]?.youtuber;
@@ -1473,7 +1500,7 @@ export default function RestaurantInfoCard({
               const picks = allPicks.slice(0, 12); // 먹은 것 우선 정렬 후 최대 12개 (메뉴판 전체 OCR 방지)
               if (picks.length === 0) return null;
               return (
-                <div className="order-4 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
+                <div className="order-5 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
                   <div className="flex items-center gap-2 mb-1 shrink-0">
                     {picker?.profile_image ? (
                       <img
@@ -1511,13 +1538,6 @@ export default function RestaurantInfoCard({
                     })}
                   </div>
 
-                  {/* 시그니처 — 이 집이 유명한 이유 */}
-                  {insights?.signature && (
-                    <div className="flex items-start gap-1.5 pt-2.5 border-t border-white/5 md:border-slate-200">
-                      <Sparkles size={11} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
-                      <p className="text-[11.5px] text-zinc-300 md:text-slate-600 font-semibold leading-relaxed">{insights.signature}</p>
-                    </div>
-                  )}
 
                   <div className="flex items-center gap-1.5 border-t border-white/5 md:border-slate-200 pt-2.5">
                     <Info size={10} className="text-zinc-500 md:text-slate-400 shrink-0" />
@@ -1533,7 +1553,7 @@ export default function RestaurantInfoCard({
               if (tips.length === 0) return null;
               const pickerName = sortedVideos[0]?.youtuber?.name;
               return (
-                <div className="order-5 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm">
+                <div className="order-6 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm">
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[14px]">💡</span>
                     <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
@@ -1553,7 +1573,7 @@ export default function RestaurantInfoCard({
             })()}
 
             {/* Platform links */}
-            <div className="order-6 grid grid-cols-2 gap-3 pt-1 shrink-0">
+            <div className="order-7 grid grid-cols-2 gap-3 pt-1 shrink-0">
               <div 
                 onClick={() => openNaverDeeplink(restaurant.name, restaurant.address)}
                 className="bg-white/5 md:bg-slate-50 hover:bg-white/10 md:hover:bg-slate-100 border border-white/5 md:border-slate-200 rounded-2xl p-3 flex items-center justify-center gap-2.5 transition-all duration-300 cursor-pointer group relative overflow-hidden"
