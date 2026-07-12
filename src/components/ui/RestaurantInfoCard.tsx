@@ -587,6 +587,18 @@ const formatPrice = (raw?: string | null): string | null => {
   return s; // 그 외(이미 '원' 포함 등)는 그대로
 };
 
+// 지도 검색 정확도용 지역 힌트: 구/군 + 동/읍/면 (도 접두어·특별시 제외)
+const buildRegionHint = (address?: string | null): string => {
+  if (!address) return '';
+  const toks = address.split(/\s+/).filter(Boolean);
+  const gu = toks.find((t) => /[가-힣]+(구|군)$/.test(t))
+    || toks.find((t) => /[가-힣]+시$/.test(t) && !/특별|광역|통합/.test(t)) || '';
+  const dong = toks.find((t) => /[가-힣]+(동|읍|면)$/.test(t)) || '';
+  return [gu, dong].filter(Boolean).join(' ');
+};
+const naverSearchUrl = (name: string, address?: string | null) =>
+  `https://map.naver.com/p/search/${encodeURIComponent(`${name} ${buildRegionHint(address)}`.trim())}`;
+
 interface RestaurantInfoCardProps {
   restaurant: Restaurant | null;
   onClose: () => void;
@@ -615,47 +627,16 @@ export default function RestaurantInfoCard({
   onRequestVideoSubmit,
   onKeywordSearch,
 }: RestaurantInfoCardProps) {
+  // 탭 하나만 열기: 표준 window.open(openExternal). 네이버는 지역 힌트로 정확도↑
   const openNaverDeeplink = (name: string, address?: string) => {
-    const query = name + ' ' + (address ? address.split(' ').slice(0, 2).join(' ') : '');
-    const encodedQuery = encodeURIComponent(query);
-    
-    if (typeof window === 'undefined') return;
-    
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      window.location.href = `nmap://search?query=${encodedQuery}&appname=modoo-matjip`;
-      setTimeout(() => {
-        window.open(`https://m.map.naver.com/search2/search.naver?query=${encodedQuery}`, '_blank', 'noopener,noreferrer');
-      }, 1500);
-    } else {
-      openExternal(`https://map.naver.com/p/search/${encodedQuery}`, { reason: 'naver_map_review' });
-    }
+    openExternal(naverSearchUrl(name, address), { reason: 'naver_map_review' });
   };
 
-  const openKakaoDeeplink = (name: string, kakaoPlaceId?: string, lat?: number, lng?: number) => {
-    if (typeof window === 'undefined') return;
-    
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      const appUrl = kakaoPlaceId 
-        ? `kakaomap://look?id=${kakaoPlaceId}` 
-        : `kakaomap://search?q=${encodeURIComponent(name)}`;
-      window.location.href = appUrl;
-      
-      setTimeout(() => {
-        const webUrl = kakaoPlaceId 
-          ? `https://place.map.kakao.com/${kakaoPlaceId}` 
-          : `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
-        window.open(webUrl, '_blank', 'noopener,noreferrer');
-      }, 1500);
-    } else {
-      const pcUrl = kakaoPlaceId 
-        ? `https://place.map.kakao.com/${kakaoPlaceId}` 
-        : `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lng}`;
-      openExternal(pcUrl, { reason: 'kakao_map_review' });
-    }
+  const openKakaoDeeplink = (name: string, kakaoPlaceId?: string, _lat?: number, _lng?: number) => {
+    const url = kakaoPlaceId
+      ? `https://place.map.kakao.com/${kakaoPlaceId}`
+      : `https://map.kakao.com/link/search/${encodeURIComponent(name)}`;
+    openExternal(url, { reason: 'kakao_map_review' });
   };
 
 
@@ -1296,7 +1277,7 @@ export default function RestaurantInfoCard({
                             <button onClick={() => setIsHoursReportOpen(true)} className="underline hover:text-zinc-300 md:hover:text-slate-600 ml-1 cursor-pointer">수정</button>
                           </>
                         ) : effHoursSource === 'video' ? (
-                          <><PlaySquare size={9} /> 출처: 유튜브 영상</>
+                          <><PlaySquare size={9} /> 출처: {sortedVideos[0]?.youtuber?.name || '유튜브 영상'}</>
                         ) : (
                           <>출처: 한국관광공사</>
                         )}
@@ -1305,15 +1286,13 @@ export default function RestaurantInfoCard({
                   </div>
                 </div>
 
-                {/* 편의정보 태그 (예약·주차·포장 등 — 있는 것만) */}
+                {/* 편의정보 (예약·주차·포장 등 — 있는 것만, 텍스트 나열) */}
                 {(hasParking || hasReservation || hasPackaging) && (
                   <div className="flex items-start gap-2.5">
-                    <Tag size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-1" />
-                    <div className="flex flex-wrap gap-1.5">
-                      {hasParking && <span className="text-[12px] font-bold text-zinc-300 md:text-slate-600 bg-zinc-800/40 md:bg-slate-100 border border-zinc-700/30 md:border-slate-200 px-2.5 py-1 rounded-full">주차 가능</span>}
-                      {hasReservation && <span className="text-[12px] font-bold text-zinc-300 md:text-slate-600 bg-zinc-800/40 md:bg-slate-100 border border-zinc-700/30 md:border-slate-200 px-2.5 py-1 rounded-full">예약 가능</span>}
-                      {hasPackaging && <span className="text-[12px] font-bold text-zinc-300 md:text-slate-600 bg-zinc-800/40 md:bg-slate-100 border border-zinc-700/30 md:border-slate-200 px-2.5 py-1 rounded-full">포장 가능</span>}
-                    </div>
+                    <Tag size={13} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
+                    <span className="text-[14px] font-bold text-zinc-200 md:text-slate-700 leading-normal">
+                      {[hasParking && '주차 가능', hasReservation && '예약 가능', hasPackaging && '포장 가능'].filter(Boolean).join('  ·  ')}
+                    </span>
                   </div>
                 )}
 
@@ -1350,7 +1329,7 @@ export default function RestaurantInfoCard({
                       </a>
                     )}
                     <a
-                      href={`https://map.naver.com/v5/search/${encodeURIComponent(restaurant.name)}`}
+                      href={naverSearchUrl(restaurant.name, restaurant.address)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-[10.5px] font-bold text-zinc-300 md:text-slate-600 bg-white/5 md:bg-white border border-white/10 md:border-slate-200 px-2.5 py-1 rounded-full hover:bg-white/10 md:hover:bg-slate-100 transition-colors"
@@ -1558,7 +1537,7 @@ export default function RestaurantInfoCard({
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[14px]">💡</span>
                     <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
-                      이렇게 즐기세요{pickerName ? ` · ${pickerName} 꿀팁` : ''}
+                      이렇게 즐기세요{pickerName ? ` · ${pickerName} Tip` : ''}
                     </span>
                   </div>
                   <ul className="flex flex-col gap-2">
