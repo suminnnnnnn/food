@@ -1466,24 +1466,34 @@ export default function RestaurantInfoCard({
               </div>
             )}
 
-            {/* Representative menu section */}
-            {menuList.length > 0 && (
-              <div className="bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
-                <div className="flex items-center gap-2 mb-1 shrink-0">
-                  <Utensils size={14} className="text-brand-orange" />
-                  <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">대표 메뉴 & 가격</span>
-                </div>
-                <div className="flex flex-col gap-1 w-full">
-                  {menuList.map((menu, index) => {
-                    const isSignature = index < 2;
-                    return (
+            {/* 유튜버 Pick — 크리에이터가 영상에서 먹고 추천한 메뉴 (공식 메뉴 아님, 창작자 콘텐츠 기반) */}
+            {menuList.length > 0 && (() => {
+              const picker = sortedVideos[0]?.youtuber;
+              const pickerName = picker?.name;
+              return (
+                <div className="bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm relative overflow-hidden">
+                  <div className="flex items-center gap-2 mb-1 shrink-0">
+                    {picker?.profile_image ? (
+                      <img
+                        src={picker.profile_image}
+                        alt={pickerName || ''}
+                        className="w-6 h-6 rounded-full object-cover ring-1 ring-orange-500/50 shrink-0"
+                        onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(pickerName || '?')}&background=random&color=fff&size=64`; }}
+                      />
+                    ) : (
+                      <Utensils size={14} className="text-brand-orange shrink-0" />
+                    )}
+                    <div className="min-w-0 leading-tight">
+                      <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">
+                        {pickerName ? `${pickerName} Pick` : '유튜버 Pick'}
+                      </span>
+                      <span className="block text-[9.5px] text-zinc-500 md:text-slate-400 font-bold">영상에서 먹고 추천한 메뉴예요</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1 w-full">
+                    {menuList.map((menu, index) => (
                       <div key={index} className={`flex items-baseline gap-1.5 py-2 ${index < menuList.length - 1 ? 'border-b border-zinc-800/60 md:border-slate-200' : ''}`}>
-                        {isSignature && (
-                          <span className="shrink-0 px-1.5 py-[1px] bg-orange-500/15 text-orange-400 md:text-orange-600 text-[9px] font-black rounded tracking-tight border border-orange-500/20">
-                            대표
-                          </span>
-                        )}
-                        <span className={`font-bold text-zinc-100 md:text-slate-700 ${isSignature ? 'text-[13px]' : 'text-[12px] text-zinc-300 md:text-slate-500'}`}>
+                        <span className="font-bold text-zinc-100 md:text-slate-700 text-[13px]">
                           {menu.name}
                         </span>
                         {menu.description && (
@@ -1491,20 +1501,20 @@ export default function RestaurantInfoCard({
                         )}
                         <div className="flex-1 border-b border-dashed border-zinc-700/50 md:border-slate-200 mx-1.5 min-w-[8px] h-3" />
                         {menu.price && (
-                          <span className={`font-black text-orange-400 md:text-orange-600 shrink-0 ${isSignature ? 'text-[13px]' : 'text-[12px]'}`}>
+                          <span className="font-black text-orange-400 md:text-orange-600 shrink-0 text-[13px]">
                             {menu.price}
                           </span>
                         )}
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                  <div className="pt-2.5 flex items-center gap-1.5 border-t border-white/5 md:border-slate-200 mt-1">
+                    <Info size={10} className="text-zinc-500 md:text-slate-400 shrink-0" />
+                    <p className="text-[9px] text-zinc-500 md:text-slate-400 font-extrabold">영상 콘텐츠 기반이라 실제 메뉴·가격과 다를 수 있어요.</p>
+                  </div>
                 </div>
-                <div className="pt-2.5 flex items-center gap-1.5 border-t border-white/5 md:border-slate-200 mt-1">
-                  <Info size={10} className="text-zinc-500 md:text-slate-400 shrink-0" />
-                  <p className="text-[9px] text-zinc-500 md:text-slate-400 font-extrabold">실제 메뉴 구성 및 가격은 매장 상황에 따라 다를 수 있습니다.</p>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Platform links */}
             <div className="grid grid-cols-2 gap-3 pt-1 shrink-0">
