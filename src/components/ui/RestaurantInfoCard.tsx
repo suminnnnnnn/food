@@ -744,6 +744,7 @@ export default function RestaurantInfoCard({
   const [embedError, setEmbedError] = useState(false);
   const [isHoursExpanded, setIsHoursExpanded] = useState(false);
   const [isSuggestOpen, setIsSuggestOpen] = useState(false); // 정보 정정·신고 모달
+  const [isDetailOpen, setIsDetailOpen] = useState(false); // 참고정보(편의·주소·태그·출처) 접기
   const [isHoursReportOpen, setIsHoursReportOpen] = useState(false); // 영업시간 제보 모달
   const [localHours, setLocalHours] = useState<string | null>(null); // 제보 즉시 반영
   const [showRouteModal, setShowRouteModal] = useState(false);
@@ -1265,6 +1266,15 @@ export default function RestaurantInfoCard({
                   </div>
                 </div>
 
+                {/* 상세 정보 토글 — 편의·주소·태그·출처는 접어서 초기 화면 단순화 */}
+                <button
+                  onClick={() => setIsDetailOpen(v => !v)}
+                  className="flex items-center gap-1 pt-1 text-[11px] font-bold text-zinc-500 md:text-slate-400 hover:text-zinc-300 md:hover:text-slate-600 transition-colors cursor-pointer w-fit"
+                >
+                  <Info size={11} /> 상세 정보 {isDetailOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+
+                {isDetailOpen && (<>
                 {/* 편의정보 (예약·주차·포장 등 — 있는 것만, 텍스트 나열) */}
                 {(hasParking || hasReservation || hasPackaging) && (
                   <div className="flex items-start gap-2.5">
@@ -1296,10 +1306,11 @@ export default function RestaurantInfoCard({
                     영업시간·메뉴는 <b className="font-bold text-zinc-400 md:text-slate-500">제보·자동수집 기반</b>이라 실제와 다를 수 있어요.
                   </span>
                 </div>
+                </>)}
               </div>
 
-              {/* 검색 태그 (#방송·랜드마크·음식·상황·지역) — 탭하면 검색 실행 */}
-              {displayChips.length > 0 && (
+              {/* 검색 태그 (#방송·랜드마크·음식·상황·지역) — 상세 정보 펼칠 때만 */}
+              {isDetailOpen && displayChips.length > 0 && (
                 <div className="pt-3 border-t border-zinc-800 md:border-slate-200 flex flex-wrap gap-x-2.5 gap-y-1.5">
                   {displayChips.map((c) => (
                     <button
