@@ -76,13 +76,13 @@ function buildDisplayChips(restaurant: Restaurant): DisplayChip[] {
   const regionTop = region.sort((a, b) => a.length - b.length).slice(0, 2);
 
   const toChip = (t: string): DisplayChip => ({ label: t, query: t });
-  // 중복 라벨 제거(방송칩이 우선)
+  // 중복 라벨 제거(방송칩 우선) — 노이즈 줄이려 버킷별 축소
   const combined = [
     ...broadcastChips,
-    ...landmarkChips,
-    ...food.slice(0, 6).map(toChip),
-    ...situ.slice(0, 4).map(toChip),
-    ...regionTop.map(toChip),
+    ...landmarkChips.slice(0, 2),
+    ...food.slice(0, 3).map(toChip),
+    ...situ.slice(0, 2).map(toChip),
+    ...regionTop.slice(0, 1).map(toChip),
   ];
   const outSeen = new Set<string>();
   const result: DisplayChip[] = [];
@@ -91,7 +91,7 @@ function buildDisplayChips(restaurant: Restaurant): DisplayChip[] {
     outSeen.add(c.label);
     result.push(c);
   }
-  return result.slice(0, 14);
+  return result.slice(0, 7); // 14 → 최대 7개
 }
 
 declare global {
@@ -893,35 +893,7 @@ export default function RestaurantInfoCard({
           </button>
           
           <div className="flex items-center gap-2">
-            {/* 즐겨찾기 */}
-            <button
-              onClick={() => toggleFavorite && toggleFavorite(restaurant.id)}
-              className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                favorites.includes(restaurant.id)
-                  ? 'text-orange-500 hover:bg-orange-50'
-                  : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
-              }`}
-              title="즐겨찾기"
-            >
-              <Star 
-                size={18} 
-                fill={favorites.includes(restaurant.id) ? 'currentColor' : 'none'} 
-              />
-            </button>
-            
-            {/* 공유하기 */}
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                alert('맛집 링크가 클립보드에 복사되었습니다.');
-              }}
-              className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-              title="공유하기"
-            >
-              <Share2 size={18} />
-            </button>
-            
-            {/* 닫기 X */}
+            {/* 닫기 X (저장·공유는 아래 퀵버튼으로 일원화) */}
             <button 
               onClick={onClose}
               className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
@@ -1339,19 +1311,6 @@ export default function RestaurantInfoCard({
                       #{c.label}
                     </button>
                   ))}
-                </div>
-              )}
-
-              {/* Row 7: AI 꿀팁 (Gemini 추천) */}
-              {restaurant.description_summary && (
-                <div className="pt-3 border-t border-zinc-800 md:border-slate-200 space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles size={13} className="text-orange-400 md:text-orange-500" />
-                    <span className="text-[16px] font-black text-zinc-200 md:text-slate-800">AI 꿀팁 (Gemini 추천)</span>
-                  </div>
-                  <div className="text-[16px] text-zinc-300 md:text-slate-600 font-medium leading-relaxed bg-zinc-800/40 md:bg-orange-500/5 border border-zinc-700/30 md:border-orange-500/10 rounded-xl p-3 whitespace-pre-wrap select-text">
-                    {restaurant.description_summary}
-                  </div>
                 </div>
               )}
             </div>
