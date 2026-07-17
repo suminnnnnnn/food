@@ -135,33 +135,40 @@ export default function FloatingItineraryPanel({
     );
   };
 
-  const renderPostItMemo = (item: ItineraryItem) => {
-    if (item.memo) {
-      return (
-        <div 
-          onClick={(e) => {
-            e.stopPropagation();
-            onEditItemMemo(item);
-          }}
-          className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/60 rounded-xl px-3 py-1.5 mt-2 cursor-pointer shadow-sm transition-all text-amber-900 text-xs font-semibold select-none leading-relaxed flex items-start gap-1.5 group/memo"
+  // 카드 하단 액션 바 — 메모(좌) · 길찾기(우). 길찾기는 홈탭 상세와 동일한 앱 선택 모달 오픈.
+  const renderItemActionBar = (item: ItineraryItem) => (
+    <div>
+      {item.memo && (
+        <div
+          onClick={(e) => { e.stopPropagation(); onEditItemMemo(item); }}
+          className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/60 rounded-xl px-3 py-1.5 mt-2 cursor-pointer shadow-sm transition-all text-amber-900 text-xs font-semibold select-none leading-relaxed flex items-start gap-1.5"
         >
           <span className="shrink-0 text-amber-500 text-[13px]">💡</span>
           <div className="flex-1 whitespace-pre-wrap">{item.memo}</div>
         </div>
-      );
-    }
-    return (
-      <div 
-        onClick={(e) => {
-          e.stopPropagation();
-          onEditItemMemo(item);
-        }}
-        className="text-[10px] text-slate-400 font-bold hover:text-orange-500 mt-1.5 cursor-pointer select-none inline-block px-1"
+      )}
+      <div
+        className="flex items-center justify-between gap-2 mt-2 pt-2 border-t"
+        style={{ borderColor: 'var(--itn-border-subtle)' }}
+        onClick={(e) => e.stopPropagation()}
       >
-        + 메모 추가
+        <button
+          onClick={() => onEditItemMemo(item)}
+          className="text-[11.5px] font-bold px-2 py-1 rounded-lg transition-colors hover:bg-black/5 cursor-pointer"
+          style={{ color: item.memo ? 'var(--itn-text-sub)' : 'var(--itn-text-muted)' }}
+        >
+          {item.memo ? '✎ 메모 수정' : '＋ 메모'}
+        </button>
+        <button
+          onClick={() => setRouteItem(item)}
+          className="flex items-center gap-1 text-[11.5px] font-black px-3 py-1.5 rounded-full transition-all active:scale-95 cursor-pointer"
+          style={{ color: 'var(--itn-accent)', background: 'var(--itn-accent-light)' }}
+        >
+          <Navigation size={11} /> 길찾기
+        </button>
       </div>
-    );
-  };
+    </div>
+  );
 
   // 반응형 너비 계산
   const panelWidth = isMobile
@@ -1000,7 +1007,6 @@ export default function FloatingItineraryPanel({
                               <button onClick={() => { onActiveDayChange(dayData.day); onMoveUp(idx); }} disabled={idx === 0} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="위로 이동"><ChevronUp size={13} /></button>
                               <button onClick={() => { onActiveDayChange(dayData.day); onMoveDown(idx); }} disabled={idx === dayItems.length - 1} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="아래로 이동"><ChevronDown size={13} /></button>
                               <button onClick={() => onEditItemMemo(item)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="상세 속성 편집"><Edit3 size={11} /></button>
-                              <button onClick={() => setRouteItem(item)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-orange-500/10 hover:text-orange-500 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="길찾기"><Navigation size={11} /></button>
                               <button onClick={() => { onActiveDayChange(dayData.day); onRemoveItem(item.id); }} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-500/10 hover:text-red-400 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="장소 삭제"><Trash2 size={11} /></button>
                             </>
                           );
@@ -1026,7 +1032,7 @@ export default function FloatingItineraryPanel({
                                   ))}
                                 </div>
                               )}
-                              {renderPostItMemo(item)}
+                              {renderItemActionBar(item)}
                             </>
                           );
 
@@ -1150,7 +1156,7 @@ export default function FloatingItineraryPanel({
                                   </div>
                                 )}
 
-                                {renderPostItMemo(item)}
+                                {renderItemActionBar(item)}
                               </div>
                               )}
 
