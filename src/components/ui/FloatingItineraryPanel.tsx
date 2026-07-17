@@ -1056,11 +1056,10 @@ export default function FloatingItineraryPanel({
                                     isItinerary: true,
                                     cornerBadge: (
                                       <div className="absolute top-1.5 left-1.5 flex flex-col items-start gap-1 z-20 pointer-events-none">
-                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-[10px] font-black text-white flex items-center justify-center shadow-md border border-white">
-                                          {idx + 1}
-                                        </div>
-                                        {item.visit_time && (
-                                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-lg bg-orange-500 text-white shadow">{item.visit_time}</span>
+                                        {item.visit_time ? (
+                                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-white shadow-md border border-white">{item.visit_time}</span>
+                                        ) : (
+                                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-white flex items-center justify-center shadow-md border border-white"><Clock size={10} /></div>
                                         )}
                                       </div>
                                     ),
@@ -1097,23 +1096,20 @@ export default function FloatingItineraryPanel({
                                   {controlButtons}
                                 </div>
 
-                                {/* 좌측 상단 순번 오버레이 */}
-                                <div className="absolute left-3 top-3 flex flex-col items-center gap-1 z-10" onClick={e => e.stopPropagation()}>
-                                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-[10px] font-black text-white flex items-center justify-center shadow-md border border-white">
-                                    {idx + 1}
-                                  </div>
-                                  {item.visit_time && (
-                                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-orange-500 text-white shadow">
-                                      {item.visit_time}
-                                    </span>
-                                  )}
-                                </div>
+                                {/* 시간 마커(좌) + 이름/주소 */}
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0 flex-1 pl-8">
-                                    <h5 className="text-[17px] font-bold truncate flex items-center gap-1.5 tracking-tight pr-10" style={{ color: 'var(--itn-text)' }}>
-                                      <span>{item.name}</span>
-                                    </h5>
-                                    <span className="text-[15px] block truncate mt-0.5 pr-10" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
+                                  <div className="min-w-0 flex-1 flex items-start gap-2 pr-10">
+                                    {item.visit_time ? (
+                                      <span className="shrink-0 mt-0.5 text-[11px] font-black px-2 py-0.5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-white shadow-md border border-white">{item.visit_time}</span>
+                                    ) : (
+                                      <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-white flex items-center justify-center shadow-md border border-white"><Clock size={11} /></span>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <h5 className="text-[17px] font-bold truncate flex items-center gap-1.5 tracking-tight" style={{ color: 'var(--itn-text)' }}>
+                                        <span>{item.name}</span>
+                                      </h5>
+                                      <span className="text-[15px] block truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
+                                    </div>
                                   </div>
                                 </div>
 
