@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DailyItinerary, ItineraryItem, Itinerary, Restaurant } from '@/types';
-import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Car, Footprints, Utensils, GripVertical, Heart, Share2, Bus, MoreVertical, RotateCcw } from 'lucide-react';
+import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Car, Footprints, Utensils, GripVertical, Heart, Share2, Bus, MoreVertical, RotateCcw, Eye, LayoutGrid, List } from 'lucide-react';
 import { getDistance } from '@/lib/geoUtils';
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
   onEditItemMemo: (item: ItineraryItem) => void;
   onSave: () => void;
   onClose: () => void;
+  onDelete?: () => void;
   selectedItemId: string | null;
   onSelectItem: (item: ItineraryItem) => void;
   recommendedRestaurants: { restaurant: Restaurant; distance: number; type: 'near' | 'on_the_way' }[];
@@ -39,6 +40,8 @@ interface Props {
   isInline?: boolean;
   isSearchingMode?: boolean;
   onSearchingModeChange?: (val: boolean) => void;
+  // 홈탭과 동일한 맛집 카드 렌더러 (등록 맛집 검색결과에 재사용)
+  renderRestaurantCard?: (r: Restaurant, variant: 'feed' | 'list', opts: { onClick: () => void; onDragStart: (e: any) => void; hideDistance?: boolean; actionNode?: React.ReactNode; isItinerary?: boolean; cornerBadge?: React.ReactNode }) => any;
 }
 
 export default function FloatingItineraryPanel({
@@ -51,6 +54,7 @@ export default function FloatingItineraryPanel({
   onEditItemMemo,
   onSave,
   onClose,
+  onDelete,
   selectedItemId,
   onSelectItem,
   recommendedRestaurants,
@@ -70,12 +74,17 @@ export default function FloatingItineraryPanel({
   sidebarWidth = 420,
   isInline = false,
   isSearchingMode: propSearchingMode,
-  onSearchingModeChange
+  onSearchingModeChange,
+  renderRestaurantCard
 }: Props) {
   // 아코디언 상태 관리 (기본적으로 첫번째 Day는 펼쳐진 상태로 세팅)
   const [expandedDays, setExpandedDays] = useState<Record<number, boolean>>({ 1: true });
   // 검색 모드로 진입할 때의 대상 Day
   const [targetDayForSearch, setTargetDayForSearch] = useState<number>(1);
+  // 검색 결과 보기 방식 (홈탭과 동일: 피드/리스트). 스크롤 절약 위해 리스트 기본
+  const [searchFeedLayout, setSearchFeedLayout] = useState<'insta' | 'list'>('list');
+  // 코스 타임라인 보기 방식 (홈탭과 동일: 피드/리스트)
+  const [timelineLayout, setTimelineLayout] = useState<'feed' | 'list'>('feed');
   
   const [internalSearchingMode, setInternalSearchingMode] = useState<boolean>(false);
   const isSearchingMode = propSearchingMode !== undefined ? propSearchingMode : internalSearchingMode;
@@ -83,7 +92,9 @@ export default function FloatingItineraryPanel({
 
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
-  const [hoveredConnectorIdx, setHoveredConnectorIdx] = useState<string | null>(null);
+  // 제목 인라인 편집 (생성 시엔 자동 제목이 붙고, 여기서 고쳐 쓴다)
+  const [editingTitle, setEditingTitle] = useState<boolean>(false);
+  const [titleDraft, setTitleDraft] = useState<string>('');
   
   // 카카오맵 연동 상태 관리
   const [activePollingItem, setActivePollingItem] = useState<{ dayNum: number; itemId: string; popupWindow: Window | null } | null>(null);
@@ -307,6 +318,25 @@ export default function FloatingItineraryPanel({
       const data = JSON.parse(dataStr);
       if (!data) return;
 
+      // 0. 기존 코스 아이템을 다른 Day로 이동 (드래그 앤 드롭)
+      if (data.__moveItem && data.itemId && onUpdateItinerary) {
+        const fromDay = data.fromDay;
+        if (fromDay === day) return; // 같은 날이면 무시(같은 날 순서변경은 화살표로)
+        const src = itinerary.days.find(d => d.day === fromDay);
+        const moved = src?.items.find((it: any) => it.id === data.itemId);
+        if (!moved) return;
+        onUpdateItinerary({
+          ...itinerary,
+          days: itinerary.days.map(d => {
+            if (d.day === fromDay) return { ...d, items: d.items.filter((it: any) => it.id !== data.itemId) };
+            if (d.day === day) return { ...d, items: [...d.items, moved] };
+            return d;
+          }),
+        });
+        onActiveDayChange(day);
+        return;
+      }
+
       // 1. 활성 Day를 드롭 대상 Day로 갱신
       onActiveDayChange(day);
 
@@ -321,6 +351,33 @@ export default function FloatingItineraryPanel({
     } catch (err) {
       console.error("Day drop failed", err);
     }
+  };
+
+  // 검색 결과 → 우리 서비스 등록 맛집 매칭 (kakao_place_id 우선, 없으면 이름+좌표 근접)
+  const findRegistered = (place: any): Restaurant | null => {
+    if (!restaurants || !restaurants.length) return null;
+    if (place?.id) {
+      const byId = restaurants.find(r => r.kakao_place_id && String(r.kakao_place_id) === String(place.id));
+      if (byId) return byId;
+    }
+    const px = parseFloat(place?.x), py = parseFloat(place?.y);
+    const norm = (s: string) => (s || '').replace(/\s/g, '');
+    return restaurants.find(r => norm(r.name) === norm(place?.place_name) &&
+      (isNaN(px) || isNaN(py) || (Math.abs(r.lat - py) < 0.003 && Math.abs(r.lng - px) < 0.003))) || null;
+  };
+  const fmtViews = (n?: number) => {
+    if (!n) return '';
+    if (n >= 10000) return `${Math.floor(n / 10000)}만`;
+    return n.toLocaleString();
+  };
+  // 타임라인 코스 아이템 → 등록 맛집 매칭 (restaurant_id 우선, 없으면 이름+좌표)
+  const findRegForItem = (item: any): Restaurant | null => {
+    if (!restaurants || !restaurants.length) return null;
+    if (item?.restaurant_id) {
+      const byRid = restaurants.find(r => String(r.id) === String(item.restaurant_id));
+      if (byRid) return byRid;
+    }
+    return findRegistered({ id: item?.kakao_place_id, place_name: item?.name, x: item?.lng, y: item?.lat });
   };
 
   // 캘린더 날짜 획득 헬퍼
@@ -356,6 +413,39 @@ export default function FloatingItineraryPanel({
   };
 
   // 제목 밑에 노출할 전체 여행 기간 포맷 (예: "2026.6.1(월) - 6.4(목)")
+  // 제목 인라인 편집 — 클릭하면 그 자리가 input이 된다
+  const beginEditTitle = () => { setTitleDraft(itinerary.title); setEditingTitle(true); };
+  const commitTitle = () => {
+    const next = titleDraft.trim();
+    if (next && next !== itinerary.title) onUpdateItinerary?.({ ...itinerary, title: next });
+    setEditingTitle(false);
+  };
+  const renderTitle = (maxW: string) => (
+    editingTitle ? (
+      <input
+        autoFocus
+        value={titleDraft}
+        onChange={e => setTitleDraft(e.target.value)}
+        onBlur={commitTitle}
+        onKeyDown={e => {
+          if (e.key === 'Enter') commitTitle();
+          if (e.key === 'Escape') setEditingTitle(false);
+        }}
+        className={`${maxW} text-base font-bold bg-transparent border-b outline-none`}
+        style={{ color: 'var(--itn-text)', borderColor: 'var(--itn-accent)' }}
+      />
+    ) : (
+      <h4
+        onClick={onUpdateItinerary ? beginEditTitle : undefined}
+        title={onUpdateItinerary ? '클릭해서 이름 수정' : undefined}
+        className={`text-base font-bold truncate ${maxW} ${onUpdateItinerary ? 'cursor-text hover:opacity-70 transition-opacity' : ''}`}
+        style={{ color: 'var(--itn-text)' }}
+      >
+        {itinerary.title}
+      </h4>
+    )
+  );
+
   const formatItineraryPeriod = (): string => {
     if (!itinerary.start_date) return '';
     try {
@@ -589,10 +679,10 @@ export default function FloatingItineraryPanel({
       <div className="flex items-center justify-between pb-3 shrink-0 border-b" style={{ borderColor: 'var(--itn-border)' }}>
         {isSearchingMode ? (
           <div className="flex-1 flex gap-6 items-center">
-            {/* 좌측 타임라인 헤더 */}
-            <div className="w-[380px] flex items-center justify-between shrink-0">
+            {/* 좌측 타임라인 헤더 — 콘텐츠 타임라인 컬럼 폭과 일치시켜 정렬 */}
+            <div className={`${isInline ? 'w-[340px]' : 'w-[380px]'} flex items-center justify-between shrink-0`}>
               <div className="flex flex-col min-w-0 gap-0.5">
-                <h4 className="text-base font-bold truncate max-w-[180px]" style={{ color: 'var(--itn-text)' }}>{itinerary.title}</h4>
+                {renderTitle('max-w-[180px]')}
                 {itinerary.start_date && (
                   <span className="text-xs font-medium" style={{ color: 'var(--itn-text-sub)' }}>
                     {formatItineraryPeriod()}
@@ -678,7 +768,7 @@ export default function FloatingItineraryPanel({
         ) : (
           <div className="flex-1 flex items-center justify-between">
             <div className="flex flex-col min-w-0 gap-0.5">
-              <h4 className="text-base font-bold truncate max-w-[200px]" style={{ color: 'var(--itn-text)' }}>{itinerary.title}</h4>
+              {renderTitle('max-w-[200px]')}
               {itinerary.start_date && (
                 <span className="text-xs font-medium" style={{ color: 'var(--itn-text-sub)' }}>
                   {formatItineraryPeriod()}
@@ -734,8 +824,17 @@ export default function FloatingItineraryPanel({
       {/* 본문 피드 영역 (검색모드 시 듀얼 컬럼 배치) */}
       <div className={`flex-1 flex min-h-0 mt-4 overflow-hidden ${isMobile ? 'flex-col gap-4' : 'gap-6'}`}>
         {/* 좌측 또는 전체: 통합 아코디언 타임라인 뷰 영역 (모든 Day 노출) */}
-        <div className={`${isMobile ? 'w-full' : isInline ? 'w-[340px]' : 'w-[380px]'} flex flex-col min-h-0 overflow-hidden shrink-0 ${isMobile && isSearchingMode ? 'hidden' : ''}`}>
-          <div className="flex-1 overflow-y-auto pr-1 space-y-3 relative min-h-0 itn-scrollbar">
+        <div className={`${isMobile ? 'w-full' : isInline ? (isSearchingMode ? 'w-[340px]' : 'w-full') : 'w-[380px]'} flex flex-col min-h-0 overflow-hidden shrink-0 ${isMobile && isSearchingMode ? 'hidden' : ''}`}>
+          {itinerary.days.some(d => (d.items || []).length > 0) && (
+            <div className="flex items-center justify-between px-2 pb-2 shrink-0">
+              <span className="text-[11px] font-bold" style={{ color: 'var(--itn-text-muted)' }}>코스</span>
+              <div className="flex items-center rounded-full p-0.5" style={{ background: 'var(--itn-card-hover)' }}>
+                <button type="button" onClick={() => setTimelineLayout('feed')} title="피드 보기" className="w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer" style={timelineLayout === 'feed' ? { background: 'var(--itn-card)', color: 'var(--itn-accent)', boxShadow: 'var(--itn-shadow-sm)' } : { color: 'var(--itn-text-muted)' }}><LayoutGrid size={12} /></button>
+                <button type="button" onClick={() => setTimelineLayout('list')} title="리스트 보기" className="w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer" style={timelineLayout === 'list' ? { background: 'var(--itn-card)', color: 'var(--itn-accent)', boxShadow: 'var(--itn-shadow-sm)' } : { color: 'var(--itn-text-muted)' }}><List size={12} /></button>
+              </div>
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto pl-2 pr-1 space-y-3 relative min-h-0 itn-scrollbar">
             {itinerary.days.map((dayData) => {
               const isExpanded = !!expandedDays[dayData.day];
               const dayItems = dayData.items || [];
@@ -794,10 +893,7 @@ export default function FloatingItineraryPanel({
 
                   {/* Day 아코디언 바디 (타임라인) */}
                   {isExpanded && (
-                    <div className="p-3 pl-8 space-y-0 relative">
-                      {dayItems.length > 0 && (
-                        <div className="absolute left-[19px] top-4 bottom-12 w-[2px]" style={{ background: 'var(--itn-timeline)' }} />
-                      )}
+                    <div className="p-3 px-0.5 space-y-0 relative">
 
                       {dayItems.length === 0 ? (
                         <div className="py-4 flex justify-center">
@@ -839,46 +935,91 @@ export default function FloatingItineraryPanel({
                             }
                           }
                           
+                          const reg = renderRestaurantCard ? findRegForItem(item) : null;
+                          const controlButtons = (
+                            <>
+                              <button onClick={() => { onActiveDayChange(dayData.day); onMoveUp(idx); }} disabled={idx === 0} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="위로 이동"><ChevronUp size={13} /></button>
+                              <button onClick={() => { onActiveDayChange(dayData.day); onMoveDown(idx); }} disabled={idx === dayItems.length - 1} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="아래로 이동"><ChevronDown size={13} /></button>
+                              <button onClick={() => onEditItemMemo(item)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="상세 속성 편집"><Edit3 size={11} /></button>
+                              <button onClick={() => { onActiveDayChange(dayData.day); onRemoveItem(item.id); }} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-500/10 hover:text-red-400 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="장소 삭제"><Trash2 size={11} /></button>
+                            </>
+                          );
+                          const extrasNode = (
+                            <>
+                              {(item.status || item.budget !== undefined) && (
+                                <div className="flex flex-wrap gap-1.5 items-center mt-1.5 select-none">
+                                  {item.status && (
+                                    <span className={`text-[14px] font-bold px-2 py-0.5 rounded-lg border ${item.status === 'confirmed' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-amber-50 border-amber-200 text-amber-600'}`}>{item.status === 'confirmed' ? '예약 완료 ✅' : '예약 필요 ⏳'}</span>
+                                  )}
+                                  {item.budget !== undefined && (
+                                    <span className="text-[14px] font-bold px-2 py-0.5 rounded-lg" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-sub)' }}>💸 {item.budget.toLocaleString()}원</span>
+                                  )}
+                                </div>
+                              )}
+                              {item.checklist && item.checklist.length > 0 && (
+                                <div className="space-y-1 mt-1.5 pt-1.5" style={{ borderTop: '1px solid var(--itn-border-subtle)' }} onClick={e => e.stopPropagation()}>
+                                  {item.checklist.map((check, cIdx) => (
+                                    <label key={cIdx} className="flex items-center gap-1.5 cursor-pointer text-[15px] select-none" style={{ color: 'var(--itn-text-sub)' }}>
+                                      <input type="checkbox" checked={check.done} onChange={() => handleToggleChecklist(dayData.day, item.id, cIdx)} className="w-3.5 h-3.5 rounded accent-orange-500 cursor-pointer" />
+                                      <span className={check.done ? 'line-through' : ''} style={check.done ? { color: 'var(--itn-text-muted)' } : undefined}>{check.text}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
+                              {item.memo && (
+                                <p className="text-[15px] px-2.5 py-1 rounded-xl truncate mt-1.5 select-none" style={{ color: 'var(--itn-text-sub)', background: 'var(--itn-card-hover)', border: '1px solid var(--itn-border-subtle)' }}>💡 {item.memo}</p>
+                              )}
+                            </>
+                          );
+
                           return (
                             <div key={item.id} className="relative group/panel" style={{ marginTop: idx > 0 ? '2px' : '0' }}>
                               {/* 이전 Day 연계 인라인 거리 */}
                               {prevDayDistText && (
-                                <div className="relative left-[-23px] h-5 flex items-center select-none mb-0.5">
-                                  <span className="ml-[12px] text-[11px] font-medium" style={{ color: 'var(--itn-accent)' }}>{prevDayDistText}</span>
+                                <div className="flex items-center justify-center py-1 select-none">
+                                  <span className="text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">{prevDayDistText}</span>
                                 </div>
                               )}
-                              {/* 인라인 거리 텍스트 + 호버 추가 버튼 */}
+                              {/* 인라인 거리 */}
                               {distanceText && (
-                                <div
-                                  className="relative left-[-23px] h-5 flex items-center select-none group/connector"
-                                  onMouseEnter={() => setHoveredConnectorIdx(connectorKey)}
-                                  onMouseLeave={() => setHoveredConnectorIdx(null)}
-                                >
-                                  <span className="ml-[12px] text-[11px] font-medium" style={{ color: 'var(--itn-text-muted)' }}>{distanceText}</span>
-                                  {/* 호버 시 '+' 버튼 페이드인 */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setTargetDayForSearch(dayData.day);
-                                      if (!isSearchingMode) setIsSearchingMode(true);
-                                    }}
-                                    className={`ml-2 w-4 h-4 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                      hoveredConnectorIdx === connectorKey ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
-                                    }`}
-                                    style={{ background: 'var(--itn-accent-light)', color: 'var(--itn-accent)' }}
-                                  >
-                                    <Plus size={10} />
-                                  </button>
+                                <div className="flex items-center justify-center py-1 select-none">
+                                  <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full text-slate-400 bg-slate-50 border border-slate-200">{distanceText}</span>
                                 </div>
                               )}
 
-                              {/* 코스 노드 바디 (Notion 템플릿 스타일 확장) */}
+                              {reg && renderRestaurantCard ? (
+                                <div className={`relative rounded-2xl w-full group ${isSelected ? 'ring-2 ring-orange-400' : ''}`}>
+                                  {renderRestaurantCard(reg, timelineLayout, {
+                                    hideDistance: true,
+                                    actionNode: controlButtons,
+                                    isItinerary: true,
+                                    cornerBadge: (
+                                      <div className="absolute top-1.5 left-1.5 flex flex-col items-start gap-1 z-20 pointer-events-none">
+                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-[10px] font-black text-white flex items-center justify-center shadow-md border border-white">
+                                          {idx + 1}
+                                        </div>
+                                        {item.visit_time && (
+                                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-lg bg-orange-500 text-white shadow">{item.visit_time}</span>
+                                        )}
+                                      </div>
+                                    ),
+                                    onClick: () => { onActiveDayChange(dayData.day); onSelectItem(item); },
+                                    onDragStart: (e: any) => { e.dataTransfer.setData('text/plain', JSON.stringify({ __moveItem: true, itemId: item.id, fromDay: dayData.day })); },
+                                  })}
+
+                                  {extrasNode}
+                                </div>
+                              ) : (
                               <div
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('text/plain', JSON.stringify({ __moveItem: true, itemId: item.id, fromDay: dayData.day }));
+                                }}
                                 onClick={() => {
                                   onActiveDayChange(dayData.day);
                                   onSelectItem(item);
                                 }}
-                                className={`relative rounded-2xl p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 ${
+                                className={`relative rounded-2xl p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 group ${
                                   isSelected
                                     ? 'ring-2'
                                     : ''
@@ -890,70 +1031,28 @@ export default function FloatingItineraryPanel({
                                   ...(isSelected ? { ringColor: 'rgba(var(--itn-accent-rgb), 0.2)' } : {})
                                 }}
                               >
-                                {/* 좌측 넘버링 인디케이터 */}
-                                <div className="absolute left-[-24px] top-3 flex flex-col items-center z-10" onClick={e => e.stopPropagation()}>
-                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-[11px] font-bold flex items-center justify-center text-white shadow-md ring-2 ring-white">
+                                {/* 컨트롤 — 호버 오버레이 */}
+                                <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/95 backdrop-blur-sm p-1 rounded-xl shadow-md z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200" onClick={e => e.stopPropagation()}>
+                                  {controlButtons}
+                                </div>
+
+                                {/* 좌측 상단 순번 오버레이 */}
+                                <div className="absolute left-3 top-3 flex flex-col items-center gap-1 z-10" onClick={e => e.stopPropagation()}>
+                                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-[10px] font-black text-white flex items-center justify-center shadow-md border border-white">
                                     {idx + 1}
                                   </div>
                                   {item.visit_time && (
-                                    <span className="text-[11px] font-bold mt-1.5 px-1.5 py-0.5 rounded-md" style={{ color: 'var(--itn-accent)', background: 'var(--itn-accent-light)' }}>
+                                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-orange-500 text-white shadow">
                                       {item.visit_time}
                                     </span>
                                   )}
                                 </div>
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <h5 className="text-[17px] font-bold truncate flex items-center gap-1.5 tracking-tight" style={{ color: 'var(--itn-text)' }}>
+                                  <div className="min-w-0 flex-1 pl-8">
+                                    <h5 className="text-[17px] font-bold truncate flex items-center gap-1.5 tracking-tight pr-10" style={{ color: 'var(--itn-text)' }}>
                                       <span>{item.name}</span>
                                     </h5>
-                                    <span className="text-[15px] block truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
-                                  </div>
-
-                                  {/* 컨트롤 */}
-                                  <div className="flex items-center gap-1 opacity-0 group-hover/panel:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
-                                    <button
-                                      onClick={() => {
-                                        onActiveDayChange(dayData.day);
-                                        onMoveUp(idx);
-                                      }}
-                                      disabled={idx === 0}
-                                      className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors"
-                                      style={{ color: 'var(--itn-text-muted)' }}
-                                      title="위로 이동"
-                                    >
-                                      <ChevronUp size={13} />
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        onActiveDayChange(dayData.day);
-                                        onMoveDown(idx);
-                                      }}
-                                      disabled={idx === dayItems.length - 1}
-                                      className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors"
-                                      style={{ color: 'var(--itn-text-muted)' }}
-                                      title="아래로 이동"
-                                    >
-                                      <ChevronDown size={13} />
-                                    </button>
-                                    <button
-                                      onClick={() => onEditItemMemo(item)}
-                                      className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer transition-colors"
-                                      style={{ color: 'var(--itn-text-muted)' }}
-                                      title="상세 속성 편집"
-                                    >
-                                      <Edit3 size={11} />
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        onActiveDayChange(dayData.day);
-                                        onRemoveItem(item.id);
-                                      }}
-                                      className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-500/10 hover:text-red-400 cursor-pointer transition-colors"
-                                      style={{ color: 'var(--itn-text-muted)' }}
-                                      title="장소 삭제"
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
+                                    <span className="text-[15px] block truncate mt-0.5 pr-10" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
                                   </div>
                                 </div>
 
@@ -1001,6 +1100,7 @@ export default function FloatingItineraryPanel({
                                   </p>
                                 )}
                               </div>
+                              )}
                             </div>
                           );
                         })
@@ -1062,44 +1162,107 @@ export default function FloatingItineraryPanel({
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto mt-3 pr-1 space-y-1.5 min-h-0 itn-scrollbar">
+                {/* 결과 헤더: 개수 + 피드/리스트 토글 (홈탭과 동일 포맷) */}
+                {searchResults.length > 0 && (
+                  <div className="flex items-center justify-between mt-2.5 shrink-0">
+                    <span className="text-[11px] font-bold" style={{ color: 'var(--itn-text-muted)' }}>{searchResults.length}개 결과</span>
+                    <div className="flex items-center rounded-full p-0.5" style={{ background: 'var(--itn-card-hover)' }}>
+                      <button type="button" onClick={() => setSearchFeedLayout('insta')} title="피드 보기" className="w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer" style={searchFeedLayout === 'insta' ? { background: 'var(--itn-card)', color: 'var(--itn-accent)', boxShadow: 'var(--itn-shadow-sm)' } : { color: 'var(--itn-text-muted)' }}><LayoutGrid size={12} /></button>
+                      <button type="button" onClick={() => setSearchFeedLayout('list')} title="리스트 보기" className="w-6 h-6 rounded-full flex items-center justify-center transition-all cursor-pointer" style={searchFeedLayout === 'list' ? { background: 'var(--itn-card)', color: 'var(--itn-accent)', boxShadow: 'var(--itn-shadow-sm)' } : { color: 'var(--itn-text-muted)' }}><List size={12} /></button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex-1 overflow-y-auto mt-2 pr-1 space-y-1.5 min-h-0 itn-scrollbar">
                   {isSearching ? (
                     <div className="py-8 text-center text-xs" style={{ color: 'var(--itn-text-muted)' }}>검색 중...</div>
                   ) : searchResults.length === 0 ? (
                     <div className="py-8 text-center text-xs" style={{ color: 'var(--itn-text-muted)' }}>검색 결과가 없습니다.</div>
                   ) : (
-                    searchResults.map((place: any, idx: number) => (
-                      <div
-                        key={`search-res-${idx}`}
-                        onClick={() => {
-                          onActiveDayChange(targetDayForSearch);
-                          setTimeout(() => {
-                            onAddPlaceFromSearch(place, targetDayForSearch);
-                          }, 50);
-                        }}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', JSON.stringify({
-                            ...place,
-                            is_search_result: true
-                          }));
-                        }}
-                        className="itn-card rounded-xl p-2.5 flex items-center justify-between gap-2 cursor-pointer transition-all active:scale-[0.98] select-none group"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <h6 className="text-xs font-bold truncate transition-colors" style={{ color: 'var(--itn-text)' }}>{place.place_name}</h6>
-                          <p className="text-xs truncate mt-1" style={{ color: 'var(--itn-text-sub)' }}>
-                            {place.road_address_name || place.address_name}
-                          </p>
-                          <span className="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full mt-1.5" style={{ color: 'var(--itn-accent)', background: 'var(--itn-accent-light)' }}>
-                            {place.category_name?.split(' > ').pop() || '관광지'}
-                          </span>
+                    searchResults.map((place: any, idx: number) => {
+                      const reg = findRegistered(place);
+                      const onAdd = () => { onActiveDayChange(targetDayForSearch); setTimeout(() => onAddPlaceFromSearch(place, targetDayForSearch), 50); };
+                      const onDrag = (e: any) => { e.dataTransfer.setData('text/plain', JSON.stringify({ ...place, is_search_result: true })); };
+                      if (reg) {
+                        // 우리 서비스 등록 맛집 — 리치 컴팩트 카드 (홈 리스트 모드 스타일)
+                        const vids = reg.videos || [];
+                        const head = reg.primary_video?.youtuber || vids[0]?.youtuber;
+                        const thumb = reg.primary_video?.thumbnail || vids[0]?.thumbnail;
+                        const views = reg.primary_video?.view_count || vids.reduce((m, v) => Math.max(m, v.view_count || 0), 0);
+                        const creatorCount = new Set(vids.map(v => v.youtuber?.name).filter(Boolean)).size;
+                        const cat = place.category_name?.split(' > ').pop() || reg.category?.split('>').pop()?.trim() || '맛집';
+                        if (searchFeedLayout === 'insta') {
+                          // 피드 모드 (홈 피드 카드 포맷) — 큰 썸네일 + 프로필/이름
+                          return (
+                            <div key={`search-res-${idx}`} onClick={onAdd} draggable onDragStart={onDrag}
+                              className="itn-card rounded-xl p-1.5 cursor-pointer transition-all active:scale-[0.98] select-none group">
+                              <div className="relative w-full aspect-video rounded-lg overflow-hidden" style={{ background: 'var(--itn-card-hover)' }}>
+                                {thumb ? (
+                                  <img src={thumb} className="w-full h-full object-cover" alt={reg.name} onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center"><Utensils size={26} style={{ color: 'var(--itn-text-muted)' }} /></div>
+                                )}
+                                {views > 0 && (
+                                  <span className="absolute bottom-1.5 right-1.5 bg-black/55 backdrop-blur-sm text-white text-[10px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-1"><Eye size={10} />{fmtViews(views)}</span>
+                                )}
+                                <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <span className="px-3 py-1.5 rounded-full bg-black/55 backdrop-blur-sm text-white text-[11px] font-bold flex items-center gap-1"><Plus size={12} /> 코스에 추가</span>
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1.5 px-0.5">
+                                {head?.profile_image ? (
+                                  <img src={head.profile_image} className="w-8 h-8 rounded-full object-cover shrink-0" alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                ) : (
+                                  <span className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0" style={{ background: 'var(--itn-card-hover)', color: 'var(--itn-text-muted)' }}>{head?.name?.[0] || '?'}</span>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <h6 className="text-[13.5px] font-bold truncate" style={{ color: 'var(--itn-text)' }}>{place.place_name}</h6>
+                                  <div className="text-[11px] font-semibold truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{head?.name || '리뷰'}{creatorCount > 1 ? ` 외 ${creatorCount - 1}` : ''} · {cat}</div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div key={`search-res-${idx}`} onClick={onAdd} draggable onDragStart={onDrag}
+                            className="itn-card rounded-xl p-2 flex items-center gap-2.5 cursor-pointer transition-all active:scale-[0.98] select-none group">
+                            <div className="w-[92px] h-[52px] rounded-lg overflow-hidden shrink-0 relative" style={{ background: 'var(--itn-card-hover)' }}>
+                              {thumb ? (
+                                <img src={thumb} className="w-full h-full object-cover" alt={reg.name} onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }} />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center"><Utensils size={18} style={{ color: 'var(--itn-text-muted)' }} /></div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h6 className="text-[13px] font-bold truncate" style={{ color: 'var(--itn-text)' }}>{place.place_name}</h6>
+                              <div className="flex items-center gap-1.5 mt-1 min-w-0">
+                                {head?.profile_image && (
+                                  <img src={head.profile_image} className="w-4 h-4 rounded-full object-cover shrink-0" alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                )}
+                                <span className="text-[11px] font-semibold truncate" style={{ color: 'var(--itn-text-sub)' }}>{head?.name || '리뷰'}{creatorCount > 1 ? ` 외 ${creatorCount - 1}` : ''}</span>
+                              </div>
+                              <div className="flex items-center gap-1 mt-0.5 text-[10.5px]" style={{ color: 'var(--itn-text-muted)' }}>
+                                {views > 0 && (<span className="flex items-center gap-0.5" style={{ color: 'var(--itn-accent)' }}><Eye size={10} /><span className="tabular-nums font-bold">{fmtViews(views)}</span></span>)}
+                                {views > 0 && <span>·</span>}
+                                <span className="truncate">{cat}</span>
+                              </div>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"><Plus size={13} style={{ color: 'var(--itn-accent)' }} /></div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={`search-res-${idx}`} onClick={onAdd} draggable onDragStart={onDrag}
+                          className="itn-card rounded-xl p-2.5 flex items-center justify-between gap-2 cursor-pointer transition-all active:scale-[0.98] select-none group">
+                          <div className="min-w-0 flex-1">
+                            <h6 className="text-xs font-bold truncate transition-colors" style={{ color: 'var(--itn-text)' }}>{place.place_name}</h6>
+                            <p className="text-xs truncate mt-1" style={{ color: 'var(--itn-text-sub)' }}>{place.road_address_name || place.address_name}</p>
+                            <span className="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full mt-1.5" style={{ color: 'var(--itn-accent)', background: 'var(--itn-accent-light)' }}>{place.category_name?.split(' > ').pop() || '관광지'}</span>
+                          </div>
+                          <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0"><Plus size={12} style={{ color: 'var(--itn-accent)' }} /></div>
                         </div>
-                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          <Plus size={12} style={{ color: 'var(--itn-accent)' }} />
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -1230,6 +1393,28 @@ export default function FloatingItineraryPanel({
               </div>
             )}
           </div>
+        )}
+      </div>
+
+      {/* 하단 상시 액션바 — 저장 / 삭제 (타임라인 컬럼 폭으로 제한 → 검색 열어도 안 늘어남) */}
+      <div className={`shrink-0 pt-3 mt-2 flex items-center gap-2.5 border-t ${isMobile ? '' : isInline ? (isSearchingMode ? 'w-[340px]' : '') : 'w-[420px]'}`} style={{ borderColor: 'var(--itn-border)' }}>
+        <button
+          onClick={onSave}
+          className="flex-1 h-11 rounded-2xl flex items-center justify-center gap-1.5 text-[14px] font-black text-white transition-all active:scale-[0.98] cursor-pointer"
+          style={{ background: 'linear-gradient(100deg,#FF3B30,#FF6F00)', boxShadow: '0 8px 20px -8px rgba(255,59,48,0.55)' }}
+          title="일정 저장"
+        >
+          <Check size={17} strokeWidth={3} /> 저장
+        </button>
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            className="flex-1 h-11 rounded-2xl flex items-center justify-center gap-1.5 text-[14px] font-bold transition-all active:scale-95 cursor-pointer hover:bg-red-50"
+            style={{ color: '#ef4444', background: 'var(--itn-card)', border: '1px solid var(--itn-border)' }}
+            title="일정 삭제"
+          >
+            <Trash2 size={16} /> 삭제
+          </button>
         )}
       </div>
     </motion.div>

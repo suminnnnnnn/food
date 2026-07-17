@@ -3,13 +3,15 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, Edit3, Compass, MapPin, ChevronLeft, ChevronRight, Cloud, Plus, X } from 'lucide-react';
-import { getLocalItineraries, deleteLocalItinerary } from '@/lib/supabase/itineraries';
+import { getLocalItineraries, deleteLocalItinerary, getItinerariesFromServer, deleteItineraryFromServer } from '@/lib/supabase/itineraries';
 import { Itinerary } from '@/types';
 
 interface ItineraryTabViewProps {
   onOpenItineraryPlanner: (itinerary?: any) => void;
   onCreateItinerary?: (itinerary: any) => void;
   onSelectTab: (tab: any) => void;
+  user?: any;
+  onSelectedDateChange?: (itinerary: any | null, day: number) => void;
 }
 
 function parseDate(s: string): Date {
@@ -21,6 +23,16 @@ function toYMD(d: Date): string {
 }
 
 const WEEKDAYS_SHORT = ['일','월','화','수','목','금','토'];
+
+// 한국 공휴일(대체공휴일 포함, 2026~2027) — 캘린더 표시용
+const HOLIDAYS = new Set<string>([
+  '2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-03-01','2026-03-02',
+  '2026-05-05','2026-05-24','2026-05-25','2026-06-06','2026-08-15','2026-08-17',
+  '2026-09-24','2026-09-25','2026-09-26','2026-10-03','2026-10-05','2026-10-09','2026-12-25',
+  '2027-01-01','2027-02-06','2027-02-07','2027-02-08','2027-02-09','2027-03-01',
+  '2027-05-05','2027-05-13','2027-06-06','2027-08-15','2027-09-14','2027-09-15','2027-09-16',
+  '2027-10-03','2027-10-09','2027-12-25',
+]);
 
 // ── 날씨 아이콘 — 갤럭시(One UI) 캘린더풍 채움형 플랫 아이콘 ──────────
 // 라인이 아닌 단색 실루엣 + 절제된 팔레트(골드 해 · 쿨그레이 구름 · 블루 강수)
@@ -130,7 +142,7 @@ function wmoToLabel(code: number): string {
 // 이벤트 바 색상 팔레트
 const BAR_COLORS = ['#ef4444','#f97316','#3b82f6','#8b5cf6','#10b981','#ec4899'];
 
-export default function ItineraryTabView({ onOpenItineraryPlanner, onCreateItinerary, onSelectTab }: ItineraryTabViewProps) {
+export default function ItineraryTabView({ onOpenItineraryPlanner, onCreateItinerary, onSelectTab, user, onSelectedDateChange }: ItineraryTabViewProps) {
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   type WeatherDay = { code: number; tempMin: number; tempMax: number };
   const [weatherMap, setWeatherMap] = useState<Record<string, WeatherDay>>({});
@@ -139,9 +151,9 @@ export default function ItineraryTabView({ onOpenItineraryPlanner, onCreateItine
   const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<string>(toYMD(today));
 
-  // ── 사이드바 내 일정 생성 폼 상태 (제목 + 기간만) ──────────────
-  const [creating, setCreating] = useState(false);
-  const [formTitle, setFormTitle] = useState('');
+  // ── 일정 생성: 별도 폼 없이 캘린더가 곧 범위 선택기 ────────────
+  // 제목·색상은 묻지 않고 자동 배정한다(생성 후 타임라인 헤더에서 제목 수정).
+  const [rangeMode, setRangeMode] = useState(false);
   const [formStart, setFormStart] = useState('');
   const [formEnd, setFormEnd] = useState('');
   // 인라인 삭제 확인 대상
@@ -179,56 +191,74 @@ export default function ItineraryTabView({ onOpenItineraryPlanner, onCreateItine
   useEffect(() => { fetchWeather(); }, [fetchWeather]);
 
   // ── 일정 로드 ────────────────────────────────────────────────
-  const loadItineraries = () => {
-    try { setItineraries(getLocalItineraries()); }
-    catch (e) { console.error('Failed to load itineraries', e); }
-  };
+  const loadItineraries = useCallback(async () => {
+    try {
+      const local = getLocalItineraries();
+      if (user?.id) {
+        const server = await getItinerariesFromServer(user.id);
+        const byId = new Map<string, Itinerary>();
+        [...local, ...server].forEach((it) => byId.set(it.id, it)); // 서버가 뒤 → 우선 반영
+        setItineraries(Array.from(byId.values()).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')));
+      } else {
+        setItineraries(local);
+      }
+    } catch (e) { console.error('Failed to load itineraries', e); setItineraries(getLocalItineraries()); }
+  }, [user]);
   useEffect(() => {
     loadItineraries();
     window.addEventListener('itinerariesUpdated', loadItineraries);
     return () => window.removeEventListener('itinerariesUpdated', loadItineraries);
-  }, []);
+  }, [loadItineraries]);
 
   // 인라인 삭제 확정
   const confirmDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setItineraries(deleteLocalItinerary(id));
+    deleteLocalItinerary(id);
+    if (user?.id) deleteItineraryFromServer(id).catch(() => {});
     window.dispatchEvent(new Event('itinerariesUpdated'));
     setConfirmDeleteId(null);
   };
 
-  // ── 새 일정 생성 (사이드바 인라인, 제목 + 기간) ────────────────
-  const openCreate = () => {
-    setFormTitle('');
-    setFormStart(selectedDate);
-    setFormEnd(selectedDate);
+  // ── 새 일정 생성 (캘린더에서 기간만 선택) ──────────────────────
+  const startRangeMode = () => {
+    setFormStart('');
+    setFormEnd('');
     setConfirmDeleteId(null);
-    setCreating(true);
+    setRangeMode(true);
   };
-  const cancelCreate = () => setCreating(false);
-  // 시작일 변경 시 종료일이 더 이르면 함께 맞춰줌
-  const changeStart = (v: string) => {
-    setFormStart(v);
-    if (v && (!formEnd || formEnd < v)) setFormEnd(v);
-  };
+  const cancelRangeMode = () => { setRangeMode(false); setFormStart(''); setFormEnd(''); };
+
   const validRange = !!formStart && !!formEnd && formEnd >= formStart;
   const tripDays = validRange
     ? Math.round((parseDate(formEnd).getTime() - parseDate(formStart).getTime()) / 86400000) + 1
     : 0;
+
   const submitCreate = () => {
     if (!validRange) return;
-    const title = formTitle.trim() || `${tripDays > 1 ? `${tripDays - 1}박 ${tripDays}일` : '당일'} 맛집 여행`;
+    // 기존 일정이 안 쓰는 색을 자동 배정 (다 쓰고 있으면 팔레트 순서대로 순환)
+    const used = new Set(itineraries.map(it => it.color).filter(Boolean));
+    const color = BAR_COLORS.find(c => !used.has(c)) ?? BAR_COLORS[itineraries.length % BAR_COLORS.length];
     const newItinerary = {
       id: `itinerary-${Date.now()}`,
-      title,
+      title: `${tripDays > 1 ? `${tripDays - 1}박 ${tripDays}일` : '당일'} 맛집 여행`,
       start_date: formStart,
       end_date: formEnd,
+      color,
       days: Array.from({ length: tripDays }, (_, i) => ({ day: i + 1, items: [] })),
       created_at: new Date().toISOString(),
     };
-    onCreateItinerary?.(newItinerary);
-    setCreating(false);
+    onCreateItinerary?.(newItinerary); // 저장 + 타임라인 편집 패널 즉시 진입
+    setRangeMode(false);
+    setFormStart(''); setFormEnd('');
   };
+
+  // 범위 선택 중 ESC로 취소
+  useEffect(() => {
+    if (!rangeMode) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelRangeMode(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [rangeMode]);
 
   // ── 캘린더 그리드 계산 ────────────────────────────────────────
   const calendarDays = useMemo(() => {
@@ -252,10 +282,10 @@ export default function ItineraryTabView({ onOpenItineraryPlanner, onCreateItine
     return rows;
   }, [calendarDays]);
 
-  // 이벤트 바: 각 일정에 색상 할당
+  // 이벤트 바: 사용자가 고른 색 우선, 색 없는 기존 일정은 팔레트 순환으로 폴백
   const itineraryColors = useMemo(() => {
     const map: Record<string, string> = {};
-    itineraries.forEach((it, i) => { map[it.id] = BAR_COLORS[i % BAR_COLORS.length]; });
+    itineraries.forEach((it, i) => { map[it.id] = it.color || BAR_COLORS[i % BAR_COLORS.length]; });
     return map;
   }, [itineraries]);
 
@@ -333,17 +363,30 @@ export default function ItineraryTabView({ onOpenItineraryPlanner, onCreateItine
               if (!date) return <div key={`e-${di}`} className="border-b border-slate-100 border-r last:border-r-0" />;
               const ymd = toYMD(date);
               const isToday = ymd === todayYMD;
-              const isSelected = ymd === selectedDate;
               const dow = date.getDay();
+              const isHoliday = HOLIDAYS.has(ymd);
               const weather = weatherMap[ymd];
               const eventsHere = itinerariesOnDate(ymd);
+
+              // 범위 선택 모드에서는 선택 표시가 기간(start~end)을 따른다
+              const rStatus = rangeMode ? rangeDayStatus(ymd) : 'normal';
+              const isEdge = rStatus === 'start' || rStatus === 'end';
+              const isSelected = rangeMode ? isEdge : ymd === selectedDate;
 
               return (
                 <div
                   key={ymd}
-                  onClick={() => setSelectedDate(ymd)}
+                  onClick={() => {
+                    if (rangeMode) { selectRangeDay(ymd); return; }
+                    setSelectedDate(ymd);
+                    if (onSelectedDateChange) {
+                      const it = itinerariesOnDate(ymd)[0] || null;
+                      const day = (it && it.start_date) ? Math.max(1, Math.round((parseDate(ymd).getTime() - parseDate(it.start_date).getTime()) / 86400000) + 1) : 1;
+                      onSelectedDateChange(it, day);
+                    }
+                  }}
                   className={`relative flex flex-col border-b border-r last:border-r-0 border-slate-100 cursor-pointer transition-colors
-                    ${isSelected ? 'bg-orange-50/70' : isToday ? 'bg-amber-50/40' : 'hover:bg-slate-50'}`}
+                    ${rStatus === 'in-range' ? 'bg-orange-50' : isSelected ? 'bg-orange-50/70' : isToday ? 'bg-amber-50/40' : 'hover:bg-slate-50'}`}
                   style={{ minHeight: 58 }}
                 >
                   {/* 날짜 + 날씨 아이콘 */}
@@ -352,9 +395,11 @@ export default function ItineraryTabView({ onOpenItineraryPlanner, onCreateItine
                     <div className={`w-[22px] h-[22px] flex items-center justify-center rounded-full text-[11px] font-black transition-all shrink-0
                       ${isSelected
                         ? 'text-white shadow-sm'
-                        : isToday
+                        : rStatus === 'in-range'
                           ? 'text-orange-600'
-                          : dow===0 ? 'text-red-500' : dow===6 ? 'text-sky-500' : 'text-slate-700'
+                          : isToday
+                            ? 'text-orange-600'
+                            : (dow===0 || isHoliday) ? 'text-red-500' : dow===6 ? 'text-sky-500' : 'text-slate-700'
                       }`}
                       style={isSelected ? { background:'linear-gradient(135deg,#ef4444,#f97316)', boxShadow:'0 2px 8px rgba(249,115,22,0.4)' }
                         : isToday ? { boxShadow:'inset 0 0 0 1.5px #fdba74' } : undefined}
@@ -510,104 +555,100 @@ export default function ItineraryTabView({ onOpenItineraryPlanner, onCreateItine
     </div>
   );
 
-  // ── 새 일정 생성 폼 (사이드바 내부, 제목 + 기간) ──────────────
-  const renderCreateForm = () => {
-    const dateInput = 'h-11 px-3 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-800 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition cursor-pointer';
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl border border-slate-200/70 shadow-[0_4px_24px_-8px_rgba(15,23,42,0.12)] overflow-hidden"
-      >
-        {/* 헤더 */}
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-7 h-7 rounded-full text-white"
-              style={{ background:'linear-gradient(135deg,#ef4444,#f97316)' }}>
-              <Plus size={15} strokeWidth={3}/>
-            </span>
-            <span className="text-[15px] font-black text-slate-800 tracking-tight">새 일정</span>
-          </div>
-          <button onClick={cancelCreate} aria-label="닫기"
-            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
-            <X size={16}/>
-          </button>
-        </div>
-
-        <div className="px-5 py-4 flex flex-col gap-4">
-          {/* 여행 기간 (핵심) */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-black text-slate-500">여행 기간</label>
-            <div className="flex items-center gap-2">
-              <input type="date" value={formStart} max={formEnd || undefined}
-                onChange={e => changeStart(e.target.value)}
-                className={`flex-1 ${dateInput}`} />
-              <span className="text-slate-300 font-black shrink-0">→</span>
-              <input type="date" value={formEnd} min={formStart || undefined}
-                onChange={e => setFormEnd(e.target.value)}
-                className={`flex-1 ${dateInput}`} />
-            </div>
-            {validRange && (
-              <span className="text-[11px] font-black text-orange-600 pl-0.5">
-                {tripDays > 1 ? `${tripDays - 1}박 ${tripDays}일` : '당일 여행'}
-              </span>
-            )}
-          </div>
-
-          {/* 제목 (선택) */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-black text-slate-500">
-              여행 이름 <span className="text-slate-300 font-bold">(선택)</span>
-            </label>
-            <input
-              value={formTitle}
-              onChange={e => setFormTitle(e.target.value)}
-              placeholder="비워두면 자동으로 지어드려요"
-              className="w-full h-11 px-3 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 transition"
-            />
-          </div>
-
-          {/* 액션 */}
-          <div className="flex items-center gap-2 pt-1">
-            <button onClick={cancelCreate}
-              className="h-11 px-4 rounded-xl text-[13px] font-black text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
-              취소
-            </button>
-            <button onClick={submitCreate} disabled={!validRange}
-              className="flex-1 h-11 rounded-xl text-[13px] font-black text-white transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background:'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: validRange ? '0 6px 18px -4px rgba(249,115,22,0.5)' : 'none' }}>
-              맛집 담으러 가기
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    );
+  // 여행 기간 범위 캘린더 — 날짜 상태/선택
+  const rangeDayStatus = (ymd: string): 'start' | 'end' | 'in-range' | 'normal' => {
+    if (!formStart) return 'normal';
+    if (ymd === formStart) return 'start';
+    if (ymd === formEnd) return 'end';
+    if (formEnd && ymd > formStart && ymd < formEnd) return 'in-range';
+    return 'normal';
   };
+  const selectRangeDay = (ymd: string) => {
+    if (!formStart || (formStart && formEnd)) { setFormStart(ymd); setFormEnd(''); }
+    else if (ymd < formStart) { setFormEnd(formStart); setFormStart(ymd); }
+    else setFormEnd(ymd);
+  };
+
+  // ── 범위 선택 확인 바 — 캘린더 아래에서 슬라이드업 ─────────────
+  const renderRangeBar = () => (
+    <motion.div
+      key="range-bar"
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.18 }}
+      className="flex items-center gap-3 px-4 h-14 rounded-2xl bg-white border border-orange-200 shadow-[0_8px_28px_-10px_rgba(249,115,22,0.45)]"
+    >
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5 leading-none">
+        {validRange ? (
+          <>
+            <span className="text-[13px] font-black text-slate-800 tracking-tight">
+              {tripDays > 1 ? `${tripDays - 1}박 ${tripDays}일` : '당일 여행'}
+            </span>
+            <span className="text-[11px] font-bold text-slate-400 truncate">{formStart} → {formEnd}</span>
+          </>
+        ) : (
+          <span className="text-[12.5px] font-bold text-slate-500">
+            {formStart ? '종료일을 선택하세요' : '캘린더에서 시작일을 선택하세요'}
+          </span>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {validRange && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={submitCreate}
+            className="shrink-0 px-4 h-9 rounded-xl text-[13px] font-black text-white transition-transform hover:scale-[1.03] active:scale-95 cursor-pointer"
+            style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 6px 18px -4px rgba(249,115,22,0.5)' }}
+          >
+            만들기
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <button onClick={cancelRangeMode} aria-label="취소"
+        className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+        <X size={16}/>
+      </button>
+    </motion.div>
+  );
 
   return (
     <div className="flex flex-col gap-2 pb-6 text-slate-700">
       {renderCalendar()}
 
-      {creating ? renderCreateForm() : (
-        <>
-          {renderDetailPanel()}
-
-          {/* 새 일정 추가 CTA (사이드바 인라인) */}
-          <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={openCreate}
-            className="mt-1 flex items-center justify-center gap-2 w-full h-12 rounded-2xl text-[14px] font-black text-white cursor-pointer"
-            style={{
-              background: 'linear-gradient(135deg, #ef4444, #f97316)',
-              boxShadow: '0 8px 24px -6px rgba(249,115,22,0.45), inset 0 1px 0 rgba(255,255,255,0.25)',
-            }}
+      <AnimatePresence mode="wait">
+        {rangeMode ? renderRangeBar() : (
+          <motion.div
+            key="browse"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="flex flex-col gap-2"
           >
-            <Plus size={18} strokeWidth={3}/>
-            <span className="tracking-tight">새 일정 추가</span>
-          </motion.button>
-        </>
-      )}
+            {renderDetailPanel()}
+
+            {/* 새 일정 추가 CTA (사이드바 인라인) */}
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={startRangeMode}
+              className="mt-1 flex items-center justify-center gap-2 w-full h-12 rounded-2xl text-[14px] font-black text-white cursor-pointer"
+              style={{
+                background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                boxShadow: '0 8px 24px -6px rgba(249,115,22,0.45), inset 0 1px 0 rgba(255,255,255,0.25)',
+              }}
+            >
+              <Plus size={18} strokeWidth={3}/>
+              <span className="tracking-tight">새 일정 추가</span>
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
