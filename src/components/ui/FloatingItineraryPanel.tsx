@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DailyItinerary, ItineraryItem, Itinerary, Restaurant } from '@/types';
-import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Car, Footprints, Utensils, GripVertical, Heart, Share2, Bus, MoreVertical, RotateCcw, Eye, LayoutGrid, List } from 'lucide-react';
+import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Car, Footprints, Utensils, GripVertical, Heart, Share2, Bus, MoreVertical, RotateCcw, Eye, LayoutGrid, List, ChevronRight } from 'lucide-react';
 import { getDistance } from '@/lib/geoUtils';
+import { openExternal } from '@/lib/external-link';
 
 interface Props {
   itinerary: Itinerary;
@@ -29,7 +30,7 @@ interface Props {
   searchResults: any[];
   isSearching: boolean;
   onSearchPlaces: () => void;
-  onAddPlaceFromSearch: (place: any, targetDay?: number) => void;
+  onAddPlaceFromSearch: (place: any, targetDay?: number, insertIndex?: number) => void;
 
   favorites: string[];
   restaurants: Restaurant[];
@@ -42,6 +43,8 @@ interface Props {
   onSearchingModeChange?: (val: boolean) => void;
   // 홈탭과 동일한 맛집 카드 렌더러 (등록 맛집 검색결과에 재사용)
   renderRestaurantCard?: (r: Restaurant, variant: 'feed' | 'list', opts: { onClick: () => void; onDragStart: (e: any) => void; hideDistance?: boolean; actionNode?: React.ReactNode; isItinerary?: boolean; cornerBadge?: React.ReactNode }) => any;
+  planningInsertIndex?: { day: number; index: number } | null;
+  onPlanningInsertIndexChange?: (info: { day: number; index: number } | null) => void;
 }
 
 export default function FloatingItineraryPanel({
@@ -75,7 +78,9 @@ export default function FloatingItineraryPanel({
   isInline = false,
   isSearchingMode: propSearchingMode,
   onSearchingModeChange,
-  renderRestaurantCard
+  renderRestaurantCard,
+  planningInsertIndex,
+  onPlanningInsertIndexChange
 }: Props) {
   // 아코디언 상태 관리 (기본적으로 첫번째 Day는 펼쳐진 상태로 세팅)
   const [expandedDays, setExpandedDays] = useState<Record<number, boolean>>({ 1: true });
@@ -103,6 +108,60 @@ export default function FloatingItineraryPanel({
   const [isParsingLink, setIsParsingLink] = useState<boolean>(false);
 
   const isMobile = windowWidth < 768;
+
+  // 길찾기 앱 선택 모달 대상 아이템 (홈탭 맛집 상세의 길찾기 UI와 동일 포맷)
+  const [routeItem, setRouteItem] = useState<ItineraryItem | null>(null);
+
+  const renderInsertZone = (targetDay: number, insertIdx: number) => {
+    return (
+      <div 
+        onClick={(e) => {
+          e.stopPropagation();
+          onPlanningInsertIndexChange?.({ day: targetDay, index: insertIdx });
+          setIsSearchingMode(true);
+          // Set targetDayForSearch so the search knows which day we are inserting into
+          setTargetDayForSearch(targetDay);
+        }}
+        className="group/insert relative h-3 my-[-1.5px] flex items-center justify-center cursor-pointer z-30 transition-all hover:h-6"
+      >
+        {/* Subtle line that lights up on hover */}
+        <div className="absolute inset-x-3 h-[1px] border-t border-dashed border-transparent group-hover/insert:border-orange-400/50 transition-colors" />
+        
+        {/* Circle "+" button that scales up on hover */}
+        <div className="absolute w-[18px] h-[18px] rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center opacity-0 scale-90 group-hover/insert:opacity-100 group-hover/insert:scale-100 transition-all hover:bg-orange-500 hover:border-orange-500 hover:text-white" style={{ color: 'var(--itn-accent)' }}>
+          <Plus size={9} strokeWidth={3.5} />
+        </div>
+      </div>
+    );
+  };
+
+  const renderPostItMemo = (item: ItineraryItem) => {
+    if (item.memo) {
+      return (
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditItemMemo(item);
+          }}
+          className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/60 rounded-xl px-3 py-1.5 mt-2 cursor-pointer shadow-sm transition-all text-amber-900 text-xs font-semibold select-none leading-relaxed flex items-start gap-1.5 group/memo"
+        >
+          <span className="shrink-0 text-amber-500 text-[13px]">💡</span>
+          <div className="flex-1 whitespace-pre-wrap">{item.memo}</div>
+        </div>
+      );
+    }
+    return (
+      <div 
+        onClick={(e) => {
+          e.stopPropagation();
+          onEditItemMemo(item);
+        }}
+        className="text-[10px] text-slate-400 font-bold hover:text-orange-500 mt-1.5 cursor-pointer select-none inline-block px-1"
+      >
+        + 메모 추가
+      </div>
+    );
+  };
 
   // 반응형 너비 계산
   const panelWidth = isMobile
@@ -941,6 +1000,7 @@ export default function FloatingItineraryPanel({
                               <button onClick={() => { onActiveDayChange(dayData.day); onMoveUp(idx); }} disabled={idx === 0} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="위로 이동"><ChevronUp size={13} /></button>
                               <button onClick={() => { onActiveDayChange(dayData.day); onMoveDown(idx); }} disabled={idx === dayItems.length - 1} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 disabled:opacity-30 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="아래로 이동"><ChevronDown size={13} /></button>
                               <button onClick={() => onEditItemMemo(item)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="상세 속성 편집"><Edit3 size={11} /></button>
+                              <button onClick={() => setRouteItem(item)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-orange-500/10 hover:text-orange-500 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="길찾기"><Navigation size={11} /></button>
                               <button onClick={() => { onActiveDayChange(dayData.day); onRemoveItem(item.id); }} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-500/10 hover:text-red-400 cursor-pointer transition-colors" style={{ color: 'var(--itn-text-muted)' }} title="장소 삭제"><Trash2 size={11} /></button>
                             </>
                           );
@@ -966,14 +1026,12 @@ export default function FloatingItineraryPanel({
                                   ))}
                                 </div>
                               )}
-                              {item.memo && (
-                                <p className="text-[15px] px-2.5 py-1 rounded-xl truncate mt-1.5 select-none" style={{ color: 'var(--itn-text-sub)', background: 'var(--itn-card-hover)', border: '1px solid var(--itn-border-subtle)' }}>💡 {item.memo}</p>
-                              )}
+                              {renderPostItMemo(item)}
                             </>
                           );
 
                           return (
-                            <div key={item.id} className="relative group/panel" style={{ marginTop: idx > 0 ? '2px' : '0' }}>
+                             <div key={item.id} className="relative group/panel flex flex-col gap-0.5" style={{ marginTop: idx > 0 ? '2px' : '0' }}>
                               {/* 이전 Day 연계 인라인 거리 */}
                               {prevDayDistText && (
                                 <div className="flex items-center justify-center py-1 select-none">
@@ -986,6 +1044,9 @@ export default function FloatingItineraryPanel({
                                   <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full text-slate-400 bg-slate-50 border border-slate-200">{distanceText}</span>
                                 </div>
                               )}
+
+                              {/* 인라인 삽입 영역 (카드가 렌더링되기 바로 전 위치) */}
+                              {renderInsertZone(dayData.day, idx)}
 
                               {reg && renderRestaurantCard ? (
                                 <div className={`relative rounded-2xl w-full group ${isSelected ? 'ring-2 ring-orange-400' : ''}`}>
@@ -1093,14 +1154,12 @@ export default function FloatingItineraryPanel({
                                   </div>
                                 )}
 
-
-                                {item.memo && (
-                                  <p className="text-[15px] px-2.5 py-1 rounded-xl truncate mt-1.5 select-none" style={{ color: 'var(--itn-text-sub)', background: 'var(--itn-card-hover)', border: '1px solid var(--itn-border-subtle)' }}>
-                                    💡 {item.memo}
-                                  </p>
-                                )}
+                                {renderPostItMemo(item)}
                               </div>
                               )}
+
+                              {/* 마지막 카드인 경우 하단에 삽입 영역 하나 더 렌더링 */}
+                              {idx === dayItems.length - 1 && renderInsertZone(dayData.day, dayItems.length)}
                             </div>
                           );
                         })
@@ -1139,6 +1198,17 @@ export default function FloatingItineraryPanel({
             {exploreTab === 'search' && (
               /* 1. 검색 탭 */
               <div className="flex-1 flex flex-col min-h-0">
+                {planningInsertIndex && (
+                  <div className="mb-2 px-3 py-1.5 rounded-lg flex items-center justify-between text-[11px] font-bold bg-orange-500/10 border border-orange-500/20 text-orange-600 animate-fadeIn shrink-0 select-none">
+                    <span className="flex items-center gap-1">📍 Day {planningInsertIndex.day}의 {planningInsertIndex.index + 1}번째 순서에 삽입 대기 중</span>
+                    <button 
+                      onClick={() => onPlanningInsertIndexChange?.(null)}
+                      className="text-[10px] text-slate-400 hover:text-orange-500 font-black cursor-pointer flex items-center justify-center p-0.5 rounded-full hover:bg-slate-100"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                )}
                 <div className="flex gap-1.5 shrink-0">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={12} style={{ color: 'var(--itn-text-muted)' }} />
@@ -1181,7 +1251,7 @@ export default function FloatingItineraryPanel({
                   ) : (
                     searchResults.map((place: any, idx: number) => {
                       const reg = findRegistered(place);
-                      const onAdd = () => { onActiveDayChange(targetDayForSearch); setTimeout(() => onAddPlaceFromSearch(place, targetDayForSearch), 50); };
+                      const onAdd = () => { onActiveDayChange(targetDayForSearch); setTimeout(() => onAddPlaceFromSearch(place, targetDayForSearch, planningInsertIndex?.day === targetDayForSearch ? planningInsertIndex.index : undefined), 50); };
                       const onDrag = (e: any) => { e.dataTransfer.setData('text/plain', JSON.stringify({ ...place, is_search_result: true })); };
                       if (reg) {
                         // 우리 서비스 등록 맛집 — 리치 컴팩트 카드 (홈 리스트 모드 스타일)
@@ -1417,6 +1487,93 @@ export default function FloatingItineraryPanel({
           </button>
         )}
       </div>
+
+      {/* 길찾기 앱 선택 모달 — 홈탭 맛집 상세와 동일 UI */}
+      <AnimatePresence>
+        {routeItem && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setRouteItem(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-5 text-white z-10"
+            >
+              <div className="space-y-1.5 text-center">
+                <div className="w-10 h-10 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Navigation size={18} />
+                </div>
+                <h3 className="text-base font-black tracking-tight">길찾기 앱 선택</h3>
+                <p className="text-zinc-400 text-xs font-semibold">출발지: 현재 위치 · 도착지: {routeItem.name}</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {/* 네이버 지도 */}
+                <button
+                  onClick={() => {
+                    openExternal(`https://map.naver.com/p/directions/-/${routeItem.lat},${routeItem.lng},${encodeURIComponent(routeItem.name)}/-/car`, { reason: 'naver_map_route' });
+                    setRouteItem(null);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-green-500/30 rounded-2xl transition-all group text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <img src="/naver_map_logo.png?v=3" alt="Naver" className="w-5 h-5 rounded object-contain shrink-0" />
+                    <span className="text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors">네이버 지도</span>
+                  </div>
+                  <ChevronRight size={14} className="text-zinc-500 group-hover:text-white transition-colors shrink-0" />
+                </button>
+
+                {/* 카카오맵 */}
+                <button
+                  onClick={() => {
+                    openExternal(`https://map.kakao.com/link/to/${encodeURIComponent(routeItem.name)},${routeItem.lat},${routeItem.lng}`, { reason: 'kakao_navi' });
+                    setRouteItem(null);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-yellow-500/30 rounded-2xl transition-all group text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAOVBMVEVHcEwAdv//5wD/5AD74gAAfP/64QD64QD64QD74gC4wIOApbw+i+ejtZvv3CJaldjTzlwlhfLc0kuK1weQAAAACnRSTlMA////Fv//+bQX9hPeKgAAALpJREFUKJF901sSgyAMBVBIBHlKcf+LLYYWCYL5ccZjLoFBIazZ9aR2Y4WwM6llhVmjEV0mQinsksVNOqack8ObG4KTUpWS6oMjoiMibvrHo1mpoRP9hTJkekRkCDUPgNIDMKRUX95BuL5aYXoixaoD4JzE1oGU97OB+FbGfb4eggb/UxnhcbZ1zmK+WYdaE+bbeqRl5YlTpNNJXSPD0soaGWqUoW8cMDpkyC4tMtvfr+a2xnLlt/Xv8AWzshIVTzb8eQAAAABJRU5ErkJggg==" alt="Kakao" className="w-5 h-5 rounded object-contain shrink-0" />
+                    <span className="text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors">카카오맵</span>
+                  </div>
+                  <ChevronRight size={14} className="text-zinc-500 group-hover:text-white transition-colors shrink-0" />
+                </button>
+
+                {/* 티맵 */}
+                <button
+                  onClick={() => {
+                    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    if (isMobileUA) {
+                      window.location.href = `tmap://route?rGoName=${encodeURIComponent(routeItem.name)}&rGoX=${routeItem.lng}&rGoY=${routeItem.lat}`;
+                    } else {
+                      alert('티맵 앱 길찾기는 모바일 기기에서만 지원합니다. PC에서는 네이버 또는 카카오 지도를 이용해주세요.');
+                    }
+                    setRouteItem(null);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-blue-500/30 rounded-2xl transition-all group text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <img src="/tmap_logo.png?v=3" alt="Tmap" className="w-5 h-5 rounded object-contain shrink-0" />
+                    <span className="text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors">티맵 (TMAP)</span>
+                  </div>
+                  <ChevronRight size={14} className="text-zinc-500 group-hover:text-white transition-colors shrink-0" />
+                </button>
+              </div>
+
+              <button
+                onClick={() => setRouteItem(null)}
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 active:scale-[0.98] transition-all text-white font-bold rounded-2xl text-[12px] cursor-pointer"
+              >
+                닫기
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
