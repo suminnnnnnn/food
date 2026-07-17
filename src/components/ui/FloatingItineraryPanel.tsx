@@ -819,21 +819,26 @@ export default function FloatingItineraryPanel({
                               {/* 인라인 삽입 영역 (카드가 렌더링되기 바로 전 위치) */}
                               {renderInsertZone(dayData.day, idx)}
 
+                              {/* 좌측 시간 spine 마커 + 카드 컬럼 */}
+                              <div className="relative grid gap-2" style={{ gridTemplateColumns: '46px minmax(0,1fr)' }}>
+                                <div className="relative flex justify-center">
+                                  <div className="absolute top-0 bottom-0 w-[2.5px] rounded-full" style={{ left: '50%', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
+                                  <div className="relative z-10 mt-1">
+                                    {item.visit_time ? (
+                                      <span className="block text-[11px] font-black px-2 py-0.5 rounded-full text-white shadow-md whitespace-nowrap" style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}>{item.visit_time}</span>
+                                    ) : (
+                                      <span className="w-6 h-6 rounded-full flex items-center justify-center text-white shadow-md" style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}><Clock size={11} /></span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="min-w-0">
+
                               {reg && renderRestaurantCard ? (
                                 <div className={`relative rounded-2xl w-full group ${isSelected ? 'ring-2 ring-orange-400' : ''}`}>
                                   {renderRestaurantCard(reg, timelineLayout, {
                                     hideDistance: true,
                                     actionNode: controlButtons,
                                     isItinerary: true,
-                                    cornerBadge: (
-                                      <div className="absolute top-1.5 left-1.5 flex flex-col items-start gap-1 z-20 pointer-events-none">
-                                        {item.visit_time ? (
-                                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-white shadow-md border border-white">{item.visit_time}</span>
-                                        ) : (
-                                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-white flex items-center justify-center shadow-md border border-white"><Clock size={10} /></div>
-                                        )}
-                                      </div>
-                                    ),
                                     onClick: () => { onActiveDayChange(dayData.day); onSelectItem(item); },
                                     onDragStart: (e: any) => { e.dataTransfer.setData('text/plain', JSON.stringify({ __moveItem: true, itemId: item.id, fromDay: dayData.day })); },
                                   })}
@@ -867,21 +872,12 @@ export default function FloatingItineraryPanel({
                                   {controlButtons}
                                 </div>
 
-                                {/* 시간 마커(좌) + 이름/주소 */}
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0 flex-1 flex items-start gap-2 pr-10">
-                                    {item.visit_time ? (
-                                      <span className="shrink-0 mt-0.5 text-[11px] font-black px-2 py-0.5 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-white shadow-md border border-white">{item.visit_time}</span>
-                                    ) : (
-                                      <span className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-gradient-to-br from-red-600 to-orange-500 text-white flex items-center justify-center shadow-md border border-white"><Clock size={11} /></span>
-                                    )}
-                                    <div className="min-w-0 flex-1">
-                                      <h5 className="text-[17px] font-bold truncate flex items-center gap-1.5 tracking-tight" style={{ color: 'var(--itn-text)' }}>
-                                        <span>{item.name}</span>
-                                      </h5>
-                                      <span className="text-[15px] block truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
-                                    </div>
-                                  </div>
+                                {/* 이름/주소 (시간은 좌측 spine 마커) */}
+                                <div className="min-w-0 pr-10">
+                                  <h5 className="text-[17px] font-bold truncate flex items-center gap-1.5 tracking-tight" style={{ color: 'var(--itn-text)' }}>
+                                    <span>{item.name}</span>
+                                  </h5>
+                                  <span className="text-[15px] block truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
                                 </div>
 
                                 {/* 노션 데이터 속성 (예약상태, 예산) */}
@@ -924,6 +920,8 @@ export default function FloatingItineraryPanel({
                                 {renderItemActionBar(item)}
                               </div>
                               )}
+                                </div>
+                              </div>
 
                               {/* 마지막 카드인 경우 하단에 삽입 영역 하나 더 렌더링 */}
                               {idx === dayItems.length - 1 && renderInsertZone(dayData.day, dayItems.length)}
