@@ -101,12 +101,6 @@ export default function FloatingItineraryPanel({
   const [editingTitle, setEditingTitle] = useState<boolean>(false);
   const [titleDraft, setTitleDraft] = useState<string>('');
   
-  // 카카오맵 연동 상태 관리
-  const [activePollingItem, setActivePollingItem] = useState<{ dayNum: number; itemId: string; popupWindow: Window | null } | null>(null);
-  const [showManualInputId, setShowManualInputId] = useState<string | null>(null);
-  const [manualDuration, setManualDuration] = useState<string>('');
-  const [isParsingLink, setIsParsingLink] = useState<boolean>(false);
-
   const isMobile = windowWidth < 768;
 
   // 길찾기 앱 선택 모달 대상 아이템 (홈탭 맛집 상세의 길찾기 UI와 동일 포맷)
@@ -176,179 +170,6 @@ export default function FloatingItineraryPanel({
     : isSearchingMode
     ? Math.min(windowWidth - 48, 840)
     : Math.min(windowWidth - 48, sidebarWidth);
-
-  // 카카오맵 팝업 길찾기 오픈
-  const openKakaoMapRoute = (dayNum: number, prevItem: ItineraryItem, currentItem: ItineraryItem) => {
-    if (typeof window === 'undefined') return;
-    
-    // 카카오맵 공식 공유 링크 스킴 (위도,경도 순서)
-    // 모바일/PC 브라우저 접속 시 자동으로 최적화된 길찾기 결과 화면으로 리다이렉트됩니다.
-    const url = `https://map.kakao.com/link/to/${encodeURIComponent(currentItem.name)},${currentItem.lat},${currentItem.lng}/from/${encodeURIComponent(prevItem.name)},${prevItem.lat},${prevItem.lng}`;
-    
-    const popup = window.open(url, '_blank', 'width=450,height=700');
-    setActivePollingItem({
-      dayNum,
-      itemId: currentItem.id,
-      popupWindow: popup
-    });
-  };
-
-  // 수동 정보 입력 적용
-  const handleApplyManualRoute = (dayNum: number, itemId: string, durationMin: number, type?: 'walk' | 'transit' | 'car') => {
-    if (!onUpdateItinerary) return;
-    const updatedDays = itinerary.days.map(d => {
-      if (d.day === dayNum) {
-        return {
-          ...d,
-          items: d.items.map(item => {
-            if (item.id === itemId) {
-              return {
-                ...item,
-                transportType: type || item.transportType,
-                customDuration: durationMin || undefined
-              };
-            }
-            return item;
-          })
-        };
-      }
-      return d;
-    });
-    onUpdateItinerary({ ...itinerary, days: updatedDays });
-    setShowManualInputId(null);
-    setManualDuration('');
-  };
-
-  // 수동 링크 입력 파싱
-  const parseAndApplyLinkDirectly = async (urlStr: string, dayNum: number, itemId: string) => {
-    if (isParsingLink) return;
-    setIsParsingLink(true);
-    try {
-      const res = await fetch('/api/parse-route', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: urlStr })
-      });
-      const json = await res.json();
-      if (json.success && json.data) {
-        const { duration, transportType } = json.data;
-        if (onUpdateItinerary) {
-          const updatedDays = itinerary.days.map(d => {
-            if (d.day === dayNum) {
-              return {
-                ...d,
-                items: d.items.map(item => {
-                  if (item.id === itemId) {
-                    return {
-                      ...item,
-                      transportType: transportType || item.transportType,
-                      customDuration: duration || undefined
-                    };
-                  }
-                  return item;
-                })
-              };
-            }
-            return d;
-          });
-          onUpdateItinerary({ ...itinerary, days: updatedDays });
-        }
-        alert('카카오맵 경로 정보가 반영되었습니다!');
-      } else {
-        alert(`파싱 실패: ${json.error || '유효하지 않은 링크이거나 정보를 찾을 수 없습니다.'}`);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('서버 오류가 발생했습니다.');
-    } finally {
-      setIsParsingLink(false);
-    }
-  };
-
-  // 클립보드 폴링 및 팝업 자동 닫기 처리
-  useEffect(() => {
-    if (!activePollingItem) return;
-
-    let timer: NodeJS.Timeout | null = null;
-    let focusHandler: (() => void) | null = null;
-
-    const parseAndApplyLink = async (urlStr: string) => {
-      if (isParsingLink) return;
-      setIsParsingLink(true);
-      try {
-        const res = await fetch('/api/parse-route', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: urlStr })
-        });
-        const json = await res.json();
-        if (json.success && json.data) {
-          const { duration, transportType } = json.data;
-          
-          if (onUpdateItinerary) {
-            const updatedDays = itinerary.days.map(d => {
-              if (d.day === activePollingItem.dayNum) {
-                return {
-                  ...d,
-                  items: d.items.map(item => {
-                    if (item.id === activePollingItem.itemId) {
-                      return {
-                        ...item,
-                        transportType: transportType || item.transportType,
-                        customDuration: duration || undefined
-                      };
-                    }
-                    return item;
-                  })
-                };
-              }
-              return d;
-            });
-            onUpdateItinerary({ ...itinerary, days: updatedDays });
-          }
-
-          if (activePollingItem.popupWindow && !activePollingItem.popupWindow.closed) {
-            activePollingItem.popupWindow.close();
-          }
-          setActivePollingItem(null);
-          alert('카카오맵 실시간 길찾기 정보가 자동으로 반영되었습니다!');
-        }
-      } catch (err) {
-        console.error('자동 폴링 파싱 오류:', err);
-      } finally {
-        setIsParsingLink(false);
-      }
-    };
-
-    const checkClipboard = async () => {
-      if (activePollingItem.popupWindow && activePollingItem.popupWindow.closed) {
-        setActivePollingItem(null);
-        return;
-      }
-
-      try {
-        if (document.hasFocus()) {
-          const text = await navigator.clipboard.readText();
-          if (text && (text.includes('kko.to') || text.includes('kakao.com'))) {
-            await parseAndApplyLink(text);
-          }
-        }
-      } catch (e) {
-        // 권한 에러 등 무시
-      }
-    };
-
-    focusHandler = () => {
-      checkClipboard();
-    };
-    window.addEventListener('focus', focusHandler);
-    timer = setInterval(checkClipboard, 1000);
-
-    return () => {
-      if (timer) clearInterval(timer);
-      if (focusHandler) window.removeEventListener('focus', focusHandler);
-    };
-  }, [activePollingItem, itinerary, onUpdateItinerary, isParsingLink]);
 
   // 트리플 벤치마킹 탐색 탭 상태
   const [exploreTab, setExploreTab] = useState<'recommend' | 'favorite' | 'search'>('search');
@@ -675,30 +496,6 @@ export default function FloatingItineraryPanel({
   };
 
   // 교통수단 선택 토글
-  const handleUpdateTransportType = (dayNum: number, itemId: string, type: 'walk' | 'transit' | 'car') => {
-    if (!onUpdateItinerary) return;
-
-    const updatedDays = itinerary.days.map(d => {
-      if (d.day === dayNum) {
-        return {
-          ...d,
-          items: d.items.map(item => {
-            if (item.id === itemId) {
-              return { ...item, transportType: type };
-            }
-            return item;
-          })
-        };
-      }
-      return d;
-    });
-
-    onUpdateItinerary({
-      ...itinerary,
-      days: updatedDays
-    });
-  };
-
   // 예산 연산
   const getDayBudget = (dayItems: ItineraryItem[]): number => {
     return (dayItems || []).reduce((sum, item) => sum + (item.budget || 0), 0);
@@ -981,26 +778,6 @@ export default function FloatingItineraryPanel({
                           const isSelected = selectedItemId === item.id;
                           const connectorKey = `${dayData.day}-${idx}`;
                           
-                          // 이전 장소와의 거리 연산
-                            let distanceText: string | null = null;
-                            if (idx > 0) {
-                              const prevItem = dayItems[idx - 1];
-                              const distance = getDistance(prevItem.lat, prevItem.lng, item.lat, item.lng);
-                              distanceText = distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`;
-                            }
-                          
-                          // 2일차 이상의 첫 스팟일 때 전날 마지막 스팟 연계 정보 연산
-                          let prevDayDistText: string | null = null;
-                          if (idx === 0 && dayData.day >= 2) {
-                            const prevDayData = itinerary.days.find(d => d.day === dayData.day - 1);
-                            const prevDayItems = prevDayData?.items || [];
-                            const lastSpotOfPrevDay = prevDayItems[prevDayItems.length - 1];
-                            if (lastSpotOfPrevDay) {
-                              const distance = getDistance(lastSpotOfPrevDay.lat, lastSpotOfPrevDay.lng, item.lat, item.lng);
-                              prevDayDistText = `Day${dayData.day - 1} → ${distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`}`;
-                            }
-                          }
-                          
                           const reg = renderRestaurantCard ? findRegForItem(item) : null;
                           const controlButtons = (
                             <>
@@ -1038,18 +815,6 @@ export default function FloatingItineraryPanel({
 
                           return (
                              <div key={item.id} className="relative group/panel flex flex-col gap-0.5" style={{ marginTop: idx > 0 ? '2px' : '0' }}>
-                              {/* 이전 Day 연계 인라인 거리 */}
-                              {prevDayDistText && (
-                                <div className="flex items-center justify-center py-1 select-none">
-                                  <span className="text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">{prevDayDistText}</span>
-                                </div>
-                              )}
-                              {/* 인라인 거리 */}
-                              {distanceText && (
-                                <div className="flex items-center justify-center py-1 select-none">
-                                  <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full text-slate-400 bg-slate-50 border border-slate-200">{distanceText}</span>
-                                </div>
-                              )}
 
                               {/* 인라인 삽입 영역 (카드가 렌더링되기 바로 전 위치) */}
                               {renderInsertZone(dayData.day, idx)}
