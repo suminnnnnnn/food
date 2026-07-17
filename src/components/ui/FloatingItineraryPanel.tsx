@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DailyItinerary, ItineraryItem, Itinerary, Restaurant } from '@/types';
-import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Car, Footprints, Utensils, GripVertical, Heart, Share2, Bus, MoreVertical, RotateCcw, Eye, LayoutGrid, List, ChevronRight } from 'lucide-react';
+import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Utensils, GripVertical, Heart, Share2, MoreVertical, RotateCcw, Eye, LayoutGrid, List, ChevronRight } from 'lucide-react';
 import { getDistance } from '@/lib/geoUtils';
 import { openExternal } from '@/lib/external-link';
 
