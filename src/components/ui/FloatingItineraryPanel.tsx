@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DailyItinerary, ItineraryItem, Itinerary, Restaurant } from '@/types';
-import { MapPin, Clock, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Utensils, GripVertical, Heart, Share2, MoreVertical, RotateCcw, Eye, LayoutGrid, List, ChevronRight } from 'lucide-react';
+import { MapPin, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Utensils, GripVertical, Heart, Share2, MoreVertical, RotateCcw, Eye, LayoutGrid, List, ChevronRight } from 'lucide-react';
 import { getDistance } from '@/lib/geoUtils';
 import { openExternal } from '@/lib/external-link';
 
@@ -820,16 +820,17 @@ export default function FloatingItineraryPanel({
                               {renderInsertZone(dayData.day, idx)}
 
                               {/* 좌측 시간 spine 마커 + 카드 컬럼 */}
-                              <div className="relative grid gap-2" style={{ gridTemplateColumns: '46px minmax(0,1fr)' }}>
+                              <div className="relative grid gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)' }}>
                                 <div className="relative flex justify-center">
-                                  <div className="absolute top-0 bottom-0 w-[2.5px] rounded-full" style={{ left: '50%', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
-                                  <div className="relative z-10 mt-1">
-                                    {item.visit_time ? (
-                                      <span className="block text-[11px] font-black px-2 py-0.5 rounded-full text-white shadow-md whitespace-nowrap" style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}>{item.visit_time}</span>
-                                    ) : (
-                                      <span className="w-6 h-6 rounded-full flex items-center justify-center text-white shadow-md" style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}><Clock size={11} /></span>
-                                    )}
-                                  </div>
+                                  <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: '50%', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); onEditItemMemo(item); }}
+                                    className="relative z-10 mt-1 block text-[10px] font-black px-1.5 py-0.5 rounded-full text-white shadow-sm whitespace-nowrap leading-tight cursor-pointer active:scale-95 transition-transform"
+                                    style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}
+                                    title="방문 시간 편집"
+                                  >
+                                    {item.visit_time || '00:00'}
+                                  </button>
                                 </div>
                                 <div className="min-w-0">
 
