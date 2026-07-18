@@ -92,21 +92,12 @@ async function main() {
   const { data: rests } = await q;
   console.log(`\n🍽️ 식당 ${rests.length}개 상세 보강 (동시 ${CONCURRENCY})...`);
 
+  // ⚖️ 법적 리스크로 웹검색(구글 그라운딩) 기반 영업시간·시설 수집은 제거.
+  // 영업시간/시설은 관광공사 TourAPI(라이선스) 또는 영상(자체분석)에서만. 전화는 Kakao 로컬 API(라이선스)만.
   let updated = 0;
   await runPool(rests, async (r) => {
-    const [phone, det] = await Promise.all([kakaoPhone(r.name, r.kakao_place_id), searchDetails(r.name, r.address)]);
-    const upd = {};
-    const fill = (col, val) => { if (val && val !== '정보 없음' && empty(r[col])) upd[col] = val; };
-    fill('menu_info', det?.menu); fill('parking', det?.parking); fill('reservation', det?.reservation);
-    fill('packaging', det?.packaging);
-    // 영업시간: 정규화(네이버식 형식) + 출처 표기(search)
-    if (det?.hours && det.hours !== '정보 없음' && empty(r.business_hours)) {
-      const norm = normalizeBusinessHours(det.hours);
-      if (norm && norm !== '정보 없음') { upd.business_hours = norm; upd.business_hours_source = 'search'; }
-    }
-    const ph = phone || (det?.phone !== '정보 없음' ? det?.phone : null);
-    if (ph && empty(r.phone)) upd.phone = ph;
-    if (Object.keys(upd).length) { await supabase.from('restaurants').update(upd).eq('id', r.id); updated++; }
+    const phone = await kakaoPhone(r.name, r.kakao_place_id);
+    if (phone && empty(r.phone)) { await supabase.from('restaurants').update({ phone }).eq('id', r.id); updated++; }
   }, CONCURRENCY);
 
   console.log(`\n=== 완료: ${updated}/${rests.length} 식당 필드 보강 ===`);

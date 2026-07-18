@@ -1273,9 +1273,7 @@ export default function RestaurantInfoCard({
                           <><PlaySquare size={9} /> 출처: {activeVideo?.youtuber?.name || '유튜브 영상'} 영상</>
                         ) : effHoursSource === 'tour' ? (
                           <>출처: 한국관광공사</>
-                        ) : (
-                          <>출처: 웹 검색</>
-                        )}
+                        ) : null}
                       </div>
                     )}
                   </div>
