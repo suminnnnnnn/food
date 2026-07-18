@@ -133,42 +133,33 @@ export default function FloatingItineraryPanel({
     );
   };
 
-  // 카드 하단 액션 바 — 메모(좌) · 길찾기(우). 길찾기는 홈탭 상세와 동일한 앱 선택 모달 오픈.
-  const renderItemActionBar = (item: ItineraryItem) => (
-    <div>
-      {item.memo && (
+  // 카드 하단 메모 (길찾기는 카드 사이 레그로 이동)
+  const renderItemActionBar = (item: ItineraryItem) => {
+    if (item.memo) {
+      return (
         <div
-          onClick={(e) => { e.stopPropagation(); onEditItemMemo(item); }}
-          className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/60 rounded-xl px-3 py-1.5 mt-2 cursor-pointer shadow-sm transition-all text-amber-900 text-xs font-semibold select-none leading-relaxed flex items-start gap-1.5"
+          onClick={(e) => { e.stopPropagation(); if (editMode) onEditItemMemo(item); }}
+          className="bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/60 rounded-xl px-3 py-1.5 mt-2 shadow-sm transition-all text-amber-900 text-xs font-semibold select-none leading-relaxed flex items-start gap-1.5"
+          style={{ cursor: editMode ? 'pointer' : 'default' }}
         >
           <span className="shrink-0 text-amber-500 text-[13px]">💡</span>
           <div className="flex-1 whitespace-pre-wrap">{item.memo}</div>
         </div>
-      )}
-      <div
-        className="flex items-center justify-between gap-2 mt-2 pt-2 border-t"
-        style={{ borderColor: 'var(--itn-border-subtle)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {editMode ? (
+      );
+    }
+    if (editMode) {
+      return (
         <button
-          onClick={() => onEditItemMemo(item)}
-          className="text-[11.5px] font-bold px-2 py-1 rounded-lg transition-colors hover:bg-black/5 cursor-pointer"
-          style={{ color: item.memo ? 'var(--itn-text-sub)' : 'var(--itn-text-muted)' }}
+          onClick={(e) => { e.stopPropagation(); onEditItemMemo(item); }}
+          className="mt-2 text-[11.5px] font-bold px-2 py-1 rounded-lg transition-colors hover:bg-black/5 cursor-pointer"
+          style={{ color: 'var(--itn-text-muted)' }}
         >
-          {item.memo ? '✎ 메모 수정' : '＋ 메모'}
+          ＋ 메모
         </button>
-        ) : <span />}
-        <button
-          onClick={() => setRouteItem(item)}
-          className="flex items-center gap-1 text-[11.5px] font-black px-3 py-1.5 rounded-full transition-all active:scale-95 cursor-pointer"
-          style={{ color: 'var(--itn-accent)', background: 'var(--itn-accent-light)' }}
-        >
-          <Navigation size={11} /> 길찾기
-        </button>
-      </div>
-    </div>
-  );
+      );
+    }
+    return null;
+  };
 
   // 방문 시간으로 끼니 슬롯 자동 라벨 (맛집 코스 문법)
   const mealFromTime = (t?: string): string => {
@@ -182,22 +173,39 @@ export default function FloatingItineraryPanel({
     return '야식';
   };
 
-  // 장소 간 직선거리(하버사인) + 여다식 흑백 교통 아이콘. 실측 API 대신 무료 계산.
-  const renderLeg = (prev: ItineraryItem, item: ItineraryItem) => {
-    const km = getDistance(prev.lat, prev.lng, item.lat, item.lng);
-    const distLabel = km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
-    const walk = km < 1; // 1km 미만 도보, 이상 차량 (직선거리 기준 자동 추정)
+  // 장소 간 직선거리(하버사인) + 여다식 흑백 교통 아이콘 + 길찾기(홈 상세 모달).
+  // prev=null이면 첫 장소(현위치 출발) 레그.
+  const renderLeg = (prev: ItineraryItem | null, item: ItineraryItem) => {
+    let distLabel = '', modeText = '', walk = true;
+    if (prev) {
+      const km = getDistance(prev.lat, prev.lng, item.lat, item.lng);
+      distLabel = km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
+      walk = km < 1; // 1km 미만 도보, 이상 차량 (직선거리 기준 자동 추정)
+      modeText = walk ? '도보' : '차량';
+    }
     return (
       <div className="relative grid items-center gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)', minHeight: 30 }}>
         <div className="absolute top-0 bottom-0 w-[2px]" style={{ left: '19px', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
         <div className="relative z-10 flex justify-center">
           <span className="w-[22px] h-[22px] rounded-full flex items-center justify-center" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-muted)' }}>
-            {walk ? <Footprints size={12} /> : <Car size={12} />}
+            {prev ? (walk ? <Footprints size={12} /> : <Car size={12} />) : <Navigation size={11} />}
           </span>
         </div>
-        <span className="text-[11px] font-bold" style={{ color: 'var(--itn-text-sub)' }}>
-          {walk ? '도보' : '차량'} · <span style={{ color: 'var(--itn-text-muted)' }}>{distLabel}</span>
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[11px] font-bold truncate" style={{ color: 'var(--itn-text-sub)' }}>
+            {prev
+              ? <>{modeText} · <span style={{ color: 'var(--itn-text-muted)' }}>{distLabel}</span></>
+              : <span style={{ color: 'var(--itn-text-muted)' }}>현위치에서 출발</span>}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); setRouteItem(item); }}
+            className="shrink-0 flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg transition-colors hover:bg-black/5 cursor-pointer"
+            style={{ color: 'var(--itn-accent)' }}
+            title="길찾기"
+          >
+            <Navigation size={11} /> 길찾기
+          </button>
+        </div>
       </div>
     );
   };
@@ -949,8 +957,8 @@ export default function FloatingItineraryPanel({
                           return (
                              <div key={item.id} className="relative group/panel flex flex-col gap-0.5" style={{ marginTop: idx > 0 ? '2px' : '0' }}>
 
-                              {/* 이전 장소와의 직선거리 + 교통수단 */}
-                              {idx > 0 && renderLeg(dayItems[idx - 1], item)}
+                              {/* 이동 레그 — 첫 장소는 현위치 출발, 이후는 직전 장소 기준 + 길찾기 */}
+                              {renderLeg(idx > 0 ? dayItems[idx - 1] : null, item)}
 
                               {/* 인라인 삽입 영역 (카드가 렌더링되기 바로 전 위치) — 편집 모드만 */}
                               {editMode && renderInsertZone(dayData.day, idx)}
