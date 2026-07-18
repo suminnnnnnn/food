@@ -105,6 +105,8 @@ export default function FloatingItineraryPanel({
 
   // 길찾기 앱 선택 모달 대상 아이템 (홈탭 맛집 상세의 길찾기 UI와 동일 포맷)
   const [routeItem, setRouteItem] = useState<ItineraryItem | null>(null);
+  // 슬롯 후보 펼침 대상 아이템 id
+  const [openCandId, setOpenCandId] = useState<string | null>(null);
 
   const renderInsertZone = (targetDay: number, insertIdx: number) => {
     return (
@@ -192,6 +194,91 @@ export default function FloatingItineraryPanel({
         <span className="text-[11px] font-bold" style={{ color: 'var(--itn-text-sub)' }}>
           {walk ? '도보' : '차량'} · <span style={{ color: 'var(--itn-text-muted)' }}>{distLabel}</span>
         </span>
+      </div>
+    );
+  };
+
+  // 이 슬롯을 대체할 근처(1.5km) 미사용 맛집 후보 — 기존 restaurants 목록으로 로컬 계산.
+  const getCandidates = (item: ItineraryItem): Restaurant[] => {
+    if (!restaurants || !restaurants.length) return [];
+    const usedIds = new Set(
+      itinerary.days.flatMap(d => d.items || []).map(it => it.restaurant_id).filter(Boolean).map(String)
+    );
+    return restaurants
+      .filter(r => typeof r.lat === 'number' && typeof r.lng === 'number'
+        && String(r.id) !== String(item.restaurant_id) && !usedIds.has(String(r.id)))
+      .map(r => ({ r, d: getDistance(item.lat, item.lng, r.lat, r.lng) }))
+      .filter(x => x.d <= 1.5)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 4)
+      .map(x => x.r);
+  };
+
+  // 슬롯 교체 — 방문시간·메모는 유지한 채 맛집만 교체.
+  const swapCandidate = (dayNum: number, idx: number, r: Restaurant) => {
+    if (!onUpdateItinerary) return;
+    const updatedDays = itinerary.days.map(d => {
+      if (d.day !== dayNum) return d;
+      return {
+        ...d,
+        items: d.items.map((it, i) => i === idx ? {
+          ...it,
+          id: `db-${r.id}-${Date.now()}`,
+          name: r.name,
+          category: r.category || '음식점',
+          address: r.address,
+          lat: r.lat, lng: r.lng,
+          is_custom_spot: false,
+          restaurant_id: r.id,
+        } : it),
+      };
+    });
+    onUpdateItinerary({ ...itinerary, days: updatedDays });
+    setOpenCandId(null);
+  };
+
+  // 슬롯 후보 블록 (접힘 "후보 N" → 미니 카드 + 교체)
+  const renderCandidates = (item: ItineraryItem, dayNum: number, idx: number) => {
+    const cands = getCandidates(item);
+    if (!cands.length) return null;
+    const open = openCandId === item.id;
+    return (
+      <div className="mt-1.5" onClick={e => e.stopPropagation()}>
+        <button
+          onClick={() => setOpenCandId(open ? null : item.id)}
+          className="text-[11.5px] font-bold px-1 py-0.5 rounded-lg transition-colors hover:opacity-70 cursor-pointer"
+          style={{ color: open ? 'var(--itn-accent)' : 'var(--itn-text-muted)' }}
+        >
+          후보 <span className="font-black" style={{ color: 'var(--itn-text-sub)' }}>{cands.length}</span> {open ? '⌃' : '⌄'}
+        </button>
+        {open && (
+          <div className="mt-1 space-y-1.5">
+            {cands.map(r => {
+              const dist = getDistance(item.lat, item.lng, r.lat, r.lng);
+              const distLabel = dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)}km`;
+              const cat = (r.category || '맛집').split('>').pop()?.trim() || '맛집';
+              const thumb = (r.videos && r.videos[0] && (r.videos[0] as any).thumbnail) || undefined;
+              return (
+                <div key={r.id} className="flex items-center gap-2.5 rounded-xl p-2 shadow-sm" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)' }}>
+                  <div className="w-11 h-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center" style={{ background: 'var(--itn-card-hover)' }}>
+                    {thumb ? <img src={thumb} alt={r.name} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <Utensils size={13} style={{ color: 'var(--itn-text-muted)' }} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12.5px] font-black truncate" style={{ color: 'var(--itn-text)' }}>{r.name} <span className="text-[10.5px] font-semibold" style={{ color: 'var(--itn-text-muted)' }}>{cat}</span></div>
+                    <div className="text-[10.5px] font-semibold" style={{ color: 'var(--itn-text-muted)' }}>동선 {distLabel}</div>
+                  </div>
+                  <button
+                    onClick={() => swapCandidate(dayNum, idx, r)}
+                    className="shrink-0 text-[11px] font-black text-white rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform cursor-pointer"
+                    style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}
+                  >
+                    교체
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -841,7 +928,7 @@ export default function FloatingItineraryPanel({
                                   ))}
                                 </div>
                               )}
-                              {renderItemActionBar(item)}
+                              {renderItemActionBar(item)}{renderCandidates(item, dayData.day, idx)}
                             </>
                           );
 
@@ -959,7 +1046,7 @@ export default function FloatingItineraryPanel({
                                   </div>
                                 )}
 
-                                {renderItemActionBar(item)}
+                                {renderItemActionBar(item)}{renderCandidates(item, dayData.day, idx)}
                               </div>
                               )}
                                 </div>
