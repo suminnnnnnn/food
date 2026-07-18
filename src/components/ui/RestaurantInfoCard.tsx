@@ -744,11 +744,26 @@ export default function RestaurantInfoCard({
   const [localHours, setLocalHours] = useState<string | null>(null); // 제보 즉시 반영
   const [showRouteModal, setShowRouteModal] = useState(false);
   const playerInstanceRef = useRef<any>(null);
+  const [seekTarget, setSeekTarget] = useState(0); // best_food_scenes 딥링크 시작 시점(초)
+
+  // "이 장면부터 보기": 재생 중이면 즉시 시크, 아니면 시작시점 지정 후 재생
+  const parseTs = (ts?: string | null) => { const m = String(ts || '').match(/(\d+):(\d+)/); return m ? (+m[1]) * 60 + (+m[2]) : 0; };
+  const jumpToScene = (ts?: string | null) => {
+    const sec = parseTs(ts);
+    setSeekTarget(sec);
+    const p = playerInstanceRef.current;
+    if (isPlayingVideo && p && typeof p.seekTo === 'function') {
+      try { p.seekTo(sec, true); p.playVideo?.(); } catch (e) { console.warn('seek failed', e); }
+    } else {
+      setIsPlayingVideo(true);
+    }
+  };
 
   // 식당이 바뀌면 재생 상태 및 비디오 세션 초기화
   useEffect(() => {
     setActiveVideoIndex(0);
     setIsPlayingVideo(false);
+    setSeekTarget(0);
     setEmbedError(false);
     setIsBookmarkHovered(false);
     setIsShareHovered(false);
@@ -784,7 +799,7 @@ export default function RestaurantInfoCard({
         try {
           playerInstanceRef.current.loadVideoById({
             videoId: cleanYoutubeId,
-            startSeconds: 0
+            startSeconds: seekTarget || 0
           });
           playerInstanceRef.current.unMute();
           playerInstanceRef.current.playVideo();
@@ -821,6 +836,7 @@ export default function RestaurantInfoCard({
               rel: 0,
               modestbranding: 1,
               controls: 1,
+              start: seekTarget || 0,
             },
             events: {
               onReady: (event: any) => {
@@ -974,7 +990,7 @@ export default function RestaurantInfoCard({
                     </div>
 
                     <div
-                      onClick={() => setIsPlayingVideo(true)}
+                      onClick={() => { setSeekTarget(0); setIsPlayingVideo(true); }}
                       className="absolute inset-0 flex items-center justify-center group cursor-pointer transition-all z-20"
                     >
                       <motion.div
@@ -1320,17 +1336,6 @@ export default function RestaurantInfoCard({
               )}
             </div>
 
-            {/* planning mode route button */}
-            {isPlanningMode && isRecommendedRouteItem && (
-              <button
-                onClick={() => onInsertToPlanningRoute && onInsertToPlanningRoute(restaurant)}
-                className="order-3 w-full py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-600 to-orange-500 hover:brightness-110 active:scale-[0.98] transition-all shadow-[0_4px_15px_rgba(239,68,68,0.25)] flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Plus size={12} />
-                <span>경로 중간에 경유지로 추가하기</span>
-              </button>
-            )}
-
             {/* 리뷰 크리에이터 — 요약 라벨 · 가로 아바타 행 · 인라인 제보 · 전환 힌트 */}
             {sortedVideos && sortedVideos.length > 0 && (() => {
               const totalViews = sortedVideos.reduce((s, v) => s + (v.view_count || 0), 0);
@@ -1345,7 +1350,7 @@ export default function RestaurantInfoCard({
                       return (
                         <button
                           key={vid.id}
-                          onClick={() => { setActiveVideoIndex(idx); setIsPlayingVideo(false); setEmbedError(false); }}
+                          onClick={() => { setActiveVideoIndex(idx); setIsPlayingVideo(false); setSeekTarget(0); setEmbedError(false); }}
                           className="flex flex-col items-center gap-1.5 shrink-0 w-[58px] cursor-pointer group select-none"
                         >
                           <div className={`w-12 h-12 rounded-full p-[2px] transition-all ${isActive ? 'bg-gradient-to-tr from-red-600 to-brand-orange shadow-[0_0_10px_rgba(255,75,0,0.4)]' : 'bg-white/10 md:bg-slate-200 group-hover:bg-white/30'}`}>
@@ -1383,10 +1388,11 @@ export default function RestaurantInfoCard({
 
             {/* 크리에이터 한줄평(Say) — 실제 quote + 시그니처, Pick/Tip과 동일 카드 스타일 */}
             {(() => {
-              const q = (sortedVideos[0]?.quote || '').trim();
-              const sig = sortedVideos[0]?.ai_insights?.signature;
-              const pickerName = sortedVideos[0]?.youtuber?.name;
-              if (!q && !sig) return null;
+              const q = (activeVideo?.quote || '').trim();
+              const sig = activeVideo?.ai_insights?.signature;
+              const review = (activeVideo?.ai_insights?.review || '').trim();
+              const pickerName = activeVideo?.youtuber?.name;
+              if (!q && !sig && !review) return null;
               return (
                 <div className="order-4 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-2.5 shadow-sm">
                   <div className="flex items-center gap-2 shrink-0">
@@ -1398,6 +1404,9 @@ export default function RestaurantInfoCard({
                   {q && (
                     <p className="text-[14px] font-bold text-zinc-100 md:text-slate-700 leading-relaxed">“{q}”</p>
                   )}
+                  {review && (
+                    <p className="text-[12.5px] text-zinc-300 md:text-slate-600 font-medium leading-relaxed">{review}</p>
+                  )}
                   {sig && (
                     <div className="flex items-start gap-1.5 pt-2.5 border-t border-white/5 md:border-slate-200">
                       <Sparkles size={11} className="text-orange-400 md:text-orange-500 shrink-0 mt-0.5" />
@@ -1408,12 +1417,43 @@ export default function RestaurantInfoCard({
               );
             })()}
 
+            {/* 영상 하이라이트 — best_food_scenes 딥링크("이 장면부터 보기") */}
+            {(() => {
+              const scenes = (activeVideo?.ai_insights?.best_food_scenes || []).filter((s) => s?.ts).slice(0, 4);
+              if (scenes.length === 0) return null;
+              return (
+                <div className="order-4 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <HeaderIcon><PlaySquare size={13} className="text-orange-400 md:text-orange-500" /></HeaderIcon>
+                    <div className="min-w-0 leading-tight">
+                      <span className="text-[13px] font-black text-white md:text-slate-800 tracking-tight">영상 하이라이트</span>
+                      <span className="block text-[9.5px] text-zinc-500 md:text-slate-400 font-bold">탭하면 그 장면부터 재생돼요</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {scenes.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => jumpToScene(s.ts)}
+                        className="flex items-center gap-2.5 text-left group cursor-pointer"
+                      >
+                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-500/15 text-orange-400 md:text-orange-600 text-[11px] font-black tabular-nums border border-orange-500/20 group-hover:bg-orange-500/25 transition-colors">
+                          <Play size={8} className="fill-current" /> {s.ts}
+                        </span>
+                        <span className="text-[12px] text-zinc-300 md:text-slate-600 font-medium leading-snug line-clamp-1 group-hover:text-white md:group-hover:text-slate-900 transition-colors">{s.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* 유튜버 Pick — 영상 멀티모달 분석(가격 포함) 우선, 없으면 menu_info 폴백 */}
             {(() => {
-              const picker = sortedVideos[0]?.youtuber;
+              const picker = activeVideo?.youtuber;
               const pickerName = picker?.name;
-              const insights = sortedVideos[0]?.ai_insights || null;
-              const allPicks: { name: string; price?: string | null; ate?: boolean }[] =
+              const insights = activeVideo?.ai_insights || null;
+              const allPicks: { name: string; price?: string | null; ate?: boolean; comment?: string | null }[] =
                 insights?.picks && insights.picks.length > 0
                   ? [...insights.picks].filter((p) => p?.name).sort((a, b) => (b.ate ? 1 : 0) - (a.ate ? 1 : 0))
                   : menuList.map((m) => ({ name: m.name, price: (m.price as string | undefined) || null, ate: false }));
@@ -1434,15 +1474,21 @@ export default function RestaurantInfoCard({
                   <div className="flex flex-col gap-1 w-full">
                     {picks.map((menu, index) => {
                       const price = formatPrice(menu.price);
+                      const hasComment = menu.ate && menu.comment;
                       return (
-                        <div key={index} className={`flex items-baseline gap-1.5 py-2 ${index < picks.length - 1 ? 'border-b border-zinc-800/60 md:border-slate-200' : ''}`}>
-                          {menu.ate && (
-                            <span className="shrink-0 self-center px-1.5 py-[1px] bg-orange-500/15 text-orange-400 md:text-orange-600 text-[9px] font-black rounded border border-orange-500/20">Pick</span>
-                          )}
-                          <span className="font-bold text-zinc-100 md:text-slate-700 text-[13px]">{menu.name}</span>
-                          <div className="flex-1 border-b border-dashed border-zinc-700/50 md:border-slate-200 mx-1.5 min-w-[8px] h-3" />
-                          {price && (
-                            <span className="font-black text-orange-400 md:text-orange-600 shrink-0 text-[13px]">{price}</span>
+                        <div key={index} className={`py-2 ${index < picks.length - 1 ? 'border-b border-zinc-800/60 md:border-slate-200' : ''}`}>
+                          <div className="flex items-baseline gap-1.5">
+                            {menu.ate && (
+                              <span className="shrink-0 self-center px-1.5 py-[1px] bg-orange-500/15 text-orange-400 md:text-orange-600 text-[9px] font-black rounded border border-orange-500/20">Pick</span>
+                            )}
+                            <span className="font-bold text-zinc-100 md:text-slate-700 text-[13px]">{menu.name}</span>
+                            <div className="flex-1 border-b border-dashed border-zinc-700/50 md:border-slate-200 mx-1.5 min-w-[8px] h-3" />
+                            {price && (
+                              <span className="font-black text-orange-400 md:text-orange-600 shrink-0 text-[13px]">{price}</span>
+                            )}
+                          </div>
+                          {hasComment && (
+                            <p className="mt-1 text-[11.5px] text-zinc-400 md:text-slate-500 font-medium leading-relaxed line-clamp-1">“{menu.comment}”</p>
                           )}
                         </div>
                       );
@@ -1460,9 +1506,9 @@ export default function RestaurantInfoCard({
 
             {/* 이렇게 즐기세요 — 유튜버 꿀팁 (영상 분석) */}
             {(() => {
-              const tips = (sortedVideos[0]?.ai_insights?.tips || []).filter(Boolean).slice(0, 6);
+              const tips = (activeVideo?.ai_insights?.tips || []).filter(Boolean).slice(0, 6);
               if (tips.length === 0) return null;
-              const pickerName = sortedVideos[0]?.youtuber?.name;
+              const pickerName = activeVideo?.youtuber?.name;
               return (
                 <div className="order-6 bg-white/[0.02] md:bg-slate-50 border border-white/10 md:border-slate-200/80 rounded-[24px] p-5 space-y-3 shadow-sm">
                   <div className="flex items-center gap-2 shrink-0">
