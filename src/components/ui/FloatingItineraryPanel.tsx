@@ -42,7 +42,7 @@ interface Props {
   isSearchingMode?: boolean;
   onSearchingModeChange?: (val: boolean) => void;
   // 홈탭과 동일한 맛집 카드 렌더러 (등록 맛집 검색결과에 재사용)
-  renderRestaurantCard?: (r: Restaurant, variant: 'feed' | 'list', opts: { onClick: () => void; onDragStart: (e: any) => void; hideDistance?: boolean; actionNode?: React.ReactNode; isItinerary?: boolean; cornerBadge?: React.ReactNode }) => any;
+  renderRestaurantCard?: (r: Restaurant, variant: 'feed' | 'list', opts: { onClick?: () => void; onDragStart: (e: any) => void; hideDistance?: boolean; actionNode?: React.ReactNode; isItinerary?: boolean; cornerBadge?: React.ReactNode }) => any;
   planningInsertIndex?: { day: number; index: number } | null;
   onPlanningInsertIndexChange?: (info: { day: number; index: number } | null) => void;
 }
@@ -208,8 +208,8 @@ export default function FloatingItineraryPanel({
         : d) });
     };
     return (
-      <div className="relative grid items-center gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)', minHeight: 30 }}>
-        <div className="absolute w-[2px]" style={{ top: '-6px', bottom: '-6px', left: '19px', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
+      <div className="relative grid items-center gap-1.5" style={{ gridTemplateColumns: '44px minmax(0,1fr)', minHeight: 30 }}>
+        <div className="absolute w-[2px]" style={{ top: '-6px', bottom: '-6px', left: '22px', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
         <div className="relative z-10 flex justify-center">
           {prev ? (
             <button onClick={(e) => { e.stopPropagation(); cycleMode(); }} className="w-[22px] h-[22px] rounded-full flex items-center justify-center transition-transform active:scale-90 cursor-pointer" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-muted)' }} title="탭하여 이동수단 변경">
@@ -907,16 +907,16 @@ export default function FloatingItineraryPanel({
                               {editMode && renderInsertZone(dayData.day, idx)}
 
                               {/* 좌측 시간 spine 마커 + 카드 컬럼 */}
-                              <div className="relative grid gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)' }}>
-                                <div className="relative flex flex-col items-center pt-2.5 gap-1" style={{ zIndex: editingTimeId === item.id ? 60 : undefined }}>
+                              <div className="relative grid gap-1.5" style={{ gridTemplateColumns: '44px minmax(0,1fr)' }}>
+                                <div className="relative flex flex-col items-center pt-2.5 gap-1" style={{ zIndex: editingTimeId === item.id ? 60 : 20 }}>
                                   <div className="absolute w-[2px]" style={{ top: '-8px', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
                                   <button
                                     data-time-chip
                                     onClick={(e) => { e.stopPropagation(); setTimeDraft(item.visit_time || '12:30'); setEditingTimeId(editingTimeId === item.id ? null : item.id); }}
-                                    className="relative z-10 text-[10px] font-black leading-none rounded-full px-2 py-1 cursor-pointer transition-all whitespace-nowrap"
+                                    className="relative z-10 text-[10px] font-black leading-none rounded-full px-1.5 py-1 cursor-pointer transition-all whitespace-nowrap"
                                     style={isSelected
-                                      ? { color: '#fff', background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 2px 8px -1px rgba(239,68,68,.45), 0 0 0 3px var(--itn-card)', fontVariantNumeric: 'tabular-nums' }
-                                      : { color: editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-text-sub)', background: 'var(--itn-card)', border: `1px solid ${editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-border)'}`, boxShadow: '0 0 0 3px var(--itn-card)', fontVariantNumeric: 'tabular-nums' }}
+                                      ? { color: '#fff', background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 2px 8px -1px rgba(239,68,68,.45), 0 0 0 2px var(--itn-card)', fontVariantNumeric: 'tabular-nums' }
+                                      : { color: editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-text-sub)', background: 'var(--itn-card)', border: `1px solid ${editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-border)'}`, boxShadow: '0 0 0 2px var(--itn-card)', fontVariantNumeric: 'tabular-nums' }}
                                     title="클릭해서 시간 입력"
                                   >
                                     {item.visit_time || '00:00'}
@@ -953,7 +953,7 @@ export default function FloatingItineraryPanel({
                                   {renderRestaurantCard(reg, timelineLayout, {
                                     hideDistance: true,
                                     isItinerary: true,
-                                    onClick: () => { onActiveDayChange(dayData.day); onSelectItem(item); },
+                                    // onClick 미지정 → 카드 클릭 시 renderRestaurantCard 기본 동작(홈탭 상세 열기)
                                     onDragStart: (e: any) => { e.dataTransfer.setData('text/plain', JSON.stringify({ __moveItem: true, itemId: item.id, fromDay: dayData.day })); },
                                   })}
                                 </div>
