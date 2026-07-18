@@ -14,6 +14,9 @@ export interface VideoPick {
   price?: string | null;      // 화면/음성에 실제 나온 가격만
   ate?: boolean;              // 유튜버가 실제 먹음
   price_source?: 'onscreen' | 'spoken' | 'none';
+  price_evidence?: string | null;  // 가격 근거(화면 원문/발화) — 환각 방지
+  price_ts?: string | null;        // 가격이 보인/언급된 시점 "mm:ss"
+  comment?: string | null;    // 유튜버가 이 메뉴에 대해 한 말(자막 기반)
 }
 export interface VideoScene {
   ts: string;                // "mm:ss"
@@ -21,6 +24,7 @@ export interface VideoScene {
 }
 export interface VideoInsights {
   picks?: VideoPick[];
+  review?: string | null;    // 흐르는 서술형 리뷰 3~4문장(자막 기반)
   tips?: string[];           // 이용/주문 꿀팁
   signature?: string | null; // 시그니처/유명한 이유
   mood_tags?: string[];
@@ -59,6 +63,7 @@ export interface Restaurant {
   lng: number;
   videos: Video[];
   primary_video?: Video;
+  representative_video_id?: string | null; // enrich가 고른 대표 리뷰 영상(피드·카드·상세 공통 기본 표시)
   content_tags: ContentTag[];
   is_trending?: boolean;
   phone?: string;
@@ -115,6 +120,7 @@ export interface Itinerary {
   companion?: string;
   theme?: string;
   transport?: string;
+  color?: string;
   days: DailyItinerary[];
   created_at: string;
 }export interface UserFolder {

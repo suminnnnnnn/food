@@ -5,12 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin, Utensils, Navigation, Share2, Flame, Play, ShoppingBag,
   ExternalLink, Home, X, Volume2, Sparkles, Phone, Clock, ChevronDown,
-  ChevronUp, Star, Car, CalendarCheck, Package, Info, Copy, Check,
-  ChevronRight
+  ChevronUp, Star, Info, Copy, Check,
+  ChevronRight, Tag
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { MichelinIcon, BlueRibbonIcon } from '@/components/icons/CustomIcons';
 import { openExternal } from '@/lib/external-link';
+import InfoSuggestModal from '@/components/ui/InfoSuggestModal';
 import { supabase } from '@/lib/supabase/client';
 import { getOrCreateDefaultFolder, addRestaurantToFolder, removeRestaurantFromFolder, getAllUserFolderRelations } from '@/lib/supabase/folders';
 import { AffiliateDisclosure } from '@/components/AffiliateDisclosure';
@@ -286,8 +287,12 @@ const getTagStyle = (source: string) => {
     case 'michelin': return { bg: 'bg-red-700/20 border border-red-500/30', text: 'text-red-300', icon: MichelinIcon };
     case 'blueribbon': return { bg: 'bg-blue-600/20 border border-blue-500/30', text: 'text-blue-300', icon: BlueRibbonIcon };
     case 'ddoganjib': return { bg: 'bg-orange-500/20 border border-orange-500/30', text: 'text-brand-orange-light', icon: Flame };
+    case 'meogeultende':
+    case 'youtube': return { bg: 'bg-orange-500/10 border border-orange-500/20', text: 'text-brand-orange-light', icon: Flame };
     case 'netflix_chef': return { bg: 'bg-gray-800 border border-white/10', text: 'text-white/90', icon: Utensils };
-    default: return { bg: 'bg-white/5 border border-white/5', text: 'text-white/80', icon: null };
+    case 'chakhan_price': return { bg: 'bg-emerald-600/15 border border-emerald-500/25', text: 'text-emerald-300', icon: null };
+    case 'facility': return { bg: 'bg-zinc-700/40 border border-zinc-600/40', text: 'text-zinc-200', icon: null };
+    default: return { bg: 'bg-white/5 border border-white/10', text: 'text-white/80', icon: null };
   }
 };
 
@@ -448,6 +453,7 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
   const sortedVideos = restaurant.videos ? [...restaurant.videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)) : [];
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const [isHoursExpanded, setIsHoursExpanded] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const activeVideo = sortedVideos[activeVideoIndex];
 
@@ -872,30 +878,78 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
                     {renderStatusBadge()}
                   </div>
                 );
-              })() : <span className="text-[13px] font-bold text-zinc-400 block">영업시간 정보 없음</span>}
+              })() : (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[13px] font-bold text-zinc-400">영업시간 정보 없음</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => openKakaoDeeplink(restaurant.name, restaurant.kakao_place_id, restaurant.lat, restaurant.lng)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-yellow-400/10 border border-yellow-400/25 text-[11.5px] font-bold text-yellow-300 hover:bg-yellow-400/20 transition-colors"
+                    >
+                      <ExternalLink size={11} className="shrink-0" /> 카카오맵
+                    </button>
+                    <button
+                      onClick={() => openNaverDeeplink(restaurant.name, restaurant.address)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-green-500/10 border border-green-500/25 text-[11.5px] font-bold text-green-300 hover:bg-green-500/20 transition-colors"
+                    >
+                      <ExternalLink size={11} className="shrink-0" /> 네이버지도
+                    </button>
+                    <span className="text-[10.5px] font-semibold text-zinc-500">에서 영업시간 확인</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Parking */}
-          {restaurant.parking && restaurant.parking !== '정보 없음' && (
-            <div className="flex items-start gap-2.5">
-              <Car size={14} className="text-orange-400 shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <span className="text-[13px] font-bold text-zinc-200">주차 {hasParking ? '가능' : '불가'}</span>
-                <span className="text-zinc-500 text-[12px] font-semibold ml-1.5">({restaurant.parking})</span>
-              </div>
-            </div>
+          {/* 카카오맵 실시간 정보 링크아웃 (영업시간 있을 때만 — 최신 영업시간·메뉴 재확인용) */}
+          {restaurant.business_hours && restaurant.business_hours !== '정보 없음' && (
+            <button
+              onClick={() => openKakaoDeeplink(restaurant.name, restaurant.kakao_place_id, restaurant.lat, restaurant.lng)}
+              className="flex items-center gap-2 text-[12.5px] font-bold text-yellow-400/90 hover:text-yellow-300 transition-colors text-left"
+            >
+              <ExternalLink size={13} className="text-yellow-400 shrink-0" />
+              <span>카카오맵에서 영업시간·메뉴 실시간 확인</span>
+            </button>
           )}
 
-          {/* Reservation / Packaging */}
-          <div className="flex items-start gap-2.5">
-            <CalendarCheck size={14} className="text-orange-400 shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <span className="text-[13px] font-bold text-zinc-200">
-                예약 {hasReservation ? '가능' : '불가'} · 포장 {hasPackaging ? '가능' : '불가'}
-              </span>
-            </div>
-          </div>
+          {/* 정보 수정 제안 (크라우드소스) */}
+          <button
+            onClick={() => setSuggestOpen(true)}
+            className="flex items-center gap-1.5 text-[12px] font-semibold text-zinc-500 hover:text-zinc-300 transition-colors text-left"
+          >
+            ℹ️ 정보가 틀렸나요? <span className="underline underline-offset-2">정보 수정 제안</span>
+          </button>
+
+          {/* Tags: 큐레이션·시리즈(또간집·최자로드·미쉐린·착한가격) + 편의(주차/예약/포장 가능) */}
+          {(() => {
+            const chips: { key: string; label: string; source: string }[] = [];
+            const seen = new Set<string>();
+            restaurant.content_tags?.forEach((t) => {
+              const label = (t.label || '').replace('#', '').trim();
+              if (label && !seen.has(label)) { seen.add(label); chips.push({ key: `c-${label}`, label, source: t.source }); }
+            });
+            if (hasParking) chips.push({ key: 'f-parking', label: '주차가능', source: 'facility' });
+            if (hasReservation) chips.push({ key: 'f-reservation', label: '예약가능', source: 'facility' });
+            if (hasPackaging) chips.push({ key: 'f-packaging', label: '포장가능', source: 'facility' });
+            if (!chips.length) return null;
+            return (
+              <div className="flex items-start gap-2.5">
+                <Tag size={14} className="text-orange-400 shrink-0 mt-1" />
+                <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+                  {chips.map((c) => {
+                    const st = getTagStyle(c.source);
+                    const Icon = st.icon;
+                    return (
+                      <span key={c.key} className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11.5px] font-bold ${st.bg} ${st.text}`}>
+                        {Icon && <Icon size={11} className="shrink-0" />}
+                        {c.label}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Address */}
           <div className="flex items-start gap-2.5">
@@ -932,10 +986,13 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
           ═══════════════════════════════════════════════════════════════ */}
       {restaurant.videos && restaurant.videos.length > 0 && (
         <motion.section initial="hidden" animate="visible" variants={fadeInUp} className="mx-4 sm:mx-6 mt-4 bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 sm:p-6">
-          <div className="flex items-center gap-1.5 mb-4">
+          <div className="flex items-center gap-1.5 mb-1">
             <Flame size={16} className="text-red-500 fill-current" />
-            <span className="text-[14px] font-black tracking-tight text-white">이 맛집을 인증한 크리에이터들</span>
+            <span className="text-[14px] font-black tracking-tight text-white">유튜버 리뷰</span>
           </div>
+          <p className="text-[11px] font-semibold text-zinc-500 mb-4">
+            {sortedVideos.length > 1 ? '유튜버를 선택하면 리뷰가 바뀝니다' : '영상 속 유튜버의 방문 리뷰'}
+          </p>
 
           {/* Creator avatar carousel */}
           <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-3">
@@ -965,20 +1022,93 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
             })}
           </div>
 
-          {/* AI keyword tags */}
-          {activeVideo?.keywords && activeVideo.keywords.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-4 border-t border-zinc-800 mt-3">
-              {activeVideo.keywords.map((kw, idx) => (
-                <Link
-                  key={`${activeVideo.id}-${kw}-${idx}`}
-                  href={`/?search=%23${encodeURIComponent(kw)}`}
-                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-orange-500/30 text-orange-400 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
-                >
-                  #{kw}
-                </Link>
-              ))}
-            </div>
-          )}
+          {/* ─── 선택된 크리에이터의 리뷰 (영상 AI 분석 기반) ─── */}
+          {activeVideo && (activeVideo.quote || activeVideo.ai_insights) && (() => {
+            const ins = activeVideo.ai_insights;
+            const tags = Array.from(new Set([
+              ...(ins?.mood_tags || []),
+              ...(activeVideo.keywords || []),
+            ])).filter(Boolean).slice(0, 8);
+            return (
+              <motion.div
+                key={activeVideo.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mt-3 pt-4 border-t border-zinc-800 space-y-4"
+              >
+                {/* 한줄평 */}
+                {activeVideo.quote && (
+                  <div className="relative pl-5">
+                    <span className="absolute left-0 -top-1 text-3xl font-black leading-none bg-gradient-to-br from-red-500 to-orange-400 bg-clip-text text-transparent select-none">&ldquo;</span>
+                    <p className="text-[15px] sm:text-base font-bold text-white leading-relaxed select-text">{activeVideo.quote}</p>
+                    <span className="block text-[11px] font-semibold text-zinc-500 mt-1.5">— {activeVideo.youtuber.name}</span>
+                  </div>
+                )}
+
+                {/* 서술형 리뷰 (자막 기반) */}
+                {ins?.review && (
+                  <p className="text-[13.5px] text-zinc-300 leading-relaxed select-text">{ins.review}</p>
+                )}
+
+                {/* 시그니처: 이 집이 특별한 이유 */}
+                {ins?.signature && (
+                  <div className="flex gap-2.5 bg-zinc-800/40 border border-zinc-700/30 rounded-2xl p-3.5">
+                    <Sparkles size={14} className="text-orange-400 shrink-0 mt-0.5" />
+                    <p className="text-[13px] text-zinc-300 font-medium leading-relaxed select-text">{ins.signature}</p>
+                  </div>
+                )}
+
+                {/* 유튜버 꿀팁 */}
+                {ins?.tips && ins.tips.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[12px] font-black text-zinc-200">유튜버 꿀팁</span>
+                    <ul className="space-y-1.5">
+                      {ins.tips.map((tip, i) => (
+                        <li key={i} className="flex gap-2 text-[12.5px] text-zinc-400 leading-relaxed">
+                          <span className="text-orange-400 shrink-0 font-black">·</span>
+                          <span className="select-text">{tip}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 유튜버가 콕 집은 메뉴 (실제 먹고 코멘트한 것만) */}
+                {ins?.picks && ins.picks.some(p => p.ate && p.comment) && (
+                  <div className="space-y-2">
+                    <span className="text-[12px] font-black text-zinc-200">유튜버가 콕 집은 메뉴</span>
+                    <div className="flex flex-col gap-2">
+                      {ins.picks.filter(p => p.ate && p.comment).map((p, i) => (
+                        <div key={i} className="bg-zinc-800/40 border border-zinc-700/30 rounded-xl p-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[13px] font-bold text-white">{p.name}</span>
+                            {p.price && <span className="text-[11px] font-black text-orange-400">{p.price}</span>}
+                          </div>
+                          <p className="text-[12px] text-zinc-400 leading-relaxed select-text">&ldquo;{p.comment}&rdquo;</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 태그 (분위기 + 검색 키워드) */}
+                {tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map((kw, idx) => (
+                      <Link
+                        key={`${activeVideo.id}-${kw}-${idx}`}
+                        href={`/?search=%23${encodeURIComponent(kw)}`}
+                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-orange-500/30 text-orange-400 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
+                      >
+                        #{kw}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })()}
         </motion.section>
       )}
 
@@ -987,10 +1117,11 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
           ═══════════════════════════════════════════════════════════════ */}
       {hasMenu && (
         <motion.section initial="hidden" animate="visible" variants={fadeInUp} className="mx-4 sm:mx-6 mt-4 bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 sm:p-6">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-1">
             <Utensils size={16} className="text-orange-500" />
-            <span className="text-[14px] font-black tracking-tight text-white">대표 메뉴 & 가격</span>
+            <span className="text-[14px] font-black tracking-tight text-white">유튜버 Pick</span>
           </div>
+          <p className="text-[11px] font-semibold text-zinc-500 mb-4 pl-[26px]">영상 속 유튜버가 주문해 먹은 메뉴</p>
           <div className="flex flex-col gap-1 w-full">
             {menuItems.map((menu, index) => {
               const isSignature = index < 2;
@@ -998,7 +1129,7 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
                 <div key={index} className={`flex items-baseline gap-1.5 py-2.5 ${index < menuItems.length - 1 ? 'border-b border-zinc-800/60' : ''}`}>
                   {isSignature && (
                     <span className="shrink-0 px-1.5 py-[1px] bg-orange-500/15 text-orange-400 text-[9px] font-black rounded tracking-tight border border-orange-500/20">
-                      대표
+                      PICK
                     </span>
                   )}
                   <span className={`font-bold text-zinc-100 ${isSignature ? 'text-[14px]' : 'text-[13px] text-zinc-300'}`}>
@@ -1019,7 +1150,7 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
           </div>
           <div className="pt-3 flex items-center gap-1.5 border-t border-zinc-800 mt-2">
             <Info size={10} className="text-zinc-600 shrink-0" />
-            <p className="text-[10px] text-zinc-600 font-semibold">실제 메뉴 구성 및 가격은 매장 상황에 따라 다를 수 있습니다.</p>
+            <p className="text-[10px] text-zinc-600 font-semibold">영상 속 유튜버가 주문한 메뉴 기준이며, 실제 구성·가격은 매장 상황에 따라 다를 수 있습니다.</p>
           </div>
         </motion.section>
       )}
@@ -1282,6 +1413,13 @@ export default function RestaurantDetailClient({ restaurant, relatedRestaurants 
           </div>
         )}
       </AnimatePresence>
+
+      <InfoSuggestModal
+        isOpen={suggestOpen}
+        onClose={() => setSuggestOpen(false)}
+        restaurantId={restaurant.id}
+        restaurantName={restaurant.name}
+      />
     </div>
   );
 }

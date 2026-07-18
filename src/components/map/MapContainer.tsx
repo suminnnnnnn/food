@@ -249,7 +249,11 @@ const matchCategory = (cat: string, ac: string): boolean => {
 const getUniqueYoutubers = (r: Restaurant): { name: string; profile_image: string; subscriber_count: number | null }[] => {
   const seen = new Set<string>();
   const out: { name: string; profile_image: string; subscriber_count: number | null }[] = [];
-  (r.videos || []).forEach((v) => {
+  // 대표영상(enrich가 고른 리뷰영상)의 유튜버를 맨 앞으로 → 피드 프로필이 대표 채널. 그다음 조회수순.
+  const repId = r.representative_video_id;
+  const ordered = [...(r.videos || [])].sort((a, b) =>
+    (b.id === repId ? 1 : 0) - (a.id === repId ? 1 : 0) || (b.view_count || 0) - (a.view_count || 0));
+  ordered.forEach((v) => {
     const y = v.youtuber;
     if (!y) return;
     const key = y.id || y.name;

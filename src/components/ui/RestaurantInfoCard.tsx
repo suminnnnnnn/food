@@ -655,8 +655,11 @@ export default function RestaurantInfoCard({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const sortedVideos = restaurant?.videos 
-    ? [...restaurant.videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+  // 대표영상(enrich가 고른 리뷰영상)을 맨 앞으로 → 카드 기본 표시가 항상 대표. 그다음 조회수순.
+  const repId = restaurant?.representative_video_id;
+  const sortedVideos = restaurant?.videos
+    ? [...restaurant.videos].sort((a, b) =>
+        (b.id === repId ? 1 : 0) - (a.id === repId ? 1 : 0) || (b.view_count || 0) - (a.view_count || 0))
     : [];
 
   // 스토리 링 Framer Motion 캐러셀 및 휠 스크롤 제어

@@ -19,19 +19,24 @@ const ONLY = process.env.ONLY || null;
 const CONCURRENCY = 3;
 
 const PROMPT = (name) => `다음은 "${name}" 식당을 소개한 유튜브 영상이다. 영상의 화면·화면자막·음성을 모두 분석해 아래 JSON으로만 응답하라.
-규칙: 영상에 실제로 나온 것만. 없으면 null 또는 []. 추측·창작 금지.
-가격은 화면/음성에 실제로 나온 것만. "15.0"처럼 천원 단위로 적혀 있으면 "15,000원"으로, 반드시 완전한 원화 표기로 변환하라.
-영업시간은 영상 화면·자막·음성에 명시적으로 나온 경우에만.
+[엄격 규칙]
+- 영상에 실제로 나온 것만. 없으면 null 또는 []. 추측·창작 절대 금지.
+- 가격/영업시간은 화면 또는 음성에 실제로 나온 것만. 근거(evidence)를 만들 수 없으면 넣지 마라.
+- "15.0"처럼 천원 단위로 적혀 있으면 "15,000원"으로 완전한 원화 표기로 변환.
+- 이 영상이 "${name}"이 아닌 다른 식당을 다루면 matches_restaurant=false, 나머지는 비워라.
 {
  "matches_restaurant": true/false,
  "match_confidence": 0.0~1.0,
- "picks": [{"name":"메뉴명","price":"15,000원 형식 또는 null","ate": true/false,"price_source":"onscreen|spoken|none"}],
- "quote": "유튜버가 이 집에 대해 한 인상적인 실제 한마디 또는 null",
- "tips": ["주문·이용 꿀팁(구체적으로)"],
+ "one_liner": "유튜버 어조를 살린 한줄평(25자 내외) 또는 null",
+ "review": "맛·식감·특징·추천 이유를 담은 3~4문장 서술형 리뷰(존댓말) 또는 null",
+ "picks": [{"name":"메뉴명","price":"15,000원 또는 null","price_source":"onscreen|spoken|none","price_evidence":"가격 근거(화면 원문 예: 메뉴판 '육전 20,000' / 발화 예: '2만원이래요') 또는 null","price_ts":"가격이 보인/언급된 시점 mm:ss 또는 null","ate":true/false,"comment":"실제 먹은 메뉴면 유튜버 한줄평(30자 내외), 안 먹었으면 null"}],
  "signature": "이 집이 유명/특별한 이유 한 줄 또는 null",
+ "tips": ["주문·이용 꿀팁(구체적으로)"],
  "mood_tags": ["혼밥/노포/가성비/데이트/가족외식 등 근거 있는 것만"],
- "hours": "영상에 나온 영업시간(예: 매일 11:00~21:00, 월 휴무) 또는 null"
-}`;
+ "hours": "영상에 나온 영업시간(예: 매일 11:00~21:00, 월 휴무) 또는 null",
+ "best_food_scenes": [{"ts":"mm:ss","desc":"음식이 가장 먹음직스럽게 나온 순간 한 줄"}]
+}
+best_food_scenes는 음식이 크고 선명하게 나온 대표 순간 2~4개만. 얼굴·간판·이동 장면 제외.`;
 
 async function analyze(name, ytId) {
   const body = {
@@ -69,21 +74,44 @@ async function run() {
   if (LIMIT) rows = rows.slice(0, LIMIT);
   console.log(`대상 ${rows.length}곳 (FORCE=${FORCE})`);
 
-  let ok = 0, fail = 0, spent = 0;
+  const CONF_MIN = process.env.CONF_MIN ? parseFloat(process.env.CONF_MIN) : 0.5; // 이하면 보류(오매칭 방어)
+  let ok = 0, fail = 0, held = 0, spent = 0;
   for (let i = 0; i < rows.length; i += CONCURRENCY) {
     const batch = rows.slice(i, i + CONCURRENCY);
     await Promise.all(batch.map(async (r) => {
       try {
         const { obj, cost } = await analyze(r.name, r.yt);
         spent += cost;
+
+        // 게이트: 다른 식당이거나 신뢰도 낮으면 저장 보류(Kakao 오매칭·환각 방어)
+        const conf = typeof obj.match_confidence === 'number' ? obj.match_confidence : null;
+        if (obj.matches_restaurant === false || (conf !== null && conf < CONF_MIN)) {
+          held++; console.log(`⏸ ${r.name}: 보류(matches=${obj.matches_restaurant}, conf=${conf})`); return;
+        }
+
+        // 후처리 검증: 근거 없는 가격 제거 + 안 먹은 메뉴 코멘트 제거
+        const picks = (Array.isArray(obj.picks) ? obj.picks : []).filter(p => p && p.name).map(p => ({
+          name: String(p.name).slice(0, 60),
+          price: p.price_source === 'none' ? null : (p.price || null),   // 근거 없으면 가격 버림
+          price_source: p.price_source || 'none',
+          price_evidence: p.price_source === 'none' ? null : (p.price_evidence || null),
+          price_ts: p.price_ts || null,
+          ate: p.ate === true,
+          comment: p.ate === true && p.comment ? String(p.comment).slice(0, 120) : null,  // 먹은 것만 코멘트
+        }));
+        const scenes = (Array.isArray(obj.best_food_scenes) ? obj.best_food_scenes : [])
+          .filter(s => s && s.ts).slice(0, 4).map(s => ({ ts: String(s.ts), desc: s.desc ? String(s.desc).slice(0, 60) : '' }));
+
         const insights = {
-          picks: Array.isArray(obj.picks) ? obj.picks : [],
+          picks,
+          review: obj.review && obj.review !== '정보 없음' ? String(obj.review).slice(0, 600) : null,
           tips: Array.isArray(obj.tips) ? obj.tips : [],
           signature: obj.signature || null,
           mood_tags: Array.isArray(obj.mood_tags) ? obj.mood_tags : [],
-          match_confidence: typeof obj.match_confidence === 'number' ? obj.match_confidence : null,
+          best_food_scenes: scenes,
+          match_confidence: conf,
         };
-        const quote = obj.quote && obj.quote !== '정보 없음' ? String(obj.quote).slice(0, 300) : null;
+        const quote = obj.one_liner && obj.one_liner !== '정보 없음' ? String(obj.one_liner).slice(0, 300) : null;
         await sql`
           UPDATE restaurant_videos
           SET ai_insights = ${sql.json(insights)}
@@ -100,14 +128,15 @@ async function run() {
           }
         }
         ok++;
-        console.log(`✓ ${r.name} → picks ${insights.picks.length} · tips ${insights.tips.length}${hoursMsg} · ₩${Math.round(cost * 1400)}`);
+        const pc = insights.picks.filter(p => p.comment).length;
+        console.log(`✓ ${r.name} → picks ${insights.picks.length}(코멘트${pc}) · review ${insights.review ? '✓' : '✗'} · 장면 ${insights.best_food_scenes.length}${hoursMsg} · ₩${Math.round(cost * 1400)}`);
       } catch (e) {
         fail++;
         console.log(`✗ ${r.name}: ${String(e.message || e).slice(0, 140)}`);
       }
     }));
   }
-  console.log(`\n완료: 성공 ${ok}, 실패 ${fail} · 총비용 $${spent.toFixed(2)} ≈ ₩${Math.round(spent * 1400).toLocaleString()}`);
+  console.log(`\n완료: 성공 ${ok}, 보류 ${held}, 실패 ${fail} · 총비용 $${spent.toFixed(2)} ≈ ₩${Math.round(spent * 1400).toLocaleString()}`);
   await sql.end();
 }
 

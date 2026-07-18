@@ -11,7 +11,7 @@ export async function getRestaurantsInBounds(
   let query = supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags, representative_video_id,
       restaurant_videos (
         quote, mention_time, keywords, ai_insights,
         videos (
@@ -117,6 +117,7 @@ export async function getRestaurantsInBounds(
       lat: row.lat,
       lng: row.lng,
       videos,
+      representative_video_id: row.representative_video_id ?? null,
       content_tags,
       phone: row.phone || '',
       parking: row.parking || '',
@@ -135,7 +136,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
   const { data, error } = await supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags, representative_video_id,
       restaurant_videos (
         quote, mention_time, keywords, ai_insights,
         videos (
@@ -228,6 +229,7 @@ export async function getRestaurantById(id: string): Promise<Restaurant | null> 
     lat: data.lat,
     lng: data.lng,
     videos,
+    representative_video_id: data.representative_video_id ?? null,
     content_tags,
     phone: data.phone || '',
     parking: data.parking || '',
@@ -247,7 +249,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
   const { data, error } = await supabase
     .from('restaurants')
     .select(`
-      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags,
+      id, kakao_place_id, name, category, address, road_address, lat, lng, phone, parking, packaging, reservation, business_hours, business_hours_source, menu_info, description_summary, tags, representative_video_id,
       restaurant_videos (
         quote, mention_time, keywords, ai_insights,
         videos (
@@ -338,6 +340,7 @@ export async function getRestaurantsByIds(ids: string[]): Promise<Restaurant[]> 
       lat: row.lat,
       lng: row.lng,
       videos,
+      representative_video_id: row.representative_video_id ?? null,
       content_tags,
       phone: row.phone || '',
       parking: row.parking || '',
