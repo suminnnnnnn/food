@@ -109,6 +109,18 @@ export default function FloatingItineraryPanel({
   const [openCandId, setOpenCandId] = useState<string | null>(null);
   // 편집/보기 모드 (편집=조작 컨트롤 노출, 보기=콘텐츠만)
   const [editMode, setEditMode] = useState<boolean>(true);
+  // 시간 인라인 편집 (칩 클릭 → 그 자리 입력)
+  const [editingTimeId, setEditingTimeId] = useState<string | null>(null);
+  const [timeDraft, setTimeDraft] = useState<string>('');
+  const commitTime = (dayNum: number, itemId: string) => {
+    if (onUpdateItinerary) {
+      const v = timeDraft.trim();
+      onUpdateItinerary({ ...itinerary, days: itinerary.days.map(d => d.day === dayNum
+        ? { ...d, items: d.items.map(it => it.id === itemId ? { ...it, visit_time: v || undefined } : it) }
+        : d) });
+    }
+    setEditingTimeId(null);
+  };
 
   const renderInsertZone = (targetDay: number, insertIdx: number) => {
     return (
@@ -185,7 +197,7 @@ export default function FloatingItineraryPanel({
     }
     return (
       <div className="relative grid items-center gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)', minHeight: 30 }}>
-        <div className="absolute top-0 bottom-0 w-[2px]" style={{ left: '19px', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
+        <div className="absolute w-[2px]" style={{ top: '-6px', bottom: '-6px', left: '19px', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
         <div className="relative z-10 flex justify-center">
           <span className="w-[22px] h-[22px] rounded-full flex items-center justify-center" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-muted)' }}>
             {prev ? (walk ? <Footprints size={12} /> : <Car size={12} />) : <Navigation size={11} />}
@@ -249,8 +261,9 @@ export default function FloatingItineraryPanel({
     setOpenCandId(null);
   };
 
-  // 슬롯 후보 블록 (접힘 "후보 N" → 미니 카드 + 교체)
+  // 슬롯 후보 블록 (접힘 "후보 N" → 미니 카드 + 교체). 음식점(등록 맛집)에만 적용.
   const renderCandidates = (item: ItineraryItem, dayNum: number, idx: number) => {
+    if (item.is_custom_spot) return null;
     const cands = getCandidates(item);
     if (!cands.length) return null;
     const open = openCandId === item.id;
@@ -966,35 +979,53 @@ export default function FloatingItineraryPanel({
                               {/* 좌측 시간 spine 마커 + 카드 컬럼 */}
                               <div className="relative grid gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)' }}>
                                 <div className="relative flex flex-col items-center pt-2.5 gap-1">
-                                  <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: '50%', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
+                                  <div className="absolute w-[2px]" style={{ top: '-8px', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
                                   {item.visit_time && mealFromTime(item.visit_time) && (
                                     <span className="relative z-10 text-[9px] font-black leading-none tracking-wide" style={{ color: 'var(--itn-text-muted)' }}>{mealFromTime(item.visit_time)}</span>
                                   )}
                                   <span className="relative z-10 w-[11px] h-[11px] rounded-full transition-all" style={isSelected
                                     ? { background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 2px 7px -1px rgba(239,68,68,.5), 0 0 0 3px var(--itn-card)' }
                                     : { background: 'var(--itn-card)', boxShadow: 'inset 0 0 0 2px var(--itn-border)' }} />
+                                  {editingTimeId === item.id ? (
+                                    <input
+                                      autoFocus
+                                      value={timeDraft}
+                                      onChange={(e) => setTimeDraft(e.target.value)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onBlur={() => commitTime(dayData.day, item.id)}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') commitTime(dayData.day, item.id); if (e.key === 'Escape') setEditingTimeId(null); }}
+                                      placeholder="00:00"
+                                      maxLength={5}
+                                      className="relative z-10 w-[42px] text-[10px] font-bold text-center rounded-md leading-none"
+                                      style={{ color: 'var(--itn-accent)', border: '1px solid var(--itn-accent)', background: 'var(--itn-card)', outline: 'none', fontVariantNumeric: 'tabular-nums', padding: '2px 0' }}
+                                    />
+                                  ) : (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); onEditItemMemo(item); }}
+                                    onClick={(e) => { e.stopPropagation(); setTimeDraft(item.visit_time || ''); setEditingTimeId(item.id); }}
                                     className="relative z-10 text-[10px] font-bold leading-none cursor-pointer transition-opacity hover:opacity-60"
                                     style={{ color: 'var(--itn-text-muted)', fontVariantNumeric: 'tabular-nums' }}
-                                    title="방문 시간 편집"
+                                    title="클릭해서 시간 입력"
                                   >
                                     {item.visit_time || '00:00'}
                                   </button>
+                                  )}
                                 </div>
-                                <div className="min-w-0">
+                                <div className="min-w-0 relative group/card">
+                              {/* 통합 컨트롤 — 편집 모드 + hover, 카드 우상단 플로팅(썸네일 밖) */}
+                              {editMode && (
+                                <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 p-1 rounded-xl z-30 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow)' }} onClick={e => e.stopPropagation()}>
+                                  {controlButtons}
+                                </div>
+                              )}
 
                               {reg && renderRestaurantCard ? (
-                                <div className={`relative rounded-2xl w-full group ${isSelected ? 'ring-2 ring-orange-400' : ''}`}>
+                                <div className={`relative rounded-2xl w-full ${isSelected ? 'ring-2 ring-orange-400' : ''}`}>
                                   {renderRestaurantCard(reg, timelineLayout, {
                                     hideDistance: true,
-                                    actionNode: editMode ? controlButtons : undefined,
                                     isItinerary: true,
                                     onClick: () => { onActiveDayChange(dayData.day); onSelectItem(item); },
                                     onDragStart: (e: any) => { e.dataTransfer.setData('text/plain', JSON.stringify({ __moveItem: true, itemId: item.id, fromDay: dayData.day })); },
                                   })}
-
-                                  {extrasNode}
                                 </div>
                               ) : (
                               <div
@@ -1006,73 +1037,23 @@ export default function FloatingItineraryPanel({
                                   onActiveDayChange(dayData.day);
                                   onSelectItem(item);
                                 }}
-                                className={`relative rounded-2xl p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-200 group ${
-                                  isSelected
-                                    ? 'ring-2'
-                                    : ''
-                                }`}
+                                className="relative rounded-2xl px-3 py-2.5 flex flex-col cursor-pointer transition-all duration-200"
                                 style={{
                                   background: isSelected ? 'var(--itn-accent-light)' : 'var(--itn-card)',
                                   border: `1px solid ${isSelected ? 'var(--itn-accent)' : 'var(--itn-border)'}`,
-                                  boxShadow: isSelected ? '0 0 0 2px rgba(var(--itn-accent-rgb), 0.15)' : 'var(--itn-shadow-sm)',
-                                  ...(isSelected ? { ringColor: 'rgba(var(--itn-accent-rgb), 0.2)' } : {})
+                                  boxShadow: 'var(--itn-shadow-sm)',
                                 }}
                               >
-                                {/* 컨트롤 — 호버 오버레이 (편집 모드만) */}
-                                {editMode && (
-                                <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/95 backdrop-blur-sm p-1 rounded-xl shadow-md z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200" onClick={e => e.stopPropagation()}>
-                                  {controlButtons}
-                                </div>
-                                )}
-
                                 {/* 이름/주소 (시간은 좌측 spine 마커) */}
-                                <div className="min-w-0 pr-10">
-                                  <h5 className="text-[17px] font-bold truncate flex items-center gap-1.5 tracking-tight" style={{ color: 'var(--itn-text)' }}>
-                                    <span>{item.name}</span>
-                                  </h5>
-                                  <span className="text-[15px] block truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
+                                <div className="min-w-0 pr-8">
+                                  <h5 className="text-[14px] font-bold truncate tracking-tight" style={{ color: 'var(--itn-text)' }}>{item.name}</h5>
+                                  <span className="text-[11.5px] block truncate mt-0.5" style={{ color: 'var(--itn-text-sub)' }}>{item.address}</span>
                                 </div>
-
-                                {/* 노션 데이터 속성 (예약상태, 예산) */}
-                                {(item.status || item.budget !== undefined) && (
-                                  <div className="flex flex-wrap gap-1.5 items-center mt-1.5 select-none">
-                                    {item.status && (
-                                      <span className={`text-[14px] font-bold px-2 py-0.5 rounded-lg border ${
-                                        item.status === 'confirmed'
-                                          ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                                          : 'bg-amber-50 border-amber-200 text-amber-600'
-                                      }`}>
-                                        {item.status === 'confirmed' ? '예약 완료 ✅' : '예약 필요 ⏳'}
-                                      </span>
-                                    )}
-                                    {item.budget !== undefined && (
-                                      <span className="text-[14px] font-bold px-2 py-0.5 rounded-lg" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-sub)' }}>
-                                        💸 {item.budget.toLocaleString()}원
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* 노션 체크리스트/준비물 실시간 토글 */}
-                                {item.checklist && item.checklist.length > 0 && (
-                                  <div className="space-y-1 mt-1.5 pt-1.5" style={{ borderTop: '1px solid var(--itn-border-subtle)' }} onClick={e => e.stopPropagation()}>
-                                    {item.checklist.map((check, cIdx) => (
-                                      <label key={cIdx} className="flex items-center gap-1.5 cursor-pointer text-[15px] select-none" style={{ color: 'var(--itn-text-sub)' }}>
-                                        <input
-                                          type="checkbox"
-                                          checked={check.done}
-                                          onChange={() => handleToggleChecklist(dayData.day, item.id, cIdx)}
-                                          className="w-3.5 h-3.5 rounded accent-orange-500 cursor-pointer"
-                                        />
-                                        <span className={check.done ? 'line-through' : ''} style={check.done ? { color: 'var(--itn-text-muted)' } : undefined}>{check.text}</span>
-                                      </label>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {renderItemActionBar(item)}{renderCandidates(item, dayData.day, idx)}
                               </div>
                               )}
+
+                              {/* 상태·체크리스트·메모·후보 — 카드 밖, 등록/커스텀 동일 */}
+                              {extrasNode}
                                 </div>
                               </div>
 
@@ -1420,14 +1401,15 @@ export default function FloatingItineraryPanel({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className="relative w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-5 text-white z-10"
+              className="relative w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-5 z-10"
+              style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text)' }}
             >
               <div className="space-y-1.5 text-center">
                 <div className="w-10 h-10 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded-full flex items-center justify-center mx-auto mb-2">
                   <Navigation size={18} />
                 </div>
                 <h3 className="text-base font-black tracking-tight">길찾기 앱 선택</h3>
-                <p className="text-zinc-400 text-xs font-semibold">출발지: 현재 위치 · 도착지: {routeItem.name}</p>
+                <p className="text-xs font-semibold" style={{ color: 'var(--itn-text-sub)' }}>출발지: 현재 위치 · 도착지: {routeItem.name}</p>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -1437,13 +1419,13 @@ export default function FloatingItineraryPanel({
                     openExternal(`https://map.naver.com/p/directions/-/${routeItem.lat},${routeItem.lng},${encodeURIComponent(routeItem.name)}/-/car`, { reason: 'naver_map_route' });
                     setRouteItem(null);
                   }}
-                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-green-500/30 rounded-2xl transition-all group text-left cursor-pointer"
+                  className="w-full flex items-center justify-between p-3.5 bg-[var(--itn-card-hover)] border border-[var(--itn-border)] hover:border-green-500/30 rounded-2xl transition-all group text-left cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <img src="/naver_map_logo.png?v=3" alt="Naver" className="w-5 h-5 rounded object-contain shrink-0" />
-                    <span className="text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors">네이버 지도</span>
+                    <span className="text-[13px] font-bold text-[var(--itn-text)] group-hover:opacity-80 transition-opacity">네이버 지도</span>
                   </div>
-                  <ChevronRight size={14} className="text-zinc-500 group-hover:text-white transition-colors shrink-0" />
+                  <ChevronRight size={14} className="text-[var(--itn-text-muted)] shrink-0" />
                 </button>
 
                 {/* 카카오맵 */}
@@ -1452,13 +1434,13 @@ export default function FloatingItineraryPanel({
                     openExternal(`https://map.kakao.com/link/to/${encodeURIComponent(routeItem.name)},${routeItem.lat},${routeItem.lng}`, { reason: 'kakao_navi' });
                     setRouteItem(null);
                   }}
-                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-yellow-500/30 rounded-2xl transition-all group text-left cursor-pointer"
+                  className="w-full flex items-center justify-between p-3.5 bg-[var(--itn-card-hover)] border border-[var(--itn-border)] hover:border-yellow-500/30 rounded-2xl transition-all group text-left cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAOVBMVEVHcEwAdv//5wD/5AD74gAAfP/64QD64QD64QD74gC4wIOApbw+i+ejtZvv3CJaldjTzlwlhfLc0kuK1weQAAAACnRSTlMA////Fv//+bQX9hPeKgAAALpJREFUKJF901sSgyAMBVBIBHlKcf+LLYYWCYL5ccZjLoFBIazZ9aR2Y4WwM6llhVmjEV0mQinsksVNOqack8ObG4KTUpWS6oMjoiMibvrHo1mpoRP9hTJkekRkCDUPgNIDMKRUX95BuL5aYXoixaoD4JzE1oGU97OB+FbGfb4eggb/UxnhcbZ1zmK+WYdaE+bbeqRl5YlTpNNJXSPD0soaGWqUoW8cMDpkyC4tMtvfr+a2xnLlt/Xv8AWzshIVTzb8eQAAAABJRU5ErkJggg==" alt="Kakao" className="w-5 h-5 rounded object-contain shrink-0" />
-                    <span className="text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors">카카오맵</span>
+                    <span className="text-[13px] font-bold text-[var(--itn-text)] group-hover:opacity-80 transition-opacity">카카오맵</span>
                   </div>
-                  <ChevronRight size={14} className="text-zinc-500 group-hover:text-white transition-colors shrink-0" />
+                  <ChevronRight size={14} className="text-[var(--itn-text-muted)] shrink-0" />
                 </button>
 
                 {/* 티맵 */}
@@ -1472,19 +1454,20 @@ export default function FloatingItineraryPanel({
                     }
                     setRouteItem(null);
                   }}
-                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800/50 hover:bg-zinc-800 border border-white/5 hover:border-blue-500/30 rounded-2xl transition-all group text-left cursor-pointer"
+                  className="w-full flex items-center justify-between p-3.5 bg-[var(--itn-card-hover)] border border-[var(--itn-border)] hover:border-blue-500/30 rounded-2xl transition-all group text-left cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <img src="/tmap_logo.png?v=3" alt="Tmap" className="w-5 h-5 rounded object-contain shrink-0" />
-                    <span className="text-[13px] font-bold text-zinc-200 group-hover:text-white transition-colors">티맵 (TMAP)</span>
+                    <span className="text-[13px] font-bold text-[var(--itn-text)] group-hover:opacity-80 transition-opacity">티맵 (TMAP)</span>
                   </div>
-                  <ChevronRight size={14} className="text-zinc-500 group-hover:text-white transition-colors shrink-0" />
+                  <ChevronRight size={14} className="text-[var(--itn-text-muted)] shrink-0" />
                 </button>
               </div>
 
               <button
                 onClick={() => setRouteItem(null)}
-                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 active:scale-[0.98] transition-all text-white font-bold rounded-2xl text-[12px] cursor-pointer"
+                className="w-full py-3 active:scale-[0.98] transition-all font-bold rounded-2xl text-[12px] cursor-pointer"
+                style={{ background: 'var(--itn-card-hover)', color: 'var(--itn-text-sub)' }}
               >
                 닫기
               </button>
