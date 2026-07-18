@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DailyItinerary, ItineraryItem, Itinerary, Restaurant } from '@/types';
-import { MapPin, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Utensils, GripVertical, Heart, Share2, MoreVertical, RotateCcw, Eye, LayoutGrid, List, ChevronRight, Footprints, Car } from 'lucide-react';
+import { MapPin, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Utensils, GripVertical, Heart, Share2, MoreVertical, RotateCcw, Eye, LayoutGrid, List, ChevronRight, Footprints, Car, Bus } from 'lucide-react';
 import { getDistance } from '@/lib/geoUtils';
 import { openExternal } from '@/lib/external-link';
 
@@ -107,18 +107,36 @@ export default function FloatingItineraryPanel({
   const [routeItem, setRouteItem] = useState<ItineraryItem | null>(null);
   // 편집/보기 모드 (편집=조작 컨트롤 노출, 보기=콘텐츠만)
   const [editMode, setEditMode] = useState<boolean>(true);
-  // 시간 인라인 편집 (칩 클릭 → 그 자리 입력)
+  // 시간 편집 — 끼니 프리셋 팝오버 + 스텝 미세조정
   const [editingTimeId, setEditingTimeId] = useState<string | null>(null);
   const [timeDraft, setTimeDraft] = useState<string>('');
-  const commitTime = (dayNum: number, itemId: string) => {
+  const MEAL_PRESETS = [
+    { meal: '아침', time: '09:00' },
+    { meal: '점심', time: '12:30' },
+    { meal: '카페', time: '15:00' },
+    { meal: '저녁', time: '18:30' },
+    { meal: '야식', time: '21:00' },
+  ];
+  const stepTime = (t: string, deltaMin: number): string => {
+    const [h, m] = (t || '12:00').split(':').map(Number);
+    let total = (isNaN(h) ? 12 : h) * 60 + (isNaN(m) ? 0 : m) + deltaMin;
+    total = ((total % 1440) + 1440) % 1440;
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  };
+  const setItemTime = (dayNum: number, itemId: string, time: string) => {
     if (onUpdateItinerary) {
-      const v = timeDraft.trim();
       onUpdateItinerary({ ...itinerary, days: itinerary.days.map(d => d.day === dayNum
-        ? { ...d, items: d.items.map(it => it.id === itemId ? { ...it, visit_time: v || undefined } : it) }
+        ? { ...d, items: d.items.map(it => it.id === itemId ? { ...it, visit_time: time || undefined } : it) }
         : d) });
     }
-    setEditingTimeId(null);
   };
+  // 팝오버 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!editingTimeId) return;
+    const close = () => setEditingTimeId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [editingTimeId]);
 
   const renderInsertZone = (targetDay: number, insertIdx: number) => {
     return (
@@ -183,28 +201,49 @@ export default function FloatingItineraryPanel({
     return '야식';
   };
 
-  // 장소 간 직선거리(하버사인) + 여다식 흑백 교통 아이콘 + 길찾기(홈 상세 모달).
-  // prev=null이면 첫 장소(현위치 출발) 레그.
-  const renderLeg = (prev: ItineraryItem | null, item: ItineraryItem) => {
-    let distLabel = '', modeText = '', walk = true;
+  // 이동수단: 기본은 거리 자동 추정, 아이콘 탭으로 도보→대중교통→차량 순환(transportType 저장)
+  const MODE_ORDER = ['walk', 'transit', 'car'] as const;
+  const MODE_META: Record<string, { label: string; Icon: any }> = {
+    walk: { label: '도보', Icon: Footprints },
+    transit: { label: '대중교통', Icon: Bus },
+    car: { label: '차량', Icon: Car },
+  };
+  // 장소 간 직선거리 + 이동수단(탭 순환) + 길찾기. prev=null이면 첫 장소(현위치 출발).
+  const renderLeg = (prev: ItineraryItem | null, item: ItineraryItem, dayNum: number) => {
+    let distLabel = '';
+    let modeKey = 'walk';
     if (prev) {
       const km = getDistance(prev.lat, prev.lng, item.lat, item.lng);
       distLabel = km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
-      walk = km < 1; // 1km 미만 도보, 이상 차량 (직선거리 기준 자동 추정)
-      modeText = walk ? '도보' : '차량';
+      modeKey = (item.transportType as string) || (km < 1 ? 'walk' : 'car'); // 저장된 오버라이드 우선, 없으면 거리 자동
     }
+    const meta = MODE_META[modeKey] || MODE_META.walk;
+    const ModeIcon = meta.Icon;
+    const cycleMode = () => {
+      if (!onUpdateItinerary) return;
+      const next = MODE_ORDER[(MODE_ORDER.indexOf(modeKey as any) + 1) % MODE_ORDER.length];
+      onUpdateItinerary({ ...itinerary, days: itinerary.days.map(d => d.day === dayNum
+        ? { ...d, items: d.items.map(it => it.id === item.id ? { ...it, transportType: next } : it) }
+        : d) });
+    };
     return (
       <div className="relative grid items-center gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)', minHeight: 30 }}>
         <div className="absolute w-[2px]" style={{ top: '-6px', bottom: '-6px', left: '19px', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
         <div className="relative z-10 flex justify-center">
-          <span className="w-[22px] h-[22px] rounded-full flex items-center justify-center" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-muted)' }}>
-            {prev ? (walk ? <Footprints size={12} /> : <Car size={12} />) : <Navigation size={11} />}
-          </span>
+          {prev ? (
+            <button onClick={(e) => { e.stopPropagation(); cycleMode(); }} className="w-[22px] h-[22px] rounded-full flex items-center justify-center transition-transform active:scale-90 cursor-pointer" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-muted)' }} title="탭하여 이동수단 변경">
+              <ModeIcon size={12} />
+            </button>
+          ) : (
+            <span className="w-[22px] h-[22px] rounded-full flex items-center justify-center" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-muted)' }}>
+              <Navigation size={11} />
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[11px] font-bold truncate" style={{ color: 'var(--itn-text-sub)' }}>
             {prev
-              ? <>{modeText} · <span style={{ color: 'var(--itn-text-muted)' }}>{distLabel}</span></>
+              ? <>{meta.label} · <span style={{ color: 'var(--itn-text-muted)' }}>{distLabel}</span></>
               : <span style={{ color: 'var(--itn-text-muted)' }}>현위치에서 출발</span>}
           </span>
           <button
@@ -880,8 +919,8 @@ export default function FloatingItineraryPanel({
                           return (
                              <div key={item.id} className="relative group/panel flex flex-col gap-0.5" style={{ marginTop: idx > 0 ? '2px' : '0' }}>
 
-                              {/* 이동 레그 — 첫 장소는 현위치 출발, 이후는 직전 장소 기준 + 길찾기 */}
-                              {renderLeg(idx > 0 ? dayItems[idx - 1] : null, item)}
+                              {/* 이동 레그 — 첫 장소는 현위치 출발, 이후는 직전 장소 기준 + 이동수단 탭/길찾기 */}
+                              {renderLeg(idx > 0 ? dayItems[idx - 1] : null, item, dayData.day)}
 
                               {/* 인라인 삽입 영역 (카드가 렌더링되기 바로 전 위치) — 편집 모드만 */}
                               {editMode && renderInsertZone(dayData.day, idx)}
@@ -896,34 +935,38 @@ export default function FloatingItineraryPanel({
                                   <span className="relative z-10 w-[11px] h-[11px] rounded-full transition-all" style={isSelected
                                     ? { background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 2px 7px -1px rgba(239,68,68,.5), 0 0 0 3px var(--itn-card)' }
                                     : { background: 'var(--itn-card)', boxShadow: 'inset 0 0 0 2px var(--itn-border)' }} />
-                                  {editingTimeId === item.id ? (
-                                    <input
-                                      autoFocus
-                                      value={timeDraft}
-                                      onChange={(e) => setTimeDraft(e.target.value)}
-                                      onClick={(e) => e.stopPropagation()}
-                                      onBlur={() => commitTime(dayData.day, item.id)}
-                                      onKeyDown={(e) => { if (e.key === 'Enter') commitTime(dayData.day, item.id); if (e.key === 'Escape') setEditingTimeId(null); }}
-                                      placeholder="00:00"
-                                      maxLength={5}
-                                      className="relative z-10 w-[42px] text-[10px] font-bold text-center rounded-md leading-none"
-                                      style={{ color: 'var(--itn-accent)', border: '1px solid var(--itn-accent)', background: 'var(--itn-card)', outline: 'none', fontVariantNumeric: 'tabular-nums', padding: '2px 0' }}
-                                    />
-                                  ) : (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); setTimeDraft(item.visit_time || ''); setEditingTimeId(item.id); }}
+                                    onClick={(e) => { e.stopPropagation(); setTimeDraft(item.visit_time || '12:30'); setEditingTimeId(editingTimeId === item.id ? null : item.id); }}
                                     className="relative z-10 text-[10px] font-bold leading-none cursor-pointer transition-opacity hover:opacity-60"
-                                    style={{ color: 'var(--itn-text-muted)', fontVariantNumeric: 'tabular-nums' }}
-                                    title="클릭해서 시간 입력"
+                                    style={{ color: editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-text-muted)', fontVariantNumeric: 'tabular-nums' }}
+                                    title="클릭해서 시간 선택"
                                   >
                                     {item.visit_time || '00:00'}
                                   </button>
+                                  {editingTimeId === item.id && (
+                                    <div className="absolute top-0 left-full ml-2 z-50 w-[190px] rounded-2xl p-2.5" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow-lg)' }} onClick={(e) => e.stopPropagation()}>
+                                      <div className="text-[10px] font-black mb-1.5 px-0.5" style={{ color: 'var(--itn-text-muted)' }}>끼니로 빠르게</div>
+                                      <div className="flex flex-wrap gap-1 mb-2">
+                                        {MEAL_PRESETS.map(p => (
+                                          <button key={p.meal} onClick={() => { setItemTime(dayData.day, item.id, p.time); setEditingTimeId(null); }} className="flex-1 min-w-[52px] flex flex-col items-center gap-0.5 py-1.5 rounded-lg text-[10px] font-bold transition-colors hover:brightness-95" style={{ background: 'var(--itn-card-hover)', color: 'var(--itn-text-sub)' }}>
+                                            <span>{p.meal}</span><span className="text-[9px] font-semibold" style={{ color: 'var(--itn-text-muted)' }}>{p.time}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <div className="text-[10px] font-black mb-1 px-0.5" style={{ color: 'var(--itn-text-muted)' }}>직접 조정</div>
+                                      <div className="flex items-center gap-1">
+                                        <button onClick={() => setTimeDraft(t => stepTime(t, -15))} className="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-black" style={{ background: 'var(--itn-card-hover)', color: 'var(--itn-text-sub)' }}>−</button>
+                                        <span className="flex-1 text-center text-[13px] font-black" style={{ color: 'var(--itn-text)', fontVariantNumeric: 'tabular-nums' }}>{timeDraft}</span>
+                                        <button onClick={() => setTimeDraft(t => stepTime(t, 15))} className="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-black" style={{ background: 'var(--itn-card-hover)', color: 'var(--itn-text-sub)' }}>+</button>
+                                        <button onClick={() => { setItemTime(dayData.day, item.id, timeDraft); setEditingTimeId(null); }} className="ml-1 px-3 h-7 rounded-lg text-[11px] font-black text-white" style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}>적용</button>
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
                                 <div className="min-w-0 relative group/card">
                               {/* 통합 컨트롤 — 편집 모드 + hover, 카드 우상단 플로팅(썸네일 밖) */}
                               {editMode && (
-                                <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 p-1 rounded-xl z-30 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow)' }} onClick={e => e.stopPropagation()}>
+                                <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 p-1 rounded-xl z-30" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow)' }} onClick={e => e.stopPropagation()}>
                                   {controlButtons}
                                 </div>
                               )}
