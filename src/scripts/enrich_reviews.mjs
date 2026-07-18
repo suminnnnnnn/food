@@ -28,7 +28,7 @@ const PROMPT = (name) => `다음은 "${name}" 식당을 소개한 유튜브 영�
  "matches_restaurant": true/false,
  "match_confidence": 0.0~1.0,
  "content_type": "review|vlog|mukbang|comedy|promo|news 중 하나",
- "visit_type": "dine_in|delivery|home|unknown 중 하나(매장에 직접 방문해 먹으면 dine_in)",
+ "visit_type": "dine_in|takeout|delivery|home|unknown 중 하나(매장 방문취식=dine_in, 포장해서 밖/집에서=takeout, 배달=delivery, 집밥=home)",
  "tasting_review_score": 0.0~1.0,
  "one_liner": "유튜버 어조 한줄평(25자 내외) 또는 null",
  "review": "맛·식감·특징·추천이유 3~4문장 서술형(존댓말) 또는 null",
@@ -66,7 +66,7 @@ function passesContentGate(obj) {
   if (obj.matches_restaurant === false) return { ok: false, why: 'not-match' };
   if (conf !== null && conf < CONF_MIN) return { ok: false, why: `conf<${CONF_MIN}` };
   if (['comedy', 'promo', 'news'].includes(obj.content_type)) return { ok: false, why: `type:${obj.content_type}` };
-  if (['delivery', 'home'].includes(obj.visit_type)) return { ok: false, why: `visit:${obj.visit_type}` };
+  if (['takeout', 'delivery', 'home'].includes(obj.visit_type)) return { ok: false, why: `visit:${obj.visit_type}` };
   if ((obj.tasting_review_score ?? 1) < TASTE_MIN) return { ok: false, why: `taste<${TASTE_MIN}` };
   const ateAny = (obj.picks || []).some(p => p.ate === true);
   if (!obj.review && !ateAny) return { ok: false, why: 'no-tasting' };
@@ -89,7 +89,7 @@ function buildInsights(obj, conf) {
     picks, review: obj.review && obj.review !== '정보 없음' ? String(obj.review).slice(0, 600) : null,
     tips: Array.isArray(obj.tips) ? obj.tips : [], signature: obj.signature || null,
     mood_tags: Array.isArray(obj.mood_tags) ? obj.mood_tags : [], best_food_scenes: scenes,
-    match_confidence: conf, content_type: obj.content_type || null, tasting_review_score: obj.tasting_review_score ?? null,
+    match_confidence: conf, content_type: obj.content_type || null, visit_type: obj.visit_type || null, tasting_review_score: obj.tasting_review_score ?? null,
   };
 }
 

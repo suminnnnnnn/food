@@ -1270,9 +1270,11 @@ export default function RestaurantInfoCard({
                             <button onClick={() => setIsHoursReportOpen(true)} className="underline hover:text-zinc-300 md:hover:text-slate-600 ml-1 cursor-pointer">수정</button>
                           </>
                         ) : effHoursSource === 'video' ? (
-                          <><PlaySquare size={9} /> 출처: {sortedVideos[0]?.youtuber?.name || '유튜브 영상'}</>
-                        ) : (
+                          <><PlaySquare size={9} /> 출처: {activeVideo?.youtuber?.name || '유튜브 영상'} 영상</>
+                        ) : effHoursSource === 'tour' ? (
                           <>출처: 한국관광공사</>
+                        ) : (
+                          <>출처: 웹 검색</>
                         )}
                       </div>
                     )}
