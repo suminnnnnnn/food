@@ -119,6 +119,17 @@ export default function FloatingItineraryPanel({
   };
   // 카드 hover 상태(제어버튼 노출) — 네임드 group-hover 미지원 환경 대비 JS로 처리
   const [hoverCardId, setHoverCardId] = useState<string | null>(null);
+  // 시간 팝오버 바깥 클릭 시 닫기 (팝오버/칩 내부 클릭은 유지)
+  useEffect(() => {
+    if (!editingTimeId) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest && (t.closest('[data-time-pop]') || t.closest('[data-time-chip]'))) return;
+      setEditingTimeId(null);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [editingTimeId]);
 
   const renderInsertZone = (targetDay: number, insertIdx: number) => {
     return (
@@ -169,18 +180,6 @@ export default function FloatingItineraryPanel({
       );
     }
     return null;
-  };
-
-  // 방문 시간으로 끼니 슬롯 자동 라벨 (맛집 코스 문법)
-  const mealFromTime = (t?: string): string => {
-    if (!t) return '';
-    const h = parseInt(t.split(':')[0], 10);
-    if (isNaN(h)) return '';
-    if (h < 11) return '아침';
-    if (h < 15) return '점심';
-    if (h < 17) return '카페';
-    if (h < 21) return '저녁';
-    return '야식';
   };
 
   // 이동수단: 기본은 거리 자동 추정, 아이콘 탭으로 도보→대중교통→차량 순환(transportType 저장)
@@ -909,36 +908,37 @@ export default function FloatingItineraryPanel({
 
                               {/* 좌측 시간 spine 마커 + 카드 컬럼 */}
                               <div className="relative grid gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)' }}>
-                                <div className="relative flex flex-col items-center pt-2.5 gap-1">
+                                <div className="relative flex flex-col items-center pt-2.5 gap-1" style={{ zIndex: editingTimeId === item.id ? 60 : undefined }}>
                                   <div className="absolute w-[2px]" style={{ top: '-8px', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
-                                  {item.visit_time && mealFromTime(item.visit_time) && (
-                                    <span className="relative z-10 text-[9px] font-black leading-none tracking-wide" style={{ color: 'var(--itn-text-muted)' }}>{mealFromTime(item.visit_time)}</span>
-                                  )}
                                   <span className="relative z-10 w-[11px] h-[11px] rounded-full transition-all" style={isSelected
                                     ? { background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 2px 7px -1px rgba(239,68,68,.5), 0 0 0 3px var(--itn-card)' }
                                     : { background: 'var(--itn-card)', boxShadow: 'inset 0 0 0 2px var(--itn-border)' }} />
-                                  {editingTimeId === item.id ? (
-                                    <input
-                                      autoFocus
-                                      value={timeDraft}
-                                      onChange={(e) => setTimeDraft(e.target.value)}
-                                      onClick={(e) => e.stopPropagation()}
-                                      onBlur={() => { setItemTime(dayData.day, item.id, timeDraft.trim()); setEditingTimeId(null); }}
-                                      onKeyDown={(e) => { if (e.key === 'Enter') { setItemTime(dayData.day, item.id, timeDraft.trim()); setEditingTimeId(null); } if (e.key === 'Escape') setEditingTimeId(null); }}
-                                      placeholder="00:00"
-                                      maxLength={5}
-                                      className="relative z-10 w-[44px] text-[10px] font-bold text-center rounded-md leading-none"
-                                      style={{ color: 'var(--itn-accent)', border: '1px solid var(--itn-accent)', background: 'var(--itn-card)', outline: 'none', fontVariantNumeric: 'tabular-nums', padding: '3px 0' }}
-                                    />
-                                  ) : (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); setTimeDraft(item.visit_time || ''); setEditingTimeId(item.id); }}
+                                    data-time-chip
+                                    onClick={(e) => { e.stopPropagation(); setTimeDraft(item.visit_time || '12:30'); setEditingTimeId(editingTimeId === item.id ? null : item.id); }}
                                     className="relative z-10 text-[10px] font-bold leading-none cursor-pointer transition-opacity hover:opacity-60"
-                                    style={{ color: 'var(--itn-text-muted)', fontVariantNumeric: 'tabular-nums' }}
+                                    style={{ color: editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-text-muted)', fontVariantNumeric: 'tabular-nums' }}
                                     title="클릭해서 시간 입력"
                                   >
                                     {item.visit_time || '00:00'}
                                   </button>
+                                  {editingTimeId === item.id && (
+                                    <div data-time-pop className="absolute top-0 left-full ml-2 z-[70] rounded-2xl p-2.5" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow-lg)' }}>
+                                      <div className="text-[10px] font-black mb-1.5 px-0.5 whitespace-nowrap" style={{ color: 'var(--itn-text-muted)' }}>방문 시간</div>
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="time"
+                                          autoFocus
+                                          value={timeDraft}
+                                          onChange={(e) => setTimeDraft(e.target.value)}
+                                          onKeyDown={(e) => { if (e.key === 'Enter') { setItemTime(dayData.day, item.id, timeDraft); setEditingTimeId(null); } if (e.key === 'Escape') setEditingTimeId(null); }}
+                                          className="text-[13px] font-bold rounded-lg px-2 py-1.5"
+                                          style={{ background: 'var(--itn-card-hover)', color: 'var(--itn-text)', border: '1px solid var(--itn-border)', outline: 'none' }}
+                                        />
+                                        <button onClick={() => { setItemTime(dayData.day, item.id, timeDraft); setEditingTimeId(null); }} className="px-3 h-9 rounded-lg text-[11px] font-black text-white shrink-0" style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}>적용</button>
+                                      </div>
+                                      <button onClick={() => { setItemTime(dayData.day, item.id, ''); setEditingTimeId(null); }} className="mt-1.5 text-[10px] font-bold px-0.5 whitespace-nowrap" style={{ color: 'var(--itn-text-muted)' }}>시간 지우기</button>
+                                    </div>
                                   )}
                                 </div>
                                 <div className="min-w-0 relative" onMouseEnter={() => setHoverCardId(item.id)} onMouseLeave={() => setHoverCardId(null)}>
