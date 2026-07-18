@@ -23,6 +23,7 @@ const SCRIPTS: { file: string; desc: string; danger?: boolean }[] = [
   { file: 'migrate_mongtan_video.mjs', desc: '몽탄 영상 데이터 마이그레이션', danger: true },
   { file: 'create_rpc.mjs', desc: 'pgvector match_restaurants RPC 생성 (DDL)', danger: true },
   { file: 'create_mealkit_click_events.mjs', desc: '제휴 클릭 로그 테이블 생성 (제휴 통계용, DDL)', danger: true },
+  { file: 'migrate_affiliate_trust_cols.mjs', desc: 'affiliate_products 신뢰도 컬럼(trust_score·maker_type·maker_name) 추가 (DDL)', danger: true },
   { file: 'seed_keywords.mjs', desc: '키워드 시드' },
   { file: 'seed_sample_data.mjs', desc: '샘플 데이터 시드', danger: true },
   { file: 'ai_crawler.mjs', desc: '유튜브 인기채널 크롤 적재 (대량 쓰기)', danger: true },

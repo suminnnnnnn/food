@@ -12,11 +12,11 @@ const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUP
 const supabase = createClient(supabaseUrl!, supabaseKey!);
 
 // 수집 파라미터
-const SEARCH_QUERIES = ['밀키트 리뷰', '밀키트 추천', '밀키트 먹방'];
+const SEARCH_QUERIES = ['밀키트 리뷰', '밀키트 추천', '밀키트 먹방', '밀키트 언박싱', '밀키트 내돈내산', '밀키트 요리'];
 const PUBLISHED_WITHIN_DAYS = 21;
-const MIN_VIEWS = 3000;
+const MIN_VIEWS = 10000; // 1만 미만 미수집 (조회수 최우선 정책)
 const MAX_PER_CHANNEL = 2;
-const MAX_NEW_VIDEOS = 8; // 하루 신규 추출 상한 (Gemini 비용·검수 부하 제어)
+const MAX_NEW_VIDEOS = 15; // 신규 추출 상한 (평시값 — 대량 backfill 시 일시 상향)
 
 // 밀키트 전용 카테고리 (간편식 제외 — 쇼핑탭은 밀키트만 취급)
 const MEALKIT_CATEGORIES = ['고기·구이', '국물·탕', '면·파스타', '분식', '해산물', '캠핑용', '홈파티', '야식', '다이어트'];
@@ -74,7 +74,7 @@ async function discoverVideoIds(): Promise<Set<string>> {
     url.searchParams.set('regionCode', 'KR');
     url.searchParams.set('videoDuration', 'medium'); // 4~20분 (쇼츠 배제)
     url.searchParams.set('publishedAfter', publishedAfter);
-    url.searchParams.set('maxResults', '15');
+    url.searchParams.set('maxResults', '25');
     url.searchParams.set('key', YOUTUBE_API_KEY!);
     const res = await fetch(url);
     const data = await res.json();
@@ -124,28 +124,71 @@ async function enrichVideos(ids: string[]): Promise<any[]> {
 }
 
 // Gemini — 제목+설명에서 밀키트 상품 추출 (환각 방지: 근거 인용 필수)
-async function extractProducts(title: string, description: string): Promise<{ category: string | null; products: any[] }> {
-  const prompt = `너는 밀키트 리뷰 영상에서 소개된 "밀키트/간편식 상품"을 추출하는 AI다.
-아래 영상의 제목과 설명에 **명시적으로 등장한 밀키트 상품만** 추출해라. 추론·창작 금지. 근거를 댈 수 없으면 넣지 마라.
+async function extractProducts(title: string, description: string, viewCount?: number | null, subscriberCount?: number | null): Promise<{ category: string | null; products: any[] }> {
+  const prompt = `너는 밀키트 리뷰·먹방 영상에서 소개된 "밀키트/간편식 상품"을 추출하고, 각 상품의 신뢰도를 평가하는 AI다.
+아래 영상의 제목·설명·지표를 근거로, 실제 언급된 밀키트 상품만 추출해라.
+추론·창작 금지 — 원문에서 근거(evidence)를 인용할 수 없으면 넣지 마라.
 
 제목: ${title}
 설명: ${(description || '').substring(0, 1800)}
+영상 조회수: ${viewCount ?? '알수없음'}
+채널 구독자수: ${subscriberCount ?? '알수없음'}
+
+[추출 규칙]
+- 제품명이 명확하면 그대로 추출한다.
+- 브랜드는 명확하나 제품명이 두루뭉술하면(예: "야식이 밀키트") 브랜드 + 간단한 종류로 추출하되 confidence를 낮게 매긴다.
+- "밀키트"만 막연히 나오고 브랜드·제품명 단서가 전혀 없으면 넣지 않는다.
+- product_name에는 브랜드를 빼고, brand에 제조사/판매처를 넣는다(모르면 빈 문자열).
+
+[confidence — 추출 확신도 0.0~1.0]
+- 0.8~1.0: 브랜드와 제품명이 명확히 표기됨 / 0.5~0.7: 브랜드만 명확 / 0.3~0.4: 단서 약함
+
+[maker_type — 제조 주체]
+- chef: 유명 셰프가 만들거나 이름을 건 밀키트
+- restaurant: 특정 맛집/식당이 직접 만든 밀키트 (예: "○○식당 시그니처 밀키트")
+- manufacturer: 프레시지·CJ 등 식품 제조사의 대량 생산 제품
+- unknown: 판단 불가
+
+[trust_score — 밀키트 신뢰도 0~100]
+**가장 중요한 요소는 영상 조회수다 (사회적 증거).** 먼저 조회수 구간으로 기본 점수를 정해라:
+- 100만 이상: 90~100
+- 50만~100만: 80~90
+- 10만~50만: 65~80
+- 3만~10만: 50~65
+- 1만~3만: 35~50
+그 다음 보조 요소로 소폭 가감한다:
+- 셰프/식당 직접 제조(chef/restaurant)면 가산, 대량 제조사(manufacturer)/불명(unknown)은 가산 없음
+- 채널 구독자수 많음·1인칭 직접 후기(내돈내산)·구체 정보(가격/조리법)면 가산
+- 정보가 빈약하면 감산
+(보조 가감은 기본 점수 대비 ±15점 이내로 제한한다)
+
+[coupang_available — 쿠팡 구매 가능 추정]
+우리는 쿠팡파트너스로만 구매를 연계하므로, 쿠팡에서 살 수 없는 제품은 소용이 없다.
+- 대부분의 시판 밀키트는 쿠팡에서도 살 수 있으므로 기본값은 true.
+- 다음처럼 특정 플랫폼 전용이 명확하면 false로 둔다:
+  · 마켓컬리·오아시스·SSG 등의 자체 PB/단독 상품 ("컬리 전용", "컬리에서만", "Kurly's" 등)
+  · 특정 식당·브랜드 자사몰에서만 파는 직판 제품 ("○○몰에서만 구매 가능")
+- 애매하면 true로 둔다 (보수적으로).
 
 각 상품에 대해 아래 JSON으로만 응답하라:
 {
-  "category": "이 영상의 밀키트 종류 한 가지 (${MEALKIT_CATEGORIES.join(', ')} 중에서 가장 가까운 것)",
+  "category": "추출된 상품이 속하는 종류 하나를 다음에서 고른다: ${MEALKIT_CATEGORIES.join(', ')}. 확실히 해당하는 게 없거나 상품이 없으면 빈 문자열로 둔다(억지로 고르지 말 것).",
   "products": [
     {
-      "product_name": "상품명 (브랜드 제외한 제품명)",
+      "product_name": "브랜드를 제외한 제품명",
       "brand": "브랜드/제조사 (모르면 빈 문자열)",
-      "subtitle": "한 줄 특징 (설명에 근거, 없으면 빈 문자열)",
+      "subtitle": "설명에 근거한 한 줄 특징 (없으면 빈 문자열, 창작 금지)",
       "mention_time": "타임스탬프 mm:ss (설명에 있으면, 없으면 빈 문자열)",
+      "maker_type": "chef | restaurant | manufacturer | unknown 중 하나",
+      "maker_name": "셰프명 또는 식당명 (chef/restaurant일 때, 없으면 빈 문자열)",
       "confidence": 0.0~1.0,
+      "trust_score": 0~100,
+      "coupang_available": true 또는 false,
       "evidence": "이 상품이 언급된 제목/설명의 원문 인용 (필수)"
     }
   ]
 }
-상품이 하나도 명시되지 않았으면 products는 빈 배열로 둬라.`;
+상품이 하나도 명시되지 않았으면 products는 빈 배열로, category도 빈 문자열로 둬라.`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -167,7 +210,7 @@ async function extractProducts(title: string, description: string): Promise<{ ca
 }
 
 async function runCollection() {
-  const summary = { discovered: 0, candidates: 0, skippedExisting: 0, inserted: 0, products: 0, errors: [] as string[] };
+  const summary = { discovered: 0, candidates: 0, skippedExisting: 0, skippedNonCoupang: 0, inserted: 0, products: 0, errors: [] as string[] };
 
   // 1. 발견
   const idSet = await discoverVideoIds();
@@ -221,7 +264,15 @@ async function runCollection() {
   // 4. 추출 + 적재 (영상별 격리 — 하나 실패해도 배치 지속)
   for (const v of fresh) {
     try {
-      const { category, products } = await extractProducts(v.title, v.description);
+      const { category, products } = await extractProducts(v.title, v.description, v.view_count, chMap[v.channel_id]?.subs ?? null);
+
+      // 쿠팡 구매 불가(컬리 등 특정 플랫폼 전용) 제품 제외. 영상의 모든 상품이 제외되면 영상 자체를 건너뜀.
+      const extracted = products.filter((p: any) => p.product_name);
+      const linkable = extracted.filter((p: any) => p.coupang_available !== false);
+      if (extracted.length > 0 && linkable.length === 0) {
+        summary.skippedNonCoupang += 1;
+        continue;
+      }
 
       const { data: vid, error: vErr } = await supabase
         .from('affiliate_videos')
@@ -245,8 +296,7 @@ async function runCollection() {
 
       const now = new Date().toISOString();
       const rows = await Promise.all(
-        products
-          .filter((p: any) => p.product_name)
+        linkable
           .map(async (p: any) => {
             const q = `${p.brand || ''} ${p.product_name}`.trim();
             const nv = await naverShopSearch(q); // 실제 최저가·상품링크·이미지
@@ -264,6 +314,9 @@ async function runCollection() {
               thumbnail_url: nv.image || null,
               mention_time: p.mention_time || null,
               confidence: typeof p.confidence === 'number' ? p.confidence : null,
+              trust_score: typeof p.trust_score === 'number' ? Math.round(p.trust_score) : null,
+              maker_type: p.maker_type || null,
+              maker_name: p.maker_name || null,
               evidence: p.evidence || null,
             };
           })

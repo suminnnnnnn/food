@@ -12,6 +12,9 @@ type Product = {
   platform: string | null;
   mention_time: string | null;
   confidence: number | null;
+  trust_score: number | null;
+  maker_type: string | null;
+  maker_name: string | null;
   evidence: string | null;
 };
 type Video = {
@@ -30,6 +33,9 @@ type Video = {
 const STATUSES = ['pending', 'approved', 'rejected'] as const;
 const CATEGORIES = ['고기·구이', '국물·탕', '면·파스타', '분식', '해산물', '캠핑용', '홈파티', '야식', '다이어트'];
 
+// 영상 신뢰도 = 소속 상품 trust_score의 최댓값 (없으면 -1)
+const vTrust = (v: Video) => v.products.reduce((m, p) => Math.max(m, typeof p.trust_score === 'number' ? p.trust_score : -1), -1);
+
 export default function AdminMealkitsPage() {
   const { adminFetch } = useAdmin();
   const [tab, setTab] = useState<(typeof STATUSES)[number]>('pending');
@@ -37,6 +43,7 @@ export default function AdminMealkitsPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [sort, setSort] = useState<'trust' | 'recent'>('trust');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -112,7 +119,11 @@ export default function AdminMealkitsPage() {
             {s === 'pending' ? '검수 대기' : s === 'approved' ? '승인됨' : '반려됨'}
           </button>
         ))}
-        <button onClick={load} className="ml-auto px-3 py-1.5 rounded-full text-[13px] font-semibold bg-white border border-slate-200 text-slate-500">새로고침</button>
+        <div className="ml-auto flex gap-1.5">
+          <button onClick={() => setSort('trust')} className={`px-3 py-1.5 rounded-full text-[12px] font-bold ${sort === 'trust' ? 'bg-emerald-500 text-white' : 'bg-white border border-slate-200 text-slate-500'}`}>신뢰도순</button>
+          <button onClick={() => setSort('recent')} className={`px-3 py-1.5 rounded-full text-[12px] font-bold ${sort === 'recent' ? 'bg-slate-700 text-white' : 'bg-white border border-slate-200 text-slate-500'}`}>최신순</button>
+          <button onClick={load} className="px-3 py-1.5 rounded-full text-[13px] font-semibold bg-white border border-slate-200 text-slate-500">새로고침</button>
+        </div>
       </div>
 
       {msg && <div className="mb-4 text-[13px] px-3 py-2 rounded-lg bg-orange-50 text-orange-700 border border-orange-100">{msg}</div>}
@@ -120,8 +131,9 @@ export default function AdminMealkitsPage() {
       {!loading && videos.length === 0 && <p className="text-[13px] text-slate-400 py-12 text-center">항목이 없습니다</p>}
 
       {/* 목록 */}
+      {!loading && videos.length > 0 && <p className="text-[12px] text-slate-400 mb-2">{videos.length}건 · {sort === 'trust' ? '신뢰도순' : '최신순'}</p>}
       <div className="flex flex-col gap-4">
-        {videos.map((v) => (
+        {(sort === 'trust' ? [...videos].sort((a, b) => vTrust(b) - vTrust(a)) : videos).map((v) => (
           <div key={v.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <div className="flex gap-4 p-4">
               <a href={`https://youtu.be/${v.youtube_video_id}`} target="_blank" rel="noreferrer" className="shrink-0">
@@ -132,7 +144,12 @@ export default function AdminMealkitsPage() {
                 />
               </a>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-[14px] leading-snug line-clamp-2">{v.title}</p>
+                <div className="flex items-start gap-2">
+                  <p className="font-bold text-[14px] leading-snug line-clamp-2 flex-1">{v.title}</p>
+                  {vTrust(v) >= 0 && (
+                    <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold ${vTrust(v) >= 70 ? 'bg-emerald-100 text-emerald-700' : vTrust(v) >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}`}>신뢰 {vTrust(v)}</span>
+                  )}
+                </div>
                 <p className="text-[12px] text-slate-500 mt-1">
                   {v.channel_title} · 조회 {(v.view_count || 0).toLocaleString()} ·{' '}
                   <select
@@ -155,6 +172,16 @@ export default function AdminMealkitsPage() {
                         {typeof p.confidence === 'number' && (
                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${p.confidence >= 0.7 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                             {(p.confidence * 100).toFixed(0)}%
+                          </span>
+                        )}
+                        {typeof p.trust_score === 'number' && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${p.trust_score >= 70 ? 'bg-emerald-100 text-emerald-700' : p.trust_score >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'}`}>
+                            신뢰 {p.trust_score}
+                          </span>
+                        )}
+                        {p.maker_type && p.maker_type !== 'unknown' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold">
+                            {p.maker_type === 'chef' ? '👨‍🍳 셰프' : p.maker_type === 'restaurant' ? '🏠 식당직접' : '🏭 제조사'}{p.maker_name ? ` · ${p.maker_name}` : ''}
                           </span>
                         )}
                         {p.mention_time && <span className="text-[10px] text-slate-400">⏱ {p.mention_time}</span>}

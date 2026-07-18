@@ -73,6 +73,9 @@ export async function saveItineraryToServer(userId: string, itinerary: Itinerary
         id: itinerary.id,
         user_id: userId,
         title: itinerary.title,
+        start_date: (itinerary as any).start_date ?? null,
+        end_date: (itinerary as any).end_date ?? null,
+        color: itinerary.color ?? null,
         days: itinerary.days,
         created_at: itinerary.created_at,
         updated_at: new Date().toISOString()

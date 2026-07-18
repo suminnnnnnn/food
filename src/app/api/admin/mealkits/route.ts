@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       .from('affiliate_videos')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(200);
     if (status !== 'all') query.eq('status', status);
 
     const { data: videos, error } = await query;

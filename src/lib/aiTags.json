@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "note": "AI 영상분석 태그 사전(닫힌 어휘). 수집 스크립트(enrich_tags_from_video)와 UI가 공유하는 단일 원천. 카테고리/편의/큐레이션과 중복 금지 — 주관적·맥락 태그만.",
+  "select_rules": {
+    "codes_only": true,
+    "evidence_required": true,
+    "precision_first": "근거가 영상에 명확할 때만. 애매하면 제외.",
+    "total_min": 0,
+    "total_max": 6
+  },
+  "facets": [
+    {
+      "key": "situation",
+      "label": "방문 상황",
+      "max": 2,
+      "tags": [
+        { "code": "honbap", "label": "혼밥", "criteria": "1인석·바테이블, 혼자 와도 좋다는 언급/화면" },
+        { "code": "date", "label": "데이트", "criteria": "2인·분위기 강조, 데이트 맥락 언급" },
+        { "code": "family", "label": "가족모임", "criteria": "좌식·아이·어르신, 가족 단위 언급" },
+        { "code": "moim", "label": "회식·모임", "criteria": "단체석·룸, 회식/모임 맥락" }
+      ]
+    },
+    {
+      "key": "feature",
+      "label": "매장 특징",
+      "max": 3,
+      "tags": [
+        { "code": "waiting", "label": "웨이팅맛집", "criteria": "대기줄 화면·웨이팅 언급" },
+        { "code": "gasung", "label": "가성비", "criteria": "저렴한 가격+푸짐함 함께 강조" },
+        { "code": "premium", "label": "프리미엄", "criteria": "고급·특별한 날·높은 객단가" },
+        { "code": "nopo", "label": "노포", "criteria": "오래된 집·수십 년·전통 강조" },
+        { "code": "view", "label": "뷰맛집", "criteria": "전망·야경·창밖 풍경 강조" },
+        { "code": "group", "label": "단체가능", "criteria": "넓은 홀·룸·단체석" },
+        { "code": "latenight", "label": "심야영업", "criteria": "늦게까지·새벽·심야 영업 언급" }
+      ]
+    },
+    {
+      "key": "mood",
+      "label": "분위기",
+      "max": 1,
+      "tags": [
+        { "code": "gamseong", "label": "감성", "criteria": "인테리어·조명·무드를 뚜렷이 강조" },
+        { "code": "local", "label": "로컬핫플", "criteria": "현지인·동네 핫플·줄 서는 곳" },
+        { "code": "hidden", "label": "숨은맛집", "criteria": "골목·간판 없는·아는 사람만 가는" }
+      ]
+    },
+    {
+      "key": "food",
+      "label": "음식 포인트",
+      "max": 2,
+      "tags": [
+        { "code": "spicy", "label": "매운맛", "criteria": "매운·불맛을 뚜렷이 강조" },
+        { "code": "pushim", "label": "푸짐한양", "criteria": "양 많음·가득 담김 강조" },
+        { "code": "homemade", "label": "직접만든", "criteria": "수제·직접·매일 만든다는 언급" },
+        { "code": "hyangto", "label": "향토음식", "criteria": "지역 향토·현지식 강조" },
+        { "code": "healthy", "label": "건강한맛", "criteria": "슴슴·건강·재료를 강조" }
+      ]
+    }
+  ]
+}
