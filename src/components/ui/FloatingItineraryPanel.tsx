@@ -910,14 +910,13 @@ export default function FloatingItineraryPanel({
                               <div className="relative grid gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)' }}>
                                 <div className="relative flex flex-col items-center pt-2.5 gap-1" style={{ zIndex: editingTimeId === item.id ? 60 : undefined }}>
                                   <div className="absolute w-[2px]" style={{ top: '-8px', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
-                                  <span className="relative z-10 w-[11px] h-[11px] rounded-full transition-all" style={isSelected
-                                    ? { background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 2px 7px -1px rgba(239,68,68,.5), 0 0 0 3px var(--itn-card)' }
-                                    : { background: 'var(--itn-card)', boxShadow: 'inset 0 0 0 2px var(--itn-border)' }} />
                                   <button
                                     data-time-chip
                                     onClick={(e) => { e.stopPropagation(); setTimeDraft(item.visit_time || '12:30'); setEditingTimeId(editingTimeId === item.id ? null : item.id); }}
-                                    className="relative z-10 text-[10px] font-bold leading-none cursor-pointer transition-opacity hover:opacity-60"
-                                    style={{ color: editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-text-muted)', fontVariantNumeric: 'tabular-nums' }}
+                                    className="relative z-10 text-[10px] font-black leading-none rounded-full px-2 py-1 cursor-pointer transition-all whitespace-nowrap"
+                                    style={isSelected
+                                      ? { color: '#fff', background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 2px 8px -1px rgba(239,68,68,.45), 0 0 0 3px var(--itn-card)', fontVariantNumeric: 'tabular-nums' }
+                                      : { color: editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-text-sub)', background: 'var(--itn-card)', border: `1px solid ${editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-border)'}`, boxShadow: '0 0 0 3px var(--itn-card)', fontVariantNumeric: 'tabular-nums' }}
                                     title="클릭해서 시간 입력"
                                   >
                                     {item.visit_time || '00:00'}
