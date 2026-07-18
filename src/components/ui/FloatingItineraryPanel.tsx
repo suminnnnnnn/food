@@ -107,7 +107,7 @@ export default function FloatingItineraryPanel({
   const [routeItem, setRouteItem] = useState<ItineraryItem | null>(null);
   // 편집/보기 모드 (편집=조작 컨트롤 노출, 보기=콘텐츠만)
   const [editMode, setEditMode] = useState<boolean>(true);
-  // 시간 편집 — 칩 클릭 → 직접 입력 팝오버
+  // 시간 편집 — 칩 클릭 → 인라인 입력
   const [editingTimeId, setEditingTimeId] = useState<string | null>(null);
   const [timeDraft, setTimeDraft] = useState<string>('');
   const setItemTime = (dayNum: number, itemId: string, time: string) => {
@@ -117,13 +117,8 @@ export default function FloatingItineraryPanel({
         : d) });
     }
   };
-  // 팝오버 바깥 클릭 시 닫기
-  useEffect(() => {
-    if (!editingTimeId) return;
-    const close = () => setEditingTimeId(null);
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [editingTimeId]);
+  // 카드 hover 상태(제어버튼 노출) — 네임드 group-hover 미지원 환경 대비 JS로 처리
+  const [hoverCardId, setHoverCardId] = useState<string | null>(null);
 
   const renderInsertZone = (targetDay: number, insertIdx: number) => {
     return (
@@ -922,37 +917,34 @@ export default function FloatingItineraryPanel({
                                   <span className="relative z-10 w-[11px] h-[11px] rounded-full transition-all" style={isSelected
                                     ? { background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 2px 7px -1px rgba(239,68,68,.5), 0 0 0 3px var(--itn-card)' }
                                     : { background: 'var(--itn-card)', boxShadow: 'inset 0 0 0 2px var(--itn-border)' }} />
+                                  {editingTimeId === item.id ? (
+                                    <input
+                                      autoFocus
+                                      value={timeDraft}
+                                      onChange={(e) => setTimeDraft(e.target.value)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onBlur={() => { setItemTime(dayData.day, item.id, timeDraft.trim()); setEditingTimeId(null); }}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') { setItemTime(dayData.day, item.id, timeDraft.trim()); setEditingTimeId(null); } if (e.key === 'Escape') setEditingTimeId(null); }}
+                                      placeholder="00:00"
+                                      maxLength={5}
+                                      className="relative z-10 w-[44px] text-[10px] font-bold text-center rounded-md leading-none"
+                                      style={{ color: 'var(--itn-accent)', border: '1px solid var(--itn-accent)', background: 'var(--itn-card)', outline: 'none', fontVariantNumeric: 'tabular-nums', padding: '3px 0' }}
+                                    />
+                                  ) : (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); setTimeDraft(item.visit_time || '12:30'); setEditingTimeId(editingTimeId === item.id ? null : item.id); }}
+                                    onClick={(e) => { e.stopPropagation(); setTimeDraft(item.visit_time || ''); setEditingTimeId(item.id); }}
                                     className="relative z-10 text-[10px] font-bold leading-none cursor-pointer transition-opacity hover:opacity-60"
-                                    style={{ color: editingTimeId === item.id ? 'var(--itn-accent)' : 'var(--itn-text-muted)', fontVariantNumeric: 'tabular-nums' }}
-                                    title="클릭해서 시간 선택"
+                                    style={{ color: 'var(--itn-text-muted)', fontVariantNumeric: 'tabular-nums' }}
+                                    title="클릭해서 시간 입력"
                                   >
                                     {item.visit_time || '00:00'}
                                   </button>
-                                  {editingTimeId === item.id && (
-                                    <div className="absolute top-0 left-full ml-2 z-50 rounded-2xl p-2.5" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow-lg)' }} onClick={(e) => e.stopPropagation()}>
-                                      <div className="text-[10px] font-black mb-1.5 px-0.5" style={{ color: 'var(--itn-text-muted)' }}>방문 시간</div>
-                                      <div className="flex items-center gap-1.5">
-                                        <input
-                                          type="time"
-                                          autoFocus
-                                          value={timeDraft}
-                                          onChange={(e) => setTimeDraft(e.target.value)}
-                                          onKeyDown={(e) => { if (e.key === 'Enter') { setItemTime(dayData.day, item.id, timeDraft); setEditingTimeId(null); } }}
-                                          className="text-[13px] font-bold rounded-lg px-2 py-1.5"
-                                          style={{ background: 'var(--itn-card-hover)', color: 'var(--itn-text)', border: '1px solid var(--itn-border)', outline: 'none', fontVariantNumeric: 'tabular-nums' }}
-                                        />
-                                        <button onClick={() => { setItemTime(dayData.day, item.id, timeDraft); setEditingTimeId(null); }} className="px-3 h-8 rounded-lg text-[11px] font-black text-white" style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}>적용</button>
-                                      </div>
-                                      <button onClick={() => { setItemTime(dayData.day, item.id, ''); setEditingTimeId(null); }} className="mt-1.5 text-[10px] font-bold px-0.5" style={{ color: 'var(--itn-text-muted)' }}>시간 지우기</button>
-                                    </div>
                                   )}
                                 </div>
-                                <div className="min-w-0 relative group/card">
-                              {/* 통합 컨트롤 — 편집 모드 + hover, 카드 우상단 플로팅(썸네일 밖) */}
-                              {editMode && (
-                                <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 p-1 rounded-xl z-30 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow)' }} onClick={e => e.stopPropagation()}>
+                                <div className="min-w-0 relative" onMouseEnter={() => setHoverCardId(item.id)} onMouseLeave={() => setHoverCardId(null)}>
+                              {/* 통합 컨트롤 — 편집 모드 + hover(카드 우상단 플로팅) */}
+                              {editMode && hoverCardId === item.id && (
+                                <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 p-1 rounded-xl z-30" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', boxShadow: 'var(--itn-shadow)' }} onClick={e => e.stopPropagation()}>
                                   {controlButtons}
                                 </div>
                               )}
