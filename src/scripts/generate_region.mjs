@@ -17,6 +17,7 @@ const STEPS = [
   ['tourapi', 'node', ['--env-file=.env.local', `${S}/enrich_tourapi.mjs`], { REGION: cfg.label }],
   ['chakhan', 'node', ['--env-file=.env.local', `${S}/enrich_from_chakhan.mjs`], {}],
   ['embeddings', 'node', [`${S}/enrich_embeddings.mjs`], { REGION: cfg.label }],
+  ['verify', 'node', [`${S}/verify_region.mjs`], { REGION: cfg.label }],
 ];
 
 function runStep(name, cmd, args, extraEnv) {
