@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DailyItinerary, ItineraryItem, Itinerary, Restaurant } from '@/types';
-import { MapPin, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Utensils, GripVertical, Heart, Share2, MoreVertical, RotateCcw, Eye, LayoutGrid, List, ChevronRight } from 'lucide-react';
+import { MapPin, Trash2, ChevronUp, ChevronDown, Check, X, Plus, Sparkles, Navigation, Edit3, ArrowLeft, Search, Utensils, GripVertical, Heart, Share2, MoreVertical, RotateCcw, Eye, LayoutGrid, List, ChevronRight, Footprints, Car } from 'lucide-react';
 import { getDistance } from '@/lib/geoUtils';
 import { openExternal } from '@/lib/external-link';
 
@@ -163,6 +163,26 @@ export default function FloatingItineraryPanel({
       </div>
     </div>
   );
+
+  // 장소 간 직선거리(하버사인) + 여다식 흑백 교통 아이콘. 실측 API 대신 무료 계산.
+  const renderLeg = (prev: ItineraryItem, item: ItineraryItem) => {
+    const km = getDistance(prev.lat, prev.lng, item.lat, item.lng);
+    const distLabel = km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
+    const walk = km < 1; // 1km 미만 도보, 이상 차량 (직선거리 기준 자동 추정)
+    return (
+      <div className="relative grid items-center gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)', minHeight: 30 }}>
+        <div className="absolute top-0 bottom-0 w-[2px]" style={{ left: '19px', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
+        <div className="relative z-10 flex justify-center">
+          <span className="w-[22px] h-[22px] rounded-full flex items-center justify-center" style={{ background: 'var(--itn-card)', border: '1px solid var(--itn-border)', color: 'var(--itn-text-muted)' }}>
+            {walk ? <Footprints size={12} /> : <Car size={12} />}
+          </span>
+        </div>
+        <span className="text-[11px] font-bold" style={{ color: 'var(--itn-text-sub)' }}>
+          {walk ? '도보' : '차량'} · <span style={{ color: 'var(--itn-text-muted)' }}>{distLabel}</span>
+        </span>
+      </div>
+    );
+  };
 
   // 반응형 너비 계산
   const panelWidth = isMobile
@@ -815,6 +835,9 @@ export default function FloatingItineraryPanel({
 
                           return (
                              <div key={item.id} className="relative group/panel flex flex-col gap-0.5" style={{ marginTop: idx > 0 ? '2px' : '0' }}>
+
+                              {/* 이전 장소와의 직선거리 + 교통수단 */}
+                              {idx > 0 && renderLeg(dayItems[idx - 1], item)}
 
                               {/* 인라인 삽입 영역 (카드가 렌더링되기 바로 전 위치) */}
                               {renderInsertZone(dayData.day, idx)}
