@@ -164,6 +164,18 @@ export default function FloatingItineraryPanel({
     </div>
   );
 
+  // 방문 시간으로 끼니 슬롯 자동 라벨 (맛집 코스 문법)
+  const mealFromTime = (t?: string): string => {
+    if (!t) return '';
+    const h = parseInt(t.split(':')[0], 10);
+    if (isNaN(h)) return '';
+    if (h < 11) return '아침';
+    if (h < 15) return '점심';
+    if (h < 17) return '카페';
+    if (h < 21) return '저녁';
+    return '야식';
+  };
+
   // 장소 간 직선거리(하버사인) + 여다식 흑백 교통 아이콘. 실측 API 대신 무료 계산.
   const renderLeg = (prev: ItineraryItem, item: ItineraryItem) => {
     const km = getDistance(prev.lat, prev.lng, item.lat, item.lng);
@@ -844,12 +856,18 @@ export default function FloatingItineraryPanel({
 
                               {/* 좌측 시간 spine 마커 + 카드 컬럼 */}
                               <div className="relative grid gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)' }}>
-                                <div className="relative flex justify-center">
+                                <div className="relative flex flex-col items-center pt-2.5 gap-1">
                                   <div className="absolute top-0 bottom-0 w-[2px] rounded-full" style={{ left: '50%', transform: 'translateX(-50%)', background: 'var(--itn-border)' }} />
+                                  {item.visit_time && mealFromTime(item.visit_time) && (
+                                    <span className="relative z-10 text-[9px] font-black leading-none tracking-wide" style={{ color: 'var(--itn-text-muted)' }}>{mealFromTime(item.visit_time)}</span>
+                                  )}
+                                  <span className="relative z-10 w-[11px] h-[11px] rounded-full transition-all" style={isSelected
+                                    ? { background: 'linear-gradient(135deg,#ef4444,#f97316)', boxShadow: '0 2px 7px -1px rgba(239,68,68,.5), 0 0 0 3px var(--itn-card)' }
+                                    : { background: 'var(--itn-card)', boxShadow: 'inset 0 0 0 2px var(--itn-border)' }} />
                                   <button
                                     onClick={(e) => { e.stopPropagation(); onEditItemMemo(item); }}
-                                    className="relative z-10 mt-1 block text-[10px] font-black px-1.5 py-0.5 rounded-full text-white shadow-sm whitespace-nowrap leading-tight cursor-pointer active:scale-95 transition-transform"
-                                    style={{ background: 'linear-gradient(135deg,#ef4444,#f97316)' }}
+                                    className="relative z-10 text-[10px] font-bold leading-none cursor-pointer transition-opacity hover:opacity-60"
+                                    style={{ color: 'var(--itn-text-muted)', fontVariantNumeric: 'tabular-nums' }}
                                     title="방문 시간 편집"
                                   >
                                     {item.visit_time || '00:00'}
