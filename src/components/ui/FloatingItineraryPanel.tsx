@@ -107,6 +107,8 @@ export default function FloatingItineraryPanel({
   const [routeItem, setRouteItem] = useState<ItineraryItem | null>(null);
   // 슬롯 후보 펼침 대상 아이템 id
   const [openCandId, setOpenCandId] = useState<string | null>(null);
+  // 편집/보기 모드 (편집=조작 컨트롤 노출, 보기=콘텐츠만)
+  const [editMode, setEditMode] = useState<boolean>(true);
 
   const renderInsertZone = (targetDay: number, insertIdx: number) => {
     return (
@@ -148,6 +150,7 @@ export default function FloatingItineraryPanel({
         style={{ borderColor: 'var(--itn-border-subtle)' }}
         onClick={(e) => e.stopPropagation()}
       >
+        {editMode ? (
         <button
           onClick={() => onEditItemMemo(item)}
           className="text-[11.5px] font-bold px-2 py-1 rounded-lg transition-colors hover:bg-black/5 cursor-pointer"
@@ -155,6 +158,7 @@ export default function FloatingItineraryPanel({
         >
           {item.memo ? '✎ 메모 수정' : '＋ 메모'}
         </button>
+        ) : <span />}
         <button
           onClick={() => setRouteItem(item)}
           className="flex items-center gap-1 text-[11.5px] font-black px-3 py-1.5 rounded-full transition-all active:scale-95 cursor-pointer"
@@ -267,6 +271,7 @@ export default function FloatingItineraryPanel({
                     <div className="text-[12.5px] font-black truncate" style={{ color: 'var(--itn-text)' }}>{r.name} <span className="text-[10.5px] font-semibold" style={{ color: 'var(--itn-text-muted)' }}>{cat}</span></div>
                     <div className="text-[10.5px] font-semibold" style={{ color: 'var(--itn-text-muted)' }}>동선 {distLabel}</div>
                   </div>
+                  {editMode && (
                   <button
                     onClick={() => swapCandidate(dayNum, idx, r)}
                     className="shrink-0 text-[11px] font-black text-white rounded-lg px-2.5 py-1.5 active:scale-95 transition-transform cursor-pointer"
@@ -274,6 +279,7 @@ export default function FloatingItineraryPanel({
                   >
                     교체
                   </button>
+                  )}
                 </div>
               );
             })}
@@ -759,6 +765,14 @@ export default function FloatingItineraryPanel({
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <button
+                onClick={() => setEditMode(m => !m)}
+                className="mr-0.5 px-2.5 h-8 flex items-center gap-1 rounded-lg text-[11px] font-black transition-colors cursor-pointer"
+                style={editMode ? { color: '#fff', background: 'linear-gradient(135deg,#ef4444,#f97316)' } : { color: 'var(--itn-text-muted)', background: 'var(--itn-card-hover)' }}
+                title={editMode ? '편집 중 — 클릭하면 보기' : '보기 — 클릭하면 편집'}
+              >
+                {editMode ? <><Edit3 size={12} /> 편집</> : <><Eye size={12} /> 보기</>}
+              </button>
+              <button
                 onClick={handleCopyShareLink}
                 className="p-1.5 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
                 style={{ color: 'var(--itn-text-muted)' }}
@@ -938,8 +952,8 @@ export default function FloatingItineraryPanel({
                               {/* 이전 장소와의 직선거리 + 교통수단 */}
                               {idx > 0 && renderLeg(dayItems[idx - 1], item)}
 
-                              {/* 인라인 삽입 영역 (카드가 렌더링되기 바로 전 위치) */}
-                              {renderInsertZone(dayData.day, idx)}
+                              {/* 인라인 삽입 영역 (카드가 렌더링되기 바로 전 위치) — 편집 모드만 */}
+                              {editMode && renderInsertZone(dayData.day, idx)}
 
                               {/* 좌측 시간 spine 마커 + 카드 컬럼 */}
                               <div className="relative grid gap-1.5" style={{ gridTemplateColumns: '38px minmax(0,1fr)' }}>
@@ -966,7 +980,7 @@ export default function FloatingItineraryPanel({
                                 <div className={`relative rounded-2xl w-full group ${isSelected ? 'ring-2 ring-orange-400' : ''}`}>
                                   {renderRestaurantCard(reg, timelineLayout, {
                                     hideDistance: true,
-                                    actionNode: controlButtons,
+                                    actionNode: editMode ? controlButtons : undefined,
                                     isItinerary: true,
                                     onClick: () => { onActiveDayChange(dayData.day); onSelectItem(item); },
                                     onDragStart: (e: any) => { e.dataTransfer.setData('text/plain', JSON.stringify({ __moveItem: true, itemId: item.id, fromDay: dayData.day })); },
@@ -996,10 +1010,12 @@ export default function FloatingItineraryPanel({
                                   ...(isSelected ? { ringColor: 'rgba(var(--itn-accent-rgb), 0.2)' } : {})
                                 }}
                               >
-                                {/* 컨트롤 — 호버 오버레이 */}
+                                {/* 컨트롤 — 호버 오버레이 (편집 모드만) */}
+                                {editMode && (
                                 <div className="absolute top-2 right-2 flex items-center gap-0.5 bg-white/95 backdrop-blur-sm p-1 rounded-xl shadow-md z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200" onClick={e => e.stopPropagation()}>
                                   {controlButtons}
                                 </div>
+                                )}
 
                                 {/* 이름/주소 (시간은 좌측 spine 마커) */}
                                 <div className="min-w-0 pr-10">
@@ -1052,15 +1068,15 @@ export default function FloatingItineraryPanel({
                                 </div>
                               </div>
 
-                              {/* 마지막 카드인 경우 하단에 삽입 영역 하나 더 렌더링 */}
-                              {idx === dayItems.length - 1 && renderInsertZone(dayData.day, dayItems.length)}
+                              {/* 마지막 카드인 경우 하단에 삽입 영역 하나 더 렌더링 — 편집 모드만 */}
+                              {editMode && idx === dayItems.length - 1 && renderInsertZone(dayData.day, dayItems.length)}
                             </div>
                           );
                         })
                       )}
 
-                      {/* Day add spot button */}
-                      {dayItems.length > 0 && (
+                      {/* Day add spot button — 편집 모드만 */}
+                      {editMode && dayItems.length > 0 && (
                       <div className="flex justify-center pt-3 pb-1">
                         <button
                           onClick={() => {
