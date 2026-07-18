@@ -14,6 +14,7 @@ const STEPS = [
   ['seed', 'node', ['--env-file=.env.local', `${S}/seed_region.mjs`, key], {}],
   ['reviews', 'node', [`${S}/enrich_reviews.mjs`], { REGION: cfg.label }],
   ['restaurants', 'node', ['--env-file=.env.local', `${S}/enrich_restaurants.mjs`], {}],
+  ['tourapi', 'node', ['--env-file=.env.local', `${S}/enrich_tourapi.mjs`], { REGION: cfg.label }],
   ['chakhan', 'node', ['--env-file=.env.local', `${S}/enrich_from_chakhan.mjs`], {}],
   ['embeddings', 'node', [`${S}/enrich_embeddings.mjs`], { REGION: cfg.label }],
 ];
